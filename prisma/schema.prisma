@@ -1,0 +1,763 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  GUEST
+  USER
+  MODERATOR
+  ADMIN
+}
+
+enum ImportanceLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ReliabilityStatus {
+  UNVERIFIED
+  VERIFIED
+  DISPUTED
+  RETRACTED
+}
+
+enum ContentStatus {
+  DRAFT
+  PENDING
+  PUBLISHED
+  REJECTED
+  ARCHIVED
+}
+
+enum ReportStatus {
+  PENDING
+  REVIEWED
+  RESOLVED
+  DISMISSED
+}
+
+enum NotificationType {
+  REPLY
+  MENTION
+  NEWS_ALERT
+  SYSTEM
+  MODERATION
+  UPVOTE
+  PRICE_ALERT
+  ECONOMIC_EVENT
+  PORTFOLIO_ALERT
+}
+
+enum AssetCategory {
+  STOCKS
+  FOREX
+  CRYPTO
+  COMMODITIES
+  INDICES
+}
+
+enum AlertType {
+  PRICE_CROSS_ABOVE
+  PRICE_CROSS_BELOW
+  PERCENT_CHANGE
+  VOLATILITY_SPIKE
+  NEWS_MENTION
+}
+
+enum AlertChannel {
+  IN_APP
+  EMAIL
+  BOTH
+}
+
+enum EconomicEventType {
+  CPI
+  NFP
+  FOMC
+  GDP
+  UNEMPLOYMENT
+  OTHER
+}
+
+enum EventImpact {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum InterestCategory {
+  FOREX
+  STOCKS
+  CRYPTO
+  COMMODITIES
+  FUTURES
+  MACROECONOMICS
+}
+
+enum PostCategory {
+  FOREX
+  STOCKS
+  CRYPTO
+  MACRO
+  RISK_MANAGEMENT
+  TRADING_PSYCHOLOGY
+}
+
+enum AuditAction {
+  USER_SUSPEND
+  USER_BAN
+  USER_UNBAN
+  USER_ROLE_CHANGE
+  CONTENT_APPROVE
+  CONTENT_REJECT
+  CONTENT_DELETE
+  CONTENT_FEATURE
+  NEWS_CREATE
+  NEWS_UPDATE
+  NEWS_DELETE
+  REPORT_RESOLVE
+  SETTINGS_UPDATE
+  MAINTENANCE_TOGGLE
+  FEATURE_FLAG_TOGGLE
+}
+
+model User {
+  id                   String    @id @default(cuid())
+  email                String    @unique
+  passwordHash         String?
+  name                 String
+  role                 Role      @default(USER)
+  avatar               String?
+  bio                  String?
+  emailVerified        DateTime?
+  twoFactorEnabled     Boolean   @default(false)
+  twoFactorSecret      String?
+  reputation           Int       @default(0)
+  contributionCount    Int       @default(0)
+  isSuspended          Boolean   @default(false)
+  isBanned             Boolean   @default(false)
+  failedLoginAttempts  Int       @default(0)
+  lockedUntil          DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  deletedAt            DateTime?
+
+  sessions             Session[]
+  oauthAccounts        OAuthAccount[]
+  passwordResetTokens  PasswordResetToken[]
+  emailVerificationTokens EmailVerificationToken[]
+  interests            UserInterest[]
+  articles             Article[]
+  discussions          Discussion[]
+  comments             Comment[]
+  bookmarks            Bookmark[]
+  watchlists           Watchlist[]
+  notifications        Notification[]
+  reports              Report[]          @relation("Reporter")
+  auditLogs            AuditLog[]
+  activities           UserActivity[]
+  badges               UserBadge[]
+  articleLikes         ArticleLike[]
+  discussionVotes      DiscussionVote[]
+  aiConversations      AIConversation[]
+  newsCreated          News[]            @relation("NewsCreator")
+  alertRules           AlertRule[]
+  priceAlerts          PriceAlert[]
+  portfolios           Portfolio[]
+
+  @@index([email])
+  @@index([role])
+  @@index([deletedAt])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
+}
+
+model OAuthAccount {
+  id                String @id @default(cuid())
+  userId            String
+  provider          String
+  providerAccountId String
+  accessToken       String?
+  refreshToken      String?
+  expiresAt         DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+}
+
+model EmailVerificationToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+}
+
+model NewsSource {
+  id               String   @id @default(cuid())
+  name             String   @unique
+  url              String?
+  reliabilityScore Float    @default(0.5)
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  news News[]
+}
+
+model NewsCategory {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  slug      String   @unique
+  createdAt DateTime @default(now())
+
+  news News[]
+}
+
+model News {
+  id                String            @id @default(cuid())
+  headline          String
+  summary           String?
+  content           String?
+  sourceId          String
+  categoryId        String?
+  importance        ImportanceLevel   @default(MEDIUM)
+  reliabilityStatus ReliabilityStatus @default(UNVERIFIED)
+  aiInterpretation  Json?
+  publishedAt       DateTime          @default(now())
+  createdById       String?
+  externalId        String?
+  providerName      String?
+  sourceUrl         String?
+  isPinned          Boolean           @default(false)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  source     NewsSource    @relation(fields: [sourceId], references: [id])
+  category   NewsCategory? @relation(fields: [categoryId], references: [id])
+  createdBy  User?         @relation("NewsCreator", fields: [createdById], references: [id])
+  assets     NewsAsset[]
+  bookmarks  Bookmark[]
+  comments   Comment[]
+
+  @@unique([providerName, externalId])
+  @@index([publishedAt])
+  @@index([importance])
+  @@index([sourceId])
+  @@index([categoryId])
+  @@index([isPinned])
+}
+
+model NewsAsset {
+  id       String @id @default(cuid())
+  newsId   String
+  symbol   String
+  assetType String
+
+  news News @relation(fields: [newsId], references: [id], onDelete: Cascade)
+
+  @@index([newsId])
+  @@index([symbol])
+}
+
+model Tag {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  slug      String   @unique
+  createdAt DateTime @default(now())
+
+  articles ArticleTag[]
+}
+
+model Article {
+  id          String        @id @default(cuid())
+  title       String
+  slug        String        @unique
+  content     String
+  excerpt     String?
+  authorId    String
+  category    PostCategory
+  status      ContentStatus @default(PENDING)
+  featured    Boolean       @default(false)
+  viewCount   Int           @default(0)
+  publishedAt DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  author    User         @relation(fields: [authorId], references: [id])
+  tags      ArticleTag[]
+  likes     ArticleLike[]
+  bookmarks Bookmark[]
+  comments  Comment[]
+
+  @@index([authorId])
+  @@index([status])
+  @@index([category])
+  @@index([publishedAt])
+  @@index([status, publishedAt])
+  @@index([status, featured, publishedAt])
+}
+
+model ArticleTag {
+  articleId String
+  tagId     String
+
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  tag     Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([articleId, tagId])
+}
+
+model ArticleLike {
+  userId    String
+  articleId String
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, articleId])
+}
+
+model Discussion {
+  id          String       @id @default(cuid())
+  title       String
+  content     String
+  authorId    String
+  category    PostCategory
+  upvoteCount Int          @default(0)
+  downvoteCount Int        @default(0)
+  isPinned    Boolean      @default(false)
+  isLocked    Boolean      @default(false)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  author   User             @relation(fields: [authorId], references: [id])
+  comments Comment[]
+  votes    DiscussionVote[]
+
+  @@index([authorId])
+  @@index([createdAt])
+  @@index([category])
+  @@index([upvoteCount])
+}
+
+model DiscussionVote {
+  userId       String
+  discussionId String
+  value        Int
+  createdAt    DateTime @default(now())
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  discussion Discussion @relation(fields: [discussionId], references: [id], onDelete: Cascade)
+
+  @@id([userId, discussionId])
+}
+
+model Comment {
+  id           String   @id @default(cuid())
+  content      String
+  authorId     String
+  newsId       String?
+  articleId    String?
+  discussionId String?
+  parentId     String?
+  isRemoved    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  author     User        @relation(fields: [authorId], references: [id])
+  news       News?       @relation(fields: [newsId], references: [id], onDelete: Cascade)
+  article    Article?    @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  discussion Discussion? @relation(fields: [discussionId], references: [id], onDelete: Cascade)
+  parent     Comment?    @relation("CommentReplies", fields: [parentId], references: [id])
+  replies    Comment[]   @relation("CommentReplies")
+
+  @@index([authorId])
+  @@index([newsId])
+  @@index([articleId])
+  @@index([discussionId])
+  @@index([parentId])
+}
+
+model Bookmark {
+  id        String   @id @default(cuid())
+  userId    String
+  newsId    String?
+  articleId String?
+  createdAt DateTime @default(now())
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  news    News?    @relation(fields: [newsId], references: [id], onDelete: Cascade)
+  article Article? @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, newsId])
+  @@unique([userId, articleId])
+  @@index([userId])
+}
+
+model Watchlist {
+  id        String         @id @default(cuid())
+  userId    String
+  name      String
+  category  AssetCategory?
+  sortOrder Int            @default(0)
+  assets    Json           @default("[]")
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  user  User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items WatchlistItem[]
+  alerts PriceAlert[]
+
+  @@index([userId])
+  @@index([userId, sortOrder])
+}
+
+model WatchlistItem {
+  id          String        @id @default(cuid())
+  watchlistId String
+  symbol      String
+  assetType   String
+  category    AssetCategory @default(STOCKS)
+  sortOrder   Int           @default(0)
+  addedAt     DateTime      @default(now())
+
+  watchlist Watchlist @relation(fields: [watchlistId], references: [id], onDelete: Cascade)
+
+  @@unique([watchlistId, symbol, assetType])
+  @@index([watchlistId, sortOrder])
+  @@index([symbol])
+}
+
+model PriceAlert {
+  id          String        @id @default(cuid())
+  userId      String
+  watchlistId String?
+  symbol      String
+  assetType   String
+  alertType   AlertType
+  threshold   Float?
+  keyword     String?
+  channels    AlertChannel  @default(IN_APP)
+  isActive    Boolean       @default(true)
+  triggeredAt DateTime?
+  createdAt   DateTime      @default(now())
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  watchlist Watchlist? @relation(fields: [watchlistId], references: [id], onDelete: SetNull)
+
+  @@index([userId, isActive])
+  @@index([symbol, assetType])
+}
+
+model AlertRule {
+  id              String       @id @default(cuid())
+  userId          String
+  name            String
+  symbol          String?
+  assetType       String?
+  alertType       AlertType
+  threshold       Float?
+  keyword         String?
+  channels        AlertChannel @default(IN_APP)
+  isActive        Boolean      @default(true)
+  lastTriggeredAt DateTime?
+  createdAt       DateTime     @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isActive])
+}
+
+model EconomicEvent {
+  id          String            @id @default(cuid())
+  type        EconomicEventType
+  title       String
+  country     String            @default("US")
+  scheduledAt DateTime
+  impact      EventImpact       @default(MEDIUM)
+  previous    String?
+  forecast    String?
+  actual      String?
+  timezone    String            @default("America/New_York")
+  createdAt   DateTime          @default(now())
+
+  @@index([scheduledAt])
+  @@index([type])
+  @@index([impact])
+}
+
+model Portfolio {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String   @default("Main Portfolio")
+  currency  String   @default("USD")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  positions PortfolioPosition[]
+
+  @@unique([userId, name])
+  @@index([userId])
+}
+
+model PortfolioPosition {
+  id          String   @id @default(cuid())
+  portfolioId String
+  symbol      String
+  assetType   String
+  category    AssetCategory @default(STOCKS)
+  quantity    Float
+  entryPrice  Float
+  entryDate   DateTime @default(now())
+  notes       String?
+
+  portfolio Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+
+  @@index([portfolioId])
+  @@index([symbol])
+}
+
+model PriceHistory {
+  id        String   @id @default(cuid())
+  symbol    String
+  assetType String
+  price     Float
+  timestamp DateTime @default(now())
+
+  @@index([symbol, assetType, timestamp])
+}
+
+model AssetProfile {
+  id          String        @id @default(cuid())
+  slug        String        @unique
+  symbol      String
+  assetType   String
+  category    AssetCategory
+  name        String
+  description String?
+
+  @@unique([symbol, assetType])
+  @@index([category])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  message   String
+  read      Boolean          @default(false)
+  metadata  Json?
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([read])
+  @@index([userId, read])
+  @@index([createdAt])
+}
+
+model Report {
+  id           String       @id @default(cuid())
+  reporterId   String
+  targetType   String
+  targetId     String
+  reason       String
+  description  String?
+  status       ReportStatus @default(PENDING)
+  reviewedById String?
+  reviewedAt   DateTime?
+  createdAt    DateTime     @default(now())
+
+  reporter User @relation("Reporter", fields: [reporterId], references: [id])
+
+  @@index([status])
+  @@index([targetType, targetId])
+}
+
+model AuditLog {
+  id         String      @id @default(cuid())
+  adminId    String
+  action     AuditAction
+  targetType String?
+  targetId   String?
+  metadata   Json?
+  ipAddress  String?
+  createdAt  DateTime    @default(now())
+
+  admin User @relation(fields: [adminId], references: [id])
+
+  @@index([adminId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model SiteSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+model FeatureFlag {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  enabled   Boolean  @default(false)
+  updatedAt DateTime @updatedAt
+}
+
+model UserInterest {
+  id       String           @id @default(cuid())
+  userId   String
+  category InterestCategory
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, category])
+}
+
+model UserActivity {
+  id        String   @id @default(cuid())
+  userId    String
+  action    String
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model Badge {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String
+  icon        String
+  createdAt   DateTime @default(now())
+
+  users UserBadge[]
+}
+
+model UserBadge {
+  userId   String
+  badgeId  String
+  earnedAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badge Badge @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+
+  @@id([userId, badgeId])
+}
+
+model AIConversation {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String   @default("New Conversation")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user     User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages AIMessage[]
+
+  @@index([userId])
+}
+
+model AIMessage {
+  id             String   @id @default(cuid())
+  conversationId String
+  role           String
+  content        String
+  sources        Json?
+  tokenCount     Int?
+  createdAt      DateTime @default(now())
+
+  conversation AIConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+}
+
+model MarketQuote {
+  id            String   @id @default(cuid())
+  symbol        String
+  assetType     String
+  name          String?
+  price         Float
+  change        Float?
+  changePercent Float?
+  providerName  String?
+  updatedAt     DateTime @updatedAt
+
+  @@unique([symbol, assetType])
+  @@index([assetType])
+}
+
+model IngestionLog {
+  id             String    @id @default(cuid())
+  provider       String
+  status         String
+  itemsProcessed Int       @default(0)
+  itemsSkipped   Int       @default(0)
+  errorMessage   String?
+  startedAt      DateTime  @default(now())
+  completedAt    DateTime?
+
+  @@index([provider])
+  @@index([startedAt])
+}
+
+model AIUsageLog {
+  id             String   @id @default(cuid())
+  userId         String
+  conversationId String?
+  promptTokens   Int      @default(0)
+  completionTokens Int    @default(0)
+  model          String?
+  createdAt      DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+}

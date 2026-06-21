@@ -1,0 +1,51 @@
+{
+  "name": "news-for-trader",
+  "version": "2.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "prisma generate && next build",
+    "start": "next start",
+    "lint": "eslint src --max-warnings 0",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:studio": "prisma studio",
+    "ingest:news": "tsx scripts/ingest-news.ts",
+    "postinstall": "prisma generate"
+  },
+  "dependencies": {
+    "@hookform/resolvers": "^5.0.1",
+    "@prisma/client": "^6.9.0",
+    "argon2": "^0.43.0",
+    "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
+    "jose": "^6.0.11",
+    "lucide-react": "^0.511.0",
+    "next": "16.2.9",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "react-hook-form": "^7.56.4",
+    "react-markdown": "^10.1.0",
+    "tailwind-merge": "^3.3.0",
+    "uuid": "^11.1.0",
+    "zod": "^3.25.36"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@types/uuid": "^10.0.0",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.9",
+    "prisma": "^6.9.0",
+    "tailwindcss": "^4",
+    "tsx": "^4.19.4",
+    "typescript": "^5"
+  }
+}
