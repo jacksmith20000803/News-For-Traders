@@ -1,18 +1,21 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, useCallback, useRef, type ReactNode } from "react";
 import type { SafeUser } from "@/types";
+import { readJsonResponse } from "@/lib/api/client";
 
 interface AuthContextValue {
   user: SafeUser | null;
   isLoading: boolean;
   refresh: () => Promise<void>;
+  setAuthenticatedUser: (user: SafeUser | null) => void;
 }
 
 const AuthContext = createContext<AuthContextValue>({
   user: null,
   isLoading: true,
   refresh: async () => {},
+  setAuthenticatedUser: () => {},
 });
 
 export function AuthProvider({
@@ -23,27 +26,46 @@ export function AuthProvider({
   initialUser: SafeUser | null;
 }) {
   const [user, setUser] = useState<SafeUser | null>(initialUser);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const initialUserRef = useRef(initialUser);
+  const didInitialRefreshRef = useRef(false);
 
-  const refresh = async () => {
+  const setAuthenticatedUser = useCallback((nextUser: SafeUser | null) => {
+    setUser(nextUser);
+    initialUserRef.current = nextUser;
+  }, []);
+
+  const refresh = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch("/api/auth/me");
-      const json = await res.json();
-      setUser(json.success ? json.data?.user ?? null : null);
+      const res = await fetch("/api/auth/me", {
+        cache: "no-store",
+        credentials: "same-origin",
+      });
+      const json = await readJsonResponse<{ success: boolean; data?: { user?: SafeUser | null } }>(res);
+      setAuthenticatedUser(json.success ? json.data?.user ?? null : null);
     } catch {
-      setUser(null);
+      setAuthenticatedUser(null);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [setAuthenticatedUser]);
 
   useEffect(() => {
-    setUser(initialUser);
+    if (initialUserRef.current !== initialUser) {
+      setUser(initialUser);
+      initialUserRef.current = initialUser;
+    }
   }, [initialUser]);
 
+  useEffect(() => {
+    if (didInitialRefreshRef.current) return;
+    didInitialRefreshRef.current = true;
+    void refresh();
+  }, [refresh]);
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, refresh }}>
+    <AuthContext.Provider value={{ user, isLoading, refresh, setAuthenticatedUser }}>
       {children}
     </AuthContext.Provider>
   );

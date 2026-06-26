@@ -1,5 +1,5 @@
 import { apiError, apiSuccess, handleApiError, parseJsonBody } from "@/lib/api/response";
-import { requireAuth, requireVerifiedEmail, validateCsrf } from "@/lib/auth/guards";
+import { requireVerifiedEmail, validateCsrf } from "@/lib/auth/guards";
 import { commentSchema } from "@/lib/validations/content";
 import { db } from "@/lib/db";
 import { logUserActivity } from "@/lib/audit";

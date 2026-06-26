@@ -2,14 +2,28 @@ import { requireAdminPage } from "@/lib/auth/admin-guard";
 import { db } from "@/lib/db";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import Link from "next/link";
+import Image from "next/image";
 
 export default async function AdminSettingsPage() {
-  await requireAdminPage();
+  const adminUser = await requireAdminPage();
 
-  const [settings, flags] = await Promise.all([
+  // Log admin settings page access for security audit
+  await db.auditLog.create({
+    data: {
+      adminId: adminUser.id,
+      action: "SETTINGS_UPDATE",
+      ipAddress: "SYSTEM",
+      metadata: { action: "SETTINGS_PAGE_VIEW" },
+    },
+  });
+
+  const [settings, flags, bgImage] = await Promise.all([
     db.siteSetting.findMany(),
     db.featureFlag.findMany(),
+    db.siteSetting.findUnique({ where: { key: "platform_background_image" } }),
   ]);
 
   return (
@@ -18,6 +32,54 @@ export default async function AdminSettingsPage() {
         <h1 className="text-2xl font-bold">System Settings</h1>
         <Link href="/admin" className="text-sm text-primary hover:underline">← Back</Link>
       </div>
+
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>Platform Background Image</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-2">Background Image URL</label>
+            <Input
+              defaultValue={bgImage?.value || ""}
+              placeholder="https://example.com/image.jpg"
+              id="bgImageUrl"
+            />
+          </div>
+          {bgImage?.value && (
+            <div>
+              <label className="block text-sm font-medium mb-2">Current Background</label>
+              <div className="w-full h-32 rounded-lg overflow-hidden border border-border">
+                <Image
+                  src={bgImage.value}
+                  alt="Platform background"
+                  width={800}
+                  height={128}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = "none";
+                  }}
+                />
+              </div>
+            </div>
+          )}
+          <Button
+            onClick={() => {
+              const input = document.getElementById('bgImageUrl') as HTMLInputElement;
+              const url = input?.value;
+              if (url) {
+                fetch('/api/admin/settings/background', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ imageUrl: url })
+                }).then(() => window.location.reload());
+              }
+            }}
+          >
+            Update Background
+          </Button>
+        </CardContent>
+      </Card>
 
       <Card className="mb-6">
         <CardHeader>

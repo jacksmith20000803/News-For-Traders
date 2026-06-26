@@ -18,41 +18,61 @@ function getStoredTheme(): Theme {
   if (typeof window === "undefined") return "dark";
 
   try {
-    return (localStorage.getItem(themeStorageKey) as Theme | null) ?? "system";
+    const stored = localStorage.getItem(themeStorageKey) as Theme | null;
+    return stored ?? "dark";
   } catch {
-    return "system";
+    return "dark";
   }
 }
 
 function getSystemTheme(): "light" | "dark" {
-  if (typeof window === "undefined") return "light";
+  if (typeof window === "undefined") return "dark";
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
 function applyTheme(theme: Theme): "light" | "dark" {
+  if (typeof window === "undefined") return "dark";
   const resolved = theme === "system" ? getSystemTheme() : theme;
-  document.documentElement.classList.toggle("dark", resolved === "dark");
+
+  if (resolved === "dark") {
+    document.documentElement.classList.add("dark");
+    document.documentElement.classList.remove("light");
+  } else {
+    document.documentElement.classList.remove("dark");
+    document.documentElement.classList.add("light");
+  }
+
   return resolved;
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>("dark");
-  const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("dark");
+  const [theme, setThemeState] = useState<Theme>(() => getStoredTheme());
+  const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">(() => "dark");
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setThemeState(getStoredTheme());
+    const timer = window.setTimeout(() => {
+      setMounted(true);
+      const initialTheme = getStoredTheme();
+      const resolved = applyTheme(initialTheme);
+      setResolvedTheme(resolved);
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, []);
 
   useEffect(() => {
-    const resolved = applyTheme(theme);
-    setResolvedTheme(resolved);
+    // Only set up system theme listener on client
+    if (typeof window === "undefined" || !mounted) return;
 
     const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
-    const listener = () => setResolvedTheme(applyTheme(theme));
+    const listener = () => {
+      const newResolved = applyTheme(theme);
+      setResolvedTheme(newResolved);
+    };
 
     mediaQuery.addEventListener?.("change", listener);
     return () => mediaQuery.removeEventListener?.("change", listener);
-  }, [theme]);
+  }, [theme, mounted]);
 
   const setTheme = (next: Theme | ((current: Theme) => Theme)) => {
     setThemeState((current) => {
@@ -62,6 +82,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       } catch {
         // ignore localStorage write failures
       }
+      setResolvedTheme(applyTheme(nextTheme));
       return nextTheme;
     });
   };

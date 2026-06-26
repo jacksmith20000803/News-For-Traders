@@ -5,6 +5,7 @@ import { config } from "@/lib/config";
 
 const SESSION_COOKIE = "nft_session";
 const CSRF_COOKIE = "nft_csrf";
+const SESSION_DB_TIMEOUT_MS = 10_000;
 
 /** Cookie names exported for middleware cleanup. */
 export { SESSION_COOKIE, CSRF_COOKIE };
@@ -16,6 +17,23 @@ export interface SessionPayload {
 }
 
 const secret = new TextEncoder().encode(config.security.sessionSecret);
+
+async function withSessionTimeout<T>(promise: Promise<T>, fallback: T): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((resolve) => {
+        timeout = setTimeout(() => resolve(fallback), SESSION_DB_TIMEOUT_MS);
+      }),
+    ]);
+  } catch {
+    return fallback;
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
 
 export async function createSessionToken(payload: SessionPayload): Promise<string> {
   return new SignJWT({ ...payload })
@@ -64,29 +82,33 @@ export async function getCurrentUser() {
   const payload = await verifySessionToken(token);
   if (!payload) return null;
 
-  const session = await db.session.findUnique({
-    where: { id: payload.sessionId },
-    include: {
-      user: {
-        select: {
-          id: true,
-          email: true,
-          name: true,
-          role: true,
-          avatar: true,
-          bio: true,
-          reputation: true,
-          contributionCount: true,
-          emailVerified: true,
-          twoFactorEnabled: true,
-          isSuspended: true,
-          isBanned: true,
-          deletedAt: true,
-          createdAt: true,
+  const session = await withSessionTimeout(
+    db.session.findUnique({
+      where: { id: payload.sessionId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            role: true,
+            avatar: true,
+            bio: true,
+            reputation: true,
+            contributionCount: true,
+            emailVerified: true,
+            twoFactorEnabled: true,
+            isSuspended: true,
+            isBanned: true,
+            deletedAt: true,
+            onboardingCompleted: true,
+            createdAt: true,
+          },
         },
       },
-    },
-  });
+    }),
+    null
+  );
 
   if (!session || session.expiresAt < new Date()) {
     return null;
@@ -199,6 +221,7 @@ export function toSafeUser(user: NonNullable<Awaited<ReturnType<typeof getCurren
     contributionCount: user.contributionCount,
     emailVerified: user.emailVerified,
     twoFactorEnabled: user.twoFactorEnabled,
+    onboardingCompleted: user.onboardingCompleted,
     createdAt: user.createdAt,
   };
 }

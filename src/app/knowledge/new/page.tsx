@@ -61,7 +61,7 @@ export default function NewArticlePage() {
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value as PostCategory)}
-              className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+              className="btn-3d w-full rounded-lg border border-border bg-card px-3 py-2 text-sm appearance-none cursor-pointer"
             >
               {Object.entries(POST_CATEGORY_LABELS).map(([k, v]) => (
                 <option key={k} value={k}>{v}</option>

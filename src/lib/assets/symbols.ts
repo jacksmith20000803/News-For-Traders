@@ -10,8 +10,20 @@ export interface AssetInfo {
 
 /** Known asset slug mappings for /assets/[slug] routes */
 const SLUG_MAP: Record<string, AssetInfo> = {
+  ADA: { slug: "ADA", symbol: "ADA/USD", assetType: "crypto", category: "CRYPTO", name: "Cardano" },
+  ATOM: { slug: "ATOM", symbol: "ATOM/USD", assetType: "crypto", category: "CRYPTO", name: "Cosmos" },
+  AVAX: { slug: "AVAX", symbol: "AVAX/USD", assetType: "crypto", category: "CRYPTO", name: "Avalanche" },
+  BNB: { slug: "BNB", symbol: "BNB/USD", assetType: "crypto", category: "CRYPTO", name: "BNB" },
   BTC: { slug: "BTC", symbol: "BTC/USD", assetType: "crypto", category: "CRYPTO", name: "Bitcoin" },
+  DOGE: { slug: "DOGE", symbol: "DOGE/USD", assetType: "crypto", category: "CRYPTO", name: "Dogecoin" },
+  DOT: { slug: "DOT", symbol: "DOT/USD", assetType: "crypto", category: "CRYPTO", name: "Polkadot" },
   ETH: { slug: "ETH", symbol: "ETH/USD", assetType: "crypto", category: "CRYPTO", name: "Ethereum" },
+  LINK: { slug: "LINK", symbol: "LINK/USD", assetType: "crypto", category: "CRYPTO", name: "Chainlink" },
+  LTC: { slug: "LTC", symbol: "LTC/USD", assetType: "crypto", category: "CRYPTO", name: "Litecoin" },
+  SOL: { slug: "SOL", symbol: "SOL/USD", assetType: "crypto", category: "CRYPTO", name: "Solana" },
+  UNI: { slug: "UNI", symbol: "UNI/USD", assetType: "crypto", category: "CRYPTO", name: "Uniswap" },
+  XRP: { slug: "XRP", symbol: "XRP/USD", assetType: "crypto", category: "CRYPTO", name: "XRP" },
+  EUR: { slug: "EURUSD", symbol: "EUR/USD", assetType: "forex", category: "FOREX", name: "Euro / US Dollar" },
   EURUSD: { slug: "EURUSD", symbol: "EUR/USD", assetType: "forex", category: "FOREX", name: "Euro / US Dollar" },
   GBPUSD: { slug: "GBPUSD", symbol: "GBP/USD", assetType: "forex", category: "FOREX", name: "British Pound / US Dollar" },
   USDJPY: { slug: "USDJPY", symbol: "USD/JPY", assetType: "forex", category: "FOREX", name: "US Dollar / Japanese Yen" },

@@ -15,6 +15,8 @@ import { hashToken } from "@/lib/security/tokens";
 import { checkRateLimit, getClientIp } from "@/lib/security/rate-limit";
 import { config } from "@/lib/config";
 import { logUserActivity } from "@/lib/audit";
+import { createNotification } from "@/lib/notifications";
+import { parseUserAgent, parseGeoFromHeaders } from "@/lib/security/user-agent";
 
 export async function POST(request: NextRequest) {
   try {
@@ -38,7 +40,12 @@ export async function POST(request: NextRequest) {
     let user;
     try {
       user = await db.user.create({
-        data: { name: data.name, email, passwordHash },
+        data: {
+          name: data.name,
+          email,
+          passwordHash,
+          onboardingCompleted: true,
+        },
       });
     } catch (error) {
       if (
@@ -50,15 +57,6 @@ export async function POST(request: NextRequest) {
       throw error;
     }
 
-    const verificationToken = generateToken();
-    await db.emailVerificationToken.create({
-      data: {
-        userId: user.id,
-        token: hashToken(verificationToken),
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-      },
-    });
-
     await createUserSession(
       user.id,
       ip,
@@ -67,37 +65,123 @@ export async function POST(request: NextRequest) {
 
     const csrfToken = createSignedCsrfToken();
     await setCsrfCookie(csrfToken);
-    await logUserActivity(user.id, "REGISTER");
 
-    const fullUser = await db.user.findUnique({
-      where: { id: user.id },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        avatar: true,
-        bio: true,
-        reputation: true,
-        contributionCount: true,
-        emailVerified: true,
-        twoFactorEnabled: true,
-        isSuspended: true,
-        isBanned: true,
-        deletedAt: true,
-        createdAt: true,
-      },
+    const ua = parseUserAgent(request.headers.get("user-agent"));
+    const geo = parseGeoFromHeaders(request.headers);
+
+    schedulePostRegistrationTasks({
+      userId: user.id,
+      name: data.name,
+      email,
+      ip,
+      country: geo.country ?? undefined,
+      city: geo.city ?? undefined,
+      browser: ua.browser,
+      deviceType: ua.deviceType,
+      os: ua.os,
+      userAgent: ua.userAgent,
     });
 
     return apiSuccess(
       {
-        user: fullUser ? toSafeUser(fullUser) : null,
+        user: toSafeUser(user),
         csrfToken,
         message: "Account created successfully. Please verify your email.",
+        redirectTo: "/dashboard",
       },
       201
     );
   } catch (error) {
     return handleApiError(error);
   }
+}
+
+function schedulePostRegistrationTasks(params: {
+  userId: string;
+  name: string;
+  email: string;
+  ip: string;
+  country?: string;
+  city?: string;
+  browser: string;
+  deviceType: string;
+  os: string;
+  userAgent: string;
+}) {
+  setTimeout(() => {
+    void runPostRegistrationTasks(params);
+  }, 60_000);
+}
+
+async function runPostRegistrationTasks(params: {
+  userId: string;
+  name: string;
+  email: string;
+  ip: string;
+  country?: string;
+  city?: string;
+  browser: string;
+  deviceType: string;
+  os: string;
+  userAgent: string;
+}) {
+  const verificationToken = generateToken();
+
+  await Promise.allSettled([
+    db.emailVerificationToken.create({
+      data: {
+        userId: params.userId,
+        token: hashToken(verificationToken),
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      },
+    }),
+    logUserActivity(params.userId, "REGISTER"),
+    db.registrationAudit.create({
+      data: {
+        userId: params.userId,
+        ipAddress: params.ip,
+        country: params.country,
+        city: params.city,
+        browser: params.browser,
+        deviceType: params.deviceType,
+        os: params.os,
+        userAgent: params.userAgent,
+      },
+    }),
+    db.userPreferences.upsert({
+      where: { userId: params.userId },
+      create: { userId: params.userId },
+      update: {},
+    }),
+    db.notificationSettings.upsert({
+      where: { userId: params.userId },
+      create: { userId: params.userId },
+      update: {},
+    }),
+    notifyAdminsOfRegistration(params.userId, params.name, params.email, params.country),
+  ]);
+}
+
+async function notifyAdminsOfRegistration(
+  userId: string,
+  name: string,
+  email: string,
+  country?: string
+) {
+  const admins = await db.user.findMany({
+    where: { role: "ADMIN", deletedAt: null },
+    select: { id: true },
+  });
+
+  await Promise.all(
+    admins.map((admin) =>
+      createNotification({
+        userId: admin.id,
+        type: "NEW_REGISTRATION",
+        title: "New user registered",
+        message: `${name} (${email}) joined TRADX`,
+        metadata: { userId, country },
+      })
+    )
+  );
 }

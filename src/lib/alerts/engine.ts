@@ -37,7 +37,8 @@ function shouldTrigger(
   alertType: AlertType,
   threshold: number | null,
   quote: QuoteLookup,
-  keyword?: string | null
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _keyword?: string | null
 ): boolean {
   switch (alertType) {
     case "PRICE_CROSS_ABOVE":

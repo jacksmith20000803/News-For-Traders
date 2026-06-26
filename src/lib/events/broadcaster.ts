@@ -1,4 +1,4 @@
-type EventType = "news" | "notification" | "market";
+type EventType = "news" | "notification" | "market" | "chat";
 
 interface SSEClient {
   id: string;

@@ -4,68 +4,36 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
   Bot,
+  Loader2,
   Send,
   Sparkles,
-  Square,
   RotateCcw,
   Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AI_SUGGESTED_PROMPTS } from "@/lib/constants";
-import { getCsrfToken } from "@/lib/api/client";
 import { clientId } from "@/lib/client-id";
 import {
   ChatMessage,
   TypingIndicator,
-  StreamingMessage,
   type ChatMessageData,
 } from "@/components/ai/chat-message";
-import { parseAIStream } from "@/components/realtime/sse-provider";
-
-const STREAMING_ID = "__streaming__"; // reserved for stop-generation cleanup
+import { chatWithPuter } from "@/lib/puter/client";
 
 export default function AIPage() {
   const [messages, setMessages] = useState<ChatMessageData[]>([]);
   const [input, setInput] = useState("");
-  const [conversationId, setConversationId] = useState<string>();
   const [isLoading, setIsLoading] = useState(false);
-  const [configured, setConfigured] = useState<boolean | null>(null);
-  const [streamingContent, setStreamingContent] = useState("");
   const [lastFailedPrompt, setLastFailedPrompt] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
-  const abortRef = useRef<AbortController | null>(null);
-
-  useEffect(() => {
-    fetch("/api/ai/config")
-      .then((r) => r.json())
-      .then((json) => setConfigured(json.data?.configured ?? false))
-      .catch(() => setConfigured(false));
-  }, []);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, streamingContent, isLoading]);
-
-  const stopGeneration = useCallback(() => {
-    abortRef.current?.abort();
-    abortRef.current = null;
-    if (streamingContent) {
-      setMessages((prev) => [
-        ...prev.filter((m) => m.id !== STREAMING_ID),
-        {
-          id: clientId("msg"),
-          role: "assistant",
-          content: streamingContent + "\n\n*(Generation stopped)*",
-        },
-      ]);
-      setStreamingContent("");
-    }
-    setIsLoading(false);
-  }, [streamingContent]);
+  }, [messages, isLoading]);
 
   const sendMessage = useCallback(
     async (text: string) => {
-      if (!text.trim() || isLoading || !configured) return;
+      if (!text.trim() || isLoading) return;
 
       setLastFailedPrompt(null);
       const userMsg: ChatMessageData = {
@@ -77,87 +45,18 @@ export default function AIPage() {
       setMessages((prev) => [...prev, userMsg]);
       setInput("");
       setIsLoading(true);
-      setStreamingContent("");
-
-      const controller = new AbortController();
-      abortRef.current = controller;
 
       try {
-        const csrf = await getCsrfToken();
-        const res = await fetch("/api/ai/stream", {
-          method: "POST",
-          credentials: "same-origin",
-          signal: controller.signal,
-          headers: {
-            "Content-Type": "application/json",
-            "x-csrf-token": csrf,
-          },
-          body: JSON.stringify({ conversationId, message: text.trim() }),
-        });
-
-        if (!res.ok || !res.body) {
-          const json = await res.json().catch(() => null);
-          throw new Error(json?.error ?? "Request failed");
-        }
-
-        let fullContent = "";
-        let doneMessageId: string | null = null;
-
-        await parseAIStream(
-          res.body.getReader(),
-          {
-            onStart: (data) => {
-              if (data.conversationId) setConversationId(data.conversationId);
-            },
-            onChunk: (chunk) => {
-              fullContent += chunk;
-              setStreamingContent(fullContent);
-            },
-            onDone: (data) => {
-              if (data.conversationId) setConversationId(data.conversationId);
-              if (data.message?.id) {
-                doneMessageId = data.message.id;
-                setMessages((prev) => {
-                  const exists = prev.some((m) => m.id === data.message.id);
-                  if (exists) return prev;
-                  return [
-                    ...prev,
-                    {
-                      id: data.message.id,
-                      role: "assistant",
-                      content: data.message.content,
-                      sources: data.message.sources as ChatMessageData["sources"],
-                    },
-                  ];
-                });
-              }
-              setStreamingContent("");
-            },
-            onError: (msg) => {
-              throw new Error(msg);
-            },
-          },
-          controller.signal
-        );
-
-        if (fullContent && !doneMessageId) {
-          setMessages((prev) => {
-            const exists = prev.some((m) => m.content === fullContent && m.role === "assistant");
-            if (exists) return prev;
-            return [
-              ...prev,
-              { id: clientId("msg"), role: "assistant", content: fullContent },
-            ];
-          });
-          setStreamingContent("");
-        }
+        const content = await chatWithPuter(text.trim());
+        setMessages((prev) => [
+          ...prev,
+          { id: clientId("msg"), role: "assistant", content },
+        ]);
       } catch (err) {
-        if (controller.signal.aborted) return;
-
         const errorMsg =
           err instanceof Error
             ? err.message
-            : "Unable to process your request. Please sign in and try again.";
+            : "Unable to process your request. Please try again.";
 
         setLastFailedPrompt(text.trim());
         setMessages((prev) => [
@@ -169,36 +68,12 @@ export default function AIPage() {
             error: true,
           },
         ]);
-        setStreamingContent("");
       } finally {
         setIsLoading(false);
-        abortRef.current = null;
       }
     },
-    [conversationId, configured, isLoading]
+    [isLoading]
   );
-
-  if (configured === null) {
-    return (
-      <div className="flex h-[calc(100vh-4rem)] items-center justify-center">
-        <div className="typing-dot h-3 w-3 rounded-full bg-cyan-400" />
-      </div>
-    );
-  }
-
-  if (configured === false) {
-    return (
-      <div className="mx-auto max-w-lg px-4 py-20 text-center">
-        <div className="glass-panel mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl">
-          <Bot className="h-8 w-8 text-muted-foreground" />
-        </div>
-        <h1 className="text-xl font-bold mb-2 gradient-text">AI provider not configured</h1>
-        <p className="text-muted-foreground text-sm">
-          Set OPENAI_API_KEY or AI_API_KEY in your environment to enable the AI assistant.
-        </p>
-      </div>
-    );
-  }
 
   return (
     <div className="mx-auto flex h-[calc(100vh-4rem)] max-w-4xl flex-col px-4 py-6 sm:px-6">
@@ -210,7 +85,7 @@ export default function AIPage() {
           </div>
           <div>
             <h1 className="text-lg font-bold gradient-text">AI Market Assistant</h1>
-            <p className="text-xs text-muted-foreground">Powered by live market data</p>
+            <p className="text-xs text-muted-foreground">Powered by Puter.js</p>
           </div>
         </div>
         {lastFailedPrompt && (
@@ -228,7 +103,7 @@ export default function AIPage() {
 
       {/* Messages */}
       <div className="flex-1 space-y-4 overflow-y-auto pr-1 mb-4">
-        {messages.length === 0 && !streamingContent && !isLoading && (
+        {messages.length === 0 && !isLoading && (
           <div className="glass-panel rounded-2xl p-8 text-center">
             <Sparkles className="mx-auto mb-4 h-10 w-10 text-amber-400" />
             <p className="mb-1 font-medium">Ask anything about the markets</p>
@@ -254,9 +129,7 @@ export default function AIPage() {
           <ChatMessage key={msg.id} message={msg} />
         ))}
 
-        {streamingContent && <StreamingMessage content={streamingContent} />}
-
-        {isLoading && !streamingContent && <TypingIndicator />}
+        {isLoading && <TypingIndicator />}
 
         <div ref={bottomRef} />
       </div>
@@ -280,11 +153,11 @@ export default function AIPage() {
           <Button
             size="icon"
             variant="outline"
-            onClick={stopGeneration}
-            className="shrink-0 border-destructive/30 text-destructive hover:bg-destructive/10"
-            aria-label="Stop generation"
+            disabled
+            className="shrink-0"
+            aria-label="Generating response"
           >
-            <Square className="h-4 w-4 fill-current" />
+            <Loader2 className="h-4 w-4 animate-spin" />
           </Button>
         ) : (
           <Button

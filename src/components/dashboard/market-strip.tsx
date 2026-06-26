@@ -2,21 +2,17 @@
 
 import { TrendingUp, TrendingDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { subscribeRealtimeSync } from "@/components/realtime/realtime-sync";
 import { subscribeSSE } from "@/components/realtime/sse-provider";
 import { useEffect, useState } from "react";
 
 interface Quote {
-  id: string;
+  id?: string;
   symbol: string;
   price: number;
   changePercent: number | null;
   assetType: string;
 }
-
-const DEFAULT_SYMBOLS = [
-  "DXY", "EUR/USD", "GBP/USD", "USD/JPY", "XAU/USD", "XAG/USD",
-  "WTI", "BTC/USD", "ETH/USD", "SPY", "QQQ",
-];
 
 interface MarketStripProps {
   initialQuotes: Quote[];
@@ -26,25 +22,18 @@ interface MarketStripProps {
 function QuotePill({ quote }: { quote: Quote }) {
   const positive = (quote.changePercent ?? 0) >= 0;
   return (
-    <div className="flex shrink-0 items-center gap-2.5 px-4 font-mono text-xs">
+    <div className="flex shrink-0 items-center gap-3 px-5 font-mono text-sm">
       <span className="font-semibold text-foreground">{quote.symbol}</span>
       <span className="text-muted-foreground tabular-nums">
         {quote.price > 0 ? quote.price.toFixed(quote.price < 10 ? 4 : 2) : "—"}
       </span>
-      <span
-        className={cn(
-          "flex items-center gap-0.5 tabular-nums font-medium",
-          positive ? "text-accent" : "text-destructive"
-        )}
-      >
+      <span className={cn("flex items-center gap-1 tabular-nums font-medium", positive ? "text-accent" : "text-destructive")}>
         {quote.changePercent != null ? (
           <>
-            {positive ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+            {positive ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
             {positive ? "+" : ""}{quote.changePercent.toFixed(2)}%
           </>
-        ) : (
-          <span className="text-muted-foreground">—</span>
-        )}
+        ) : "—"}
       </span>
     </div>
   );
@@ -54,48 +43,47 @@ export function MarketStrip({ initialQuotes, configured }: MarketStripProps) {
   const [quotes, setQuotes] = useState(initialQuotes);
 
   useEffect(() => {
-    return subscribeSSE((event) => {
-      if (event === "market") {
-        fetch("/api/market")
-          .then((r) => r.json())
-          .then((json) => {
-            if (json.success && json.data.quotes?.length) {
-              setQuotes(json.data.quotes);
-            }
-          })
-          .catch(() => {});
+    const apply = (data: { quotes: Quote[] }) => {
+      if (data.quotes?.length) {
+        setQuotes(data.quotes.map((q, i) => ({ ...q, id: `q-${i}` })));
+      }
+    };
+
+    const unsubSync = subscribeRealtimeSync(apply);
+    const unsubSSE = subscribeSSE((event, data) => {
+      if (event === "market" && data && typeof data === "object" && "symbol" in data) {
+        const tick = data as { symbol: string; price: number; changePercent: number | null; assetType: string };
+        setQuotes((prev) => {
+          const idx = prev.findIndex((q) => q.symbol === tick.symbol);
+          if (idx >= 0) {
+            const next = [...prev];
+            next[idx] = { ...next[idx], price: tick.price, changePercent: tick.changePercent };
+            return next;
+          }
+          return prev;
+        });
       }
     });
+
+    return () => { unsubSync(); unsubSSE(); };
   }, []);
 
   if (!configured && quotes.length === 0) {
     return (
-      <div className="ticker-wrap px-4 py-2">
-        <p className="text-center text-xs text-muted-foreground font-mono">
-          Live data provider not configured.
-        </p>
+      <div className="ticker-wrap px-4 py-2.5">
+        <p className="text-center text-sm text-muted-foreground">Connecting market data…</p>
       </div>
     );
   }
 
-  const displayQuotes =
-    quotes.length > 0
-      ? quotes
-      : DEFAULT_SYMBOLS.map((symbol, i) => ({
-          id: `placeholder-${symbol}`,
-          symbol,
-          price: 0,
-          changePercent: null,
-          assetType: "unknown",
-        }));
-
-  const track = [...displayQuotes, ...displayQuotes];
+  const display = quotes.length > 0 ? quotes : initialQuotes;
+  const track = [...display, ...display];
 
   return (
-    <div className="ticker-wrap py-2">
+    <div className="ticker-wrap py-2.5">
       <div className="ticker-track">
         {track.map((q, i) => (
-          <QuotePill key={`${q.id}-${i}`} quote={q} />
+          <QuotePill key={`${q.symbol}-${i}`} quote={q} />
         ))}
       </div>
     </div>

@@ -4,7 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { ButtonLink } from "@/components/ui/button";
 
 function VerifyEmailContent() {
   const searchParams = useSearchParams();
@@ -14,9 +14,11 @@ function VerifyEmailContent() {
 
   useEffect(() => {
     if (!token) {
-      setStatus("error");
-      setMessage("Verification token is missing.");
-      return;
+      const timer = setTimeout(() => {
+        setStatus("error");
+        setMessage("Verification token is missing.");
+      }, 0);
+      return () => clearTimeout(timer);
     }
 
     fetch(`/api/auth/verify-email?token=${encodeURIComponent(token)}`)
@@ -48,9 +50,7 @@ function VerifyEmailContent() {
         {status === "success" && (
           <>
             <p className="text-accent">{message}</p>
-            <Link href="/login">
-              <Button>Sign in</Button>
-            </Link>
+            <ButtonLink href="/login">Sign in</ButtonLink>
           </>
         )}
         {status === "error" && (

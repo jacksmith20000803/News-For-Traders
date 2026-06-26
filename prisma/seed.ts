@@ -1,7 +1,8 @@
-import { PrismaClient } from "@prisma/client";
-import * as argon2 from "argon2";
+import { config } from "dotenv";
+config({ path: ".env" });
 
-const prisma = new PrismaClient();
+import { db as prisma } from "../src/lib/db";
+import * as argon2 from "argon2";
 
 async function main() {
   if (process.env.NODE_ENV === "production" && process.env.ALLOW_SEED !== "true") {
@@ -39,32 +40,10 @@ async function main() {
     },
   });
 
-  await prisma.user.upsert({
-    where: { email: "mod@marketpulse.com" },
-    update: {},
-    create: {
-      email: "mod@marketpulse.com",
-      name: "Market Moderator",
-      passwordHash: userPasswordHash,
-      role: "MODERATOR",
-      emailVerified: new Date(),
-      reputation: 500,
-      contributionCount: 0,
-    },
-  });
-
-  await prisma.user.upsert({
-    where: { email: "trader@marketpulse.com" },
-    update: {},
-    create: {
-      email: "trader@marketpulse.com",
-      name: "Pro Trader",
-      passwordHash: userPasswordHash,
-      role: "USER",
-      emailVerified: new Date(),
-      reputation: 250,
-      contributionCount: 0,
-      bio: "FX and macro trader with 10+ years experience.",
+  // Delete all non-admin users
+  await prisma.user.deleteMany({
+    where: {
+      role: { not: "ADMIN" },
     },
   });
 
@@ -86,14 +65,14 @@ async function main() {
 
   await prisma.siteSetting.upsert({
     where: { key: "platform_version" },
-    update: { value: "2.0.0" },
-    create: { key: "platform_version", value: "2.0.0" },
+    update: { value: "2.1.0" },
+    create: { key: "platform_version", value: "2.1.0" },
   });
 
   await prisma.siteSetting.upsert({
-    where: { key: "platform_version" },
-    update: { value: "2.1.0" },
-    create: { key: "platform_version", value: "2.1.0" },
+    where: { key: "platform_background_image" },
+    update: {},
+    create: { key: "platform_background_image", value: "" },
   });
 
   // Asset profiles for detail pages
@@ -170,6 +149,22 @@ async function main() {
     }
   }
 
+  // Create market quotes for real-time data
+  await prisma.marketQuote.deleteMany({});
+  for (const ps of priceSeeds) {
+    const currentPrice = ps.base + (Math.random() - 0.5) * ps.base * 0.01;
+    await prisma.marketQuote.create({
+      data: {
+        symbol: ps.symbol,
+        assetType: ps.assetType,
+        price: currentPrice,
+        change: (Math.random() - 0.5) * ps.base * 0.02,
+        changePercent: (Math.random() - 0.5) * 2,
+        providerName: "seed",
+      },
+    });
+  }
+
   // Demo trader watchlist + portfolio
   const trader = await prisma.user.findUnique({ where: { email: "trader@marketpulse.com" } });
   if (trader) {
@@ -216,11 +211,24 @@ async function main() {
     });
   }
 
+  await prisma.user.updateMany({
+    where: { email: { in: ["admin@marketpulse.com", "trader@marketpulse.com", "mod@marketpulse.com"] } },
+    data: { onboardingCompleted: true },
+  });
+
+  await prisma.chatSettings.upsert({
+    where: { id: "default" },
+    update: {},
+    create: {
+      id: "default",
+      welcomeMessage: "Welcome to TRADX support! How can we help you today?",
+      offlineMessage: "Our team is currently offline. Leave a message and we'll respond soon.",
+    },
+  });
+
   console.log("Seed complete.");
-  console.log("Demo accounts:");
+  console.log("Admin account:");
   console.log("  admin@marketpulse.com / Admin123!");
-  console.log("  mod@marketpulse.com / User1234!");
-  console.log("  trader@marketpulse.com / User1234!");
   console.log("");
   console.log("Configure FINNHUB_API_KEY, ALPHAVANTAGE_API_KEY, etc. then run: npm run ingest:news");
 }

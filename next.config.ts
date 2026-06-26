@@ -13,9 +13,10 @@ const securityHeaders = [
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: https:",
+      "img-src 'self' data: https: https://static2.finnhub.io https://images.investinglive.com",
       "font-src 'self' data:",
-      "connect-src 'self'",
+      "connect-src 'self' https://puter.com https://*.puter.com",
+      "frame-src 'self' https://puter.com https://*.puter.com",
       "frame-ancestors 'self'",
     ].join("; "),
   },
@@ -24,6 +25,30 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   output: "standalone",
   poweredByHeader: false,
+  allowedDevOrigins: ["127.0.0.1"],
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "static2.finnhub.io",
+        port: "",
+        pathname: "/**",
+      },
+      {
+        protocol: "https",
+        hostname: "images.investinglive.com",
+        port: "",
+        pathname: "/**",
+      },
+      {
+        protocol: "https",
+        hostname: "**.investinglive.com",
+        port: "",
+        pathname: "/**",
+      },
+    ],
+    unoptimized: true,
+  },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

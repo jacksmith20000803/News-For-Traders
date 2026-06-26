@@ -29,7 +29,7 @@ assertProductionSecrets();
 
 export const config = {
   app: {
-    name: process.env.APP_NAME ?? "MarketPulse",
+    name: process.env.APP_NAME ?? "TRADX",
     url: process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
   },
   security: {
@@ -37,7 +37,7 @@ export const config = {
       process.env.SESSION_SECRET ?? "dev-session-secret-change-in-production",
     csrfSecret:
       process.env.CSRF_SECRET ?? "dev-csrf-secret-change-in-production",
-    sessionMaxAge: 60 * 60 * 24 * 7,
+    sessionMaxAge: parseInt(process.env.SESSION_MAX_AGE_SECONDS ?? `${60 * 60 * 24}`, 10),
     maxLoginAttempts: 5,
     lockoutDurationMs: 15 * 60 * 1000,
   },
@@ -61,9 +61,7 @@ export const config = {
   },
   cronSecret: process.env.CRON_SECRET ?? "",
   ai: {
-    apiKey: process.env.OPENAI_API_KEY ?? process.env.AI_API_KEY ?? "",
-    baseUrl: process.env.AI_BASE_URL ?? "https://api.openai.com/v1",
-    model: process.env.AI_MODEL ?? "gpt-4o-mini",
+    model: "puter.ai.chat",
   },
 } as const;
 

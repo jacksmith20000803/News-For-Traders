@@ -3,46 +3,35 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { intensityToColor } from "@/lib/market/heatmap";
-import type { AssetCategory } from "@prisma/client";
-
-interface HeatmapCell {
-  symbol: string;
-  assetType: string;
-  category: AssetCategory;
-  name: string | null;
-  price: number;
-  changePercent: number;
-  intensity: number;
-}
-
-const TABS: { value: AssetCategory | "ALL"; label: string }[] = [
-  { value: "ALL", label: "All" },
-  { value: "STOCKS", label: "Stocks" },
-  { value: "FOREX", label: "Forex" },
-  { value: "CRYPTO", label: "Crypto" },
-];
+import {
+  HEATMAP_TABS,
+  intensityToColor,
+  type HeatmapCellData,
+} from "@/lib/market/heatmap-utils";
 
 export function HeatmapGrid() {
   const [category, setCategory] = useState<string>("");
-  const [cells, setCells] = useState<HeatmapCell[]>([]);
+  const [cells, setCells] = useState<HeatmapCellData[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setLoading(true);
-    const q = category ? `?category=${category}` : "";
-    fetch(`/api/heatmap${q}`)
-      .then((r) => r.json())
-      .then((json) => {
-        if (json.success) setCells(json.data.cells ?? []);
-      })
-      .finally(() => setLoading(false));
+    const timer = setTimeout(() => {
+      setLoading(true);
+      const q = category ? `?category=${category}` : "";
+      fetch(`/api/heatmap${q}`)
+        .then((r) => r.json())
+        .then((json) => {
+          if (json.success) setCells(json.data.cells ?? []);
+        })
+        .finally(() => setLoading(false));
+    }, 0);
+    return () => clearTimeout(timer);
   }, [category]);
 
   return (
     <div>
       <div className="mb-4 flex flex-wrap gap-2">
-        {TABS.map((tab) => (
+        {HEATMAP_TABS.map((tab) => (
           <button
             key={tab.value}
             type="button"

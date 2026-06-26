@@ -4,11 +4,14 @@ import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth/session";
 import { paginationSchema } from "@/lib/validations/content";
 import { INTEREST_TO_NEWS_SLUGS } from "@/lib/constants";
-import { ImportanceLevel } from "@prisma/client";
+import { ImportanceLevel, Prisma } from "@prisma/client";
 import { z } from "zod";
 
 const newsQuerySchema = paginationSchema.extend({
   importance: z.nativeEnum(ImportanceLevel).optional(),
+  coin: z.string().trim().min(1).max(30).optional(),
+  search: z.string().trim().max(200).optional(),
+  favorites: z.enum(["true", "false"]).optional(),
 });
 
 export async function GET(request: NextRequest) {
@@ -18,10 +21,45 @@ export async function GET(request: NextRequest) {
       page: searchParams.get("page") ?? "1",
       limit: searchParams.get("limit") ?? "12",
       importance: searchParams.get("importance") ?? undefined,
+      coin: searchParams.get("coin") || undefined,
+      search: searchParams.get("search") || undefined,
+      favorites: searchParams.get("favorites") === "true" ? "true" : "false",
     });
 
     const user = await getCurrentUser();
-    const where = params.importance ? { importance: params.importance } : {};
+    const favoriteOnly = params.favorites === "true";
+
+    if (favoriteOnly && !user) {
+      return apiSuccess({
+        news: [],
+        personalized: null,
+        favoriteNewsIds: [],
+        pagination: { page: params.page, limit: params.limit, total: 0, totalPages: 0 },
+      });
+    }
+
+    const where: Prisma.NewsWhereInput = {};
+    if (params.importance) where.importance = params.importance;
+    if (params.coin) {
+      const normalizedCoin = params.coin.toUpperCase().replace(/\/USD$/, "");
+      where.assets = {
+        some: {
+          OR: [
+            { symbol: { equals: normalizedCoin, mode: "insensitive" } },
+            { symbol: { equals: `${normalizedCoin}/USD`, mode: "insensitive" } },
+          ],
+        },
+      };
+    }
+    if (params.search) {
+      where.OR = [
+        { headline: { contains: params.search, mode: "insensitive" } },
+        { summary: { contains: params.search, mode: "insensitive" } },
+      ];
+    }
+    if (favoriteOnly && user) {
+      where.bookmarks = { some: { userId: user.id } };
+    }
 
     const [news, total] = await Promise.all([
       db.news.findMany({
@@ -38,6 +76,20 @@ export async function GET(request: NextRequest) {
       }),
       db.news.count({ where }),
     ]);
+
+    const favoriteNewsIds = user
+      ? (
+          await db.bookmark.findMany({
+            where: {
+              userId: user.id,
+              newsId: { in: news.map((item) => item.id) },
+            },
+            select: { newsId: true },
+          })
+        )
+          .map((bookmark) => bookmark.newsId)
+          .filter((id): id is string => Boolean(id))
+      : [];
 
     let personalized = null;
     if (user) {
@@ -57,11 +109,18 @@ export async function GET(request: NextRequest) {
           where: {
             category: { slug: { in: slugs } },
           },
-          include: {
+          select: {
+            id: true,
+            headline: true,
+            summary: true,
             source: { select: { name: true, reliabilityScore: true } },
             category: { select: { name: true, slug: true } },
             assets: { select: { symbol: true, assetType: true } },
             _count: { select: { comments: true } },
+            publishedAt: true,
+            importance: true,
+            reliabilityStatus: true,
+            imageUrl: true,
           },
           orderBy: { publishedAt: "desc" },
           take: 6,
@@ -72,6 +131,7 @@ export async function GET(request: NextRequest) {
     return apiSuccess({
       news,
       personalized,
+      favoriteNewsIds,
       pagination: {
         page: params.page,
         limit: params.limit,

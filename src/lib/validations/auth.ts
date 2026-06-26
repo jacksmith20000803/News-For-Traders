@@ -51,7 +51,27 @@ export const changePasswordSchema = z
 
 export const updateProfileSchema = z.object({
   name: z.string().min(2).max(100).optional(),
+  username: z
+    .string()
+    .trim()
+    .min(3, "Username must be at least 3 characters")
+    .max(30, "Username must be at most 30 characters")
+    .regex(/^[a-zA-Z0-9_]+$/, "Username can only use letters, numbers, and underscores")
+    .optional()
+    .or(z.literal("")),
+  avatar: z.string().url("Avatar must be a valid URL").optional().or(z.literal("")),
   bio: z.string().max(500).optional(),
+  dateOfBirth: z.string().optional().or(z.literal("")),
+  currentPassword: z.string().optional(),
+  newPassword: z
+    .string()
+    .min(8, "Password must be at least 8 characters")
+    .max(128)
+    .regex(/[A-Z]/, "Must contain uppercase letter")
+    .regex(/[a-z]/, "Must contain lowercase letter")
+    .regex(/[0-9]/, "Must contain number")
+    .optional()
+    .or(z.literal("")),
 });
 
 export type RegisterInput = z.infer<typeof registerSchema>;

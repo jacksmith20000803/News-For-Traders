@@ -13,11 +13,10 @@ export function AllocationChart({ slices }: { slices: AllocationSlice[] }) {
     return <p className="text-sm text-muted-foreground text-center py-8">No positions yet</p>;
   }
 
-  let cumulative = 0;
   const gradientStops = slices.map((s, i) => {
-    const start = cumulative;
-    cumulative += s.weight;
-    return `${COLORS[i % COLORS.length]} ${start}% ${cumulative}%`;
+    const cumulative = slices.slice(0, i).reduce((sum, slice) => sum + slice.weight, 0);
+    const end = cumulative + s.weight;
+    return `${COLORS[i % COLORS.length]} ${cumulative}% ${end}%`;
   });
 
   return (

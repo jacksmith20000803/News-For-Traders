@@ -24,7 +24,6 @@ import {
 } from "@/lib/validations/content";
 import { generateToken } from "@/lib/security/csrf";
 import { hashToken } from "@/lib/security/tokens";
-import { hashPassword } from "@/lib/security/password";
 import { notifyModerationAction } from "@/lib/notifications";
 
 export async function GET() {

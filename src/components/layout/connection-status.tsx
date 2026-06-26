@@ -12,8 +12,8 @@ export function ConnectionStatus() {
       label: "LIVE",
       sub: "CONNECTED",
       icon: Radio,
-      className: "border-accent/30 bg-accent/10 text-accent",
-      dot: "bg-accent live-pulse",
+      className: "border-emerald-500/30 bg-emerald-500/10 text-emerald-400",
+      dot: "bg-emerald-400 live-pulse",
     },
     connecting: {
       label: "LIVE",
@@ -33,8 +33,8 @@ export function ConnectionStatus() {
       label: "OFFLINE",
       sub: "DISCONNECTED",
       icon: WifiOff,
-      className: "border-destructive/30 bg-destructive/10 text-destructive",
-      dot: "bg-destructive",
+      className: "border-red-500/30 bg-red-500/10 text-red-400",
+      dot: "bg-red-400",
     },
   }[status];
 
@@ -47,6 +47,7 @@ export function ConnectionStatus() {
         config.className
       )}
       title={`Real-time feed: ${config.sub}`}
+      suppressHydrationWarning
     >
       <span className={cn("h-1.5 w-1.5 rounded-full", config.dot)} />
       <Icon className="h-3 w-3" />

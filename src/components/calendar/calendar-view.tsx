@@ -54,18 +54,21 @@ export function CalendarView() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setLoading(true);
-    const params = new URLSearchParams();
-    if (type) params.set("type", type);
-    if (impact) params.set("impact", impact);
-    params.set("timezone", timezone);
+    const timer = setTimeout(() => {
+      setLoading(true);
+      const params = new URLSearchParams();
+      if (type) params.set("type", type);
+      if (impact) params.set("impact", impact);
+      params.set("timezone", timezone);
 
-    fetch(`/api/calendar?${params}`)
-      .then((r) => r.json())
-      .then((json) => {
-        if (json.success) setEvents(json.data.events ?? []);
-      })
-      .finally(() => setLoading(false));
+      fetch(`/api/calendar?${params}`)
+        .then((r) => r.json())
+        .then((json) => {
+          if (json.success) setEvents(json.data.events ?? []);
+        })
+        .finally(() => setLoading(false));
+    }, 0);
+    return () => clearTimeout(timer);
   }, [type, impact, timezone]);
 
   return (
@@ -74,7 +77,7 @@ export function CalendarView() {
         <select
           value={timezone}
           onChange={(e) => setTimezone(e.target.value)}
-          className="rounded-lg border border-white/8 bg-white/5 px-3 py-1.5 text-xs"
+          className="btn-3d rounded-lg border border-white/8 bg-white/5 px-3 py-1.5 text-xs appearance-none cursor-pointer"
         >
           {TIMEZONES.map((tz) => (
             <option key={tz} value={tz}>{tz.replace("_", " ")}</option>

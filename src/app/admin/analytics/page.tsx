@@ -6,7 +6,8 @@ import Link from "next/link";
 export default async function AdminAnalyticsPage() {
   await requireAdminPage();
 
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
   const [newUsers, newArticles, newDiscussions, totalUsers] = await Promise.all([
     db.user.count({ where: { createdAt: { gte: thirtyDaysAgo }, deletedAt: null } }),

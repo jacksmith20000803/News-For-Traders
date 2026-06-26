@@ -4,8 +4,11 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { NewsCard } from "@/components/news/news-card";
 import { subscribeSSE } from "@/components/realtime/sse-provider";
+import { subscribeRealtimeSync } from "@/components/realtime/realtime-sync";
 import { SkeletonCard } from "@/components/terminal/skeleton";
 import type { ImportanceLevel, ReliabilityStatus } from "@prisma/client";
+import { Button } from "@/components/ui/button";
+import { LayoutGrid, List } from "lucide-react";
 
 interface NewsItem {
   id: string;
@@ -18,6 +21,7 @@ interface NewsItem {
   assets: { symbol: string; assetType: string }[];
   aiInterpretation?: unknown;
   _count?: { comments: number };
+  imageUrl?: string | null;
 }
 
 interface LiveNewsFeedProps {
@@ -28,9 +32,10 @@ interface LiveNewsFeedProps {
 export function LiveNewsFeed({ initialNews, configured }: LiveNewsFeedProps) {
   const [news, setNews] = useState(initialNews);
   const [loading] = useState(false);
+  const [layout, setLayout] = useState<"list" | "card">("list");
 
   useEffect(() => {
-    return subscribeSSE((event, data) => {
+    const unsubSSE = subscribeSSE((event, data) => {
       if (event === "news" && (data as { type?: string }).type === "news.created") {
         const payload = data as { id: string; headline: string };
         fetch(`/api/news/${payload.id}`)
@@ -43,6 +48,25 @@ export function LiveNewsFeed({ initialNews, configured }: LiveNewsFeedProps) {
           .catch(() => {});
       }
     });
+
+    const unsubSync = subscribeRealtimeSync((data) => {
+      if (data.news.length === 0) return;
+      const latestId = data.news[0].id;
+      setNews((prev) => {
+        if (prev[0]?.id === latestId) return prev;
+        fetch(`/api/news/${latestId}`)
+          .then((r) => r.json())
+          .then((json) => {
+            if (json.success && json.data) {
+              setNews((p) => [json.data, ...p.filter((n) => n.id !== json.data.id)].slice(0, 20));
+            }
+          })
+          .catch(() => {});
+        return prev;
+      });
+    });
+
+    return () => { unsubSSE(); unsubSync(); };
   }, []);
 
   if (!configured && news.length === 0) {
@@ -77,22 +101,44 @@ export function LiveNewsFeed({ initialNews, configured }: LiveNewsFeedProps) {
   }
 
   return (
-    <div className="space-y-3">
-      {news.map((item) => (
-        <NewsCard
-          key={item.id}
-          id={item.id}
-          headline={item.headline}
-          summary={item.summary}
-          source={item.source?.name ?? "Unknown"}
-          publishedAt={item.publishedAt}
-          importance={item.importance}
-          reliabilityStatus={item.reliabilityStatus}
-          assets={item.assets}
-          aiInterpretation={item.aiInterpretation as import("@/lib/constants").AIInterpretation | null}
-          commentCount={item._count?.comments ?? 0}
-        />
-      ))}
+    <div>
+      <div className="mb-3 flex items-center justify-between">
+        <div className="flex gap-2">
+          <Button
+            variant={layout === "list" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setLayout("list")}
+          >
+            <List className="h-4 w-4" />
+          </Button>
+          <Button
+            variant={layout === "card" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setLayout("card")}
+          >
+            <LayoutGrid className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+      <div className={layout === "card" ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" : "space-y-3"}>
+        {news.map((item) => (
+          <NewsCard
+            key={item.id}
+            id={item.id}
+            headline={item.headline}
+            summary={item.summary}
+            source={item.source?.name ?? "Unknown"}
+            publishedAt={item.publishedAt}
+            importance={item.importance}
+            reliabilityStatus={item.reliabilityStatus}
+            assets={item.assets}
+            aiInterpretation={item.aiInterpretation as import("@/lib/constants").AIInterpretation | null}
+            commentCount={item._count?.comments ?? 0}
+            imageUrl={item.imageUrl}
+            layout={layout}
+          />
+        ))}
+      </div>
     </div>
   );
 }

@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Star, Plus } from "lucide-react";
-import { secureFetch } from "@/lib/api/client";
 import { useAuth } from "@/components/providers/auth-provider";
 
 interface WatchlistItem {

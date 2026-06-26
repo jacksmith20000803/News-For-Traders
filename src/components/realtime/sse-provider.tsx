@@ -46,7 +46,7 @@ export function SSEProvider({ children }: SSEProviderProps) {
         if (mounted) setStatus("connected");
       });
 
-      const channels = ["news", "notification", "market"] as const;
+      const channels = ["news", "notification", "market", "chat"] as const;
       for (const channel of channels) {
         source.addEventListener(channel, (e) => {
           try {
@@ -66,10 +66,11 @@ export function SSEProvider({ children }: SSEProviderProps) {
       };
     };
 
-    connect();
+    const initialConnect = setTimeout(connect, 1500);
 
     return () => {
       mounted = false;
+      clearTimeout(initialConnect);
       clearTimeout(retryTimeout);
       source?.close();
       setStatus("disconnected");

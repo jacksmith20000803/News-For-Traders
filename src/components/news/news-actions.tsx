@@ -1,17 +1,27 @@
 "use client";
 
 import { useState } from "react";
-import { Bookmark } from "lucide-react";
+import { Heart } from "lucide-react";
 import { secureFetch } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
 
-export function BookmarkButton({ newsId }: { newsId: string }) {
-  const [saved, setSaved] = useState(false);
+export function BookmarkButton({
+  newsId,
+  initialSaved = false,
+  onChange,
+}: {
+  newsId: string;
+  initialSaved?: boolean;
+  onChange?: (newsId: string, saved: boolean) => void;
+}) {
+  const [optimisticSaved, setOptimisticSaved] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(false);
+  const saved = optimisticSaved ?? initialSaved;
 
   const toggle = async () => {
     setLoading(true);
     try {
+      const nextSaved = !saved;
       const res = await secureFetch("/api/bookmarks", {
         method: "POST",
         body: JSON.stringify({
@@ -20,7 +30,10 @@ export function BookmarkButton({ newsId }: { newsId: string }) {
         }),
       });
       const json = await res.json();
-      if (json.success) setSaved(!saved);
+      if (json.success) {
+        setOptimisticSaved(nextSaved);
+        onChange?.(newsId, nextSaved);
+      }
     } catch {
       // not signed in
     } finally {
@@ -35,11 +48,11 @@ export function BookmarkButton({ newsId }: { newsId: string }) {
       disabled={loading}
       className={cn(
         "rounded-md p-1.5 transition-colors",
-        saved ? "text-cyan-400" : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
+        saved ? "text-red-500" : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
       )}
-      aria-label={saved ? "Remove bookmark" : "Bookmark"}
+      aria-label={saved ? "Remove favorite" : "Add favorite"}
     >
-      <Bookmark className={cn("h-4 w-4", saved && "fill-current")} />
+      <Heart className={cn("h-4 w-4", saved && "fill-current")} />
     </button>
   );
 }

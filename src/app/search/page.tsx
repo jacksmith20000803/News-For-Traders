@@ -55,7 +55,10 @@ function SearchContent() {
   }, []);
 
   useEffect(() => {
-    if (initialQ) runSearch(initialQ, initialType);
+    if (initialQ) {
+      const timer = setTimeout(() => runSearch(initialQ, initialType), 0);
+      return () => clearTimeout(timer);
+    }
   }, [initialQ, initialType, runSearch]);
 
   const handleSearch = () => {

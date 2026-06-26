@@ -1,16 +1,9 @@
 import { db } from "@/lib/db";
 import { unstable_cache } from "next/cache";
 import type { AssetCategory } from "@prisma/client";
+import type { HeatmapCellData } from "@/lib/market/heatmap-utils";
 
-export interface HeatmapCell {
-  symbol: string;
-  assetType: string;
-  category: AssetCategory;
-  name: string | null;
-  price: number;
-  changePercent: number;
-  intensity: number; // -1 to 1 normalized
-}
+export type HeatmapCell = HeatmapCellData;
 
 function normalizeIntensity(changePercent: number, maxAbs: number): number {
   if (maxAbs === 0) return 0;
@@ -61,12 +54,3 @@ export const getCachedHeatmap = unstable_cache(
   ["market-heatmap"],
   { revalidate: 60 }
 );
-
-export function intensityToColor(intensity: number): string {
-  if (intensity > 0) {
-    const g = Math.round(40 + intensity * 160);
-    return `rgb(16, ${g}, 80)`;
-  }
-  const r = Math.round(40 + Math.abs(intensity) * 180);
-  return `rgb(${r}, 40, 50)`;
-}

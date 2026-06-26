@@ -2,22 +2,35 @@ import { requireAdminPage } from "@/lib/auth/admin-guard";
 import { db } from "@/lib/db";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Users, Newspaper, FileText, MessageSquare, AlertTriangle, Shield } from "lucide-react";
+import { Users, Newspaper, MessageSquare, AlertTriangle, Shield, Bot } from "lucide-react";
 import { formatRelative } from "@/lib/utils";
 import Link from "next/link";
 
 export const metadata = { title: "Admin Dashboard" };
 
 export default async function AdminDashboardPage() {
-  await requireAdminPage();
+  const adminUser = await requireAdminPage();
 
-  const [userCount, newsCount, articleCount, discussionCount, reportCount, recentAudit] =
+  // Log admin dashboard access for security audit
+  await db.auditLog.create({
+    data: {
+      adminId: adminUser.id,
+      action: "SETTINGS_UPDATE",
+      ipAddress: "SYSTEM",
+      metadata: { action: "DASHBOARD_VIEW" },
+    },
+  });
+
+  const [userCount, newToday, newsCount, reportCount, unviewedRegs, newFeedback, recentAudit] =
     await Promise.all([
       db.user.count({ where: { deletedAt: null } }),
+      db.user.count({
+        where: { deletedAt: null, createdAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) } },
+      }),
       db.news.count(),
-      db.article.count(),
-      db.discussion.count(),
       db.report.count({ where: { status: "PENDING" } }),
+      db.registrationAudit.count({ where: { adminViewed: false } }),
+      db.feedbackSubmission.count({ where: { status: "NEW" } }),
       db.auditLog.findMany({
         orderBy: { createdAt: "desc" },
         take: 10,
@@ -26,10 +39,12 @@ export default async function AdminDashboardPage() {
     ]);
 
   const stats = [
-    { label: "Users", value: userCount, icon: Users, href: "/admin/users" },
+    { label: "Total Users", value: userCount, icon: Users, href: "/admin/users" },
+    { label: "New Today", value: newToday, icon: Users, href: "/admin/registrations" },
+    { label: "Unviewed Registrations", value: unviewedRegs, icon: Users, href: "/admin/registrations" },
     { label: "News Items", value: newsCount, icon: Newspaper, href: "/admin/news" },
-    { label: "Articles", value: articleCount, icon: FileText, href: "/admin/content" },
-    { label: "Discussions", value: discussionCount, icon: MessageSquare, href: "/admin/moderation" },
+    { label: "Feedback Inbox", value: newFeedback, icon: MessageSquare, href: "/admin/feedback" },
+    { label: "AI Assistant", value: "Puter", icon: Bot, href: "/admin/ai" },
     { label: "Pending Reports", value: reportCount, icon: AlertTriangle, href: "/admin/moderation" },
   ];
 

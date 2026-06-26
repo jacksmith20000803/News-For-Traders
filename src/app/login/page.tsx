@@ -1,4 +1,3 @@
-import { Suspense } from "react";
 import { LoginForm } from "@/components/auth/login-form";
 import { isGoogleOAuthConfigured, isGitHubOAuthConfigured } from "@/auth";
 
@@ -8,13 +7,13 @@ export const metadata = {
 
 export default function LoginPage() {
   return (
-    <div className="flex min-h-[calc(100vh-8rem)] items-center justify-center px-4 py-12">
-      <Suspense>
+    <div className="auth-market-bg flex min-h-[calc(100vh-8rem)] items-center justify-center px-4 py-12">
+      <div className="relative z-10 w-full max-w-md">
         <LoginForm
           googleEnabled={isGoogleOAuthConfigured()}
           githubEnabled={isGitHubOAuthConfigured()}
         />
-      </Suspense>
+      </div>
     </div>
   );
 }

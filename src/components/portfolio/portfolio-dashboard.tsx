@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { secureFetch } from "@/lib/api/client";
 import { AllocationChart } from "@/components/charts/allocation-chart";
 import { Button } from "@/components/ui/button";
@@ -35,17 +35,25 @@ export function PortfolioDashboard() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ symbol: "", quantity: "", entryPrice: "" });
+  const mountedRef = useRef(true);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const res = await fetch("/api/portfolio");
     const json = await res.json();
-    if (json.success) setSummary(json.data);
-    setLoading(false);
-  };
+    if (json.success && mountedRef.current) {
+      setSummary(json.data);
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    load();
-  }, []);
+    mountedRef.current = true;
+    const timer = setTimeout(() => load(), 0);
+    return () => {
+      mountedRef.current = false;
+      clearTimeout(timer);
+    };
+  }, [load]);
 
   const addPosition = async () => {
     await secureFetch("/api/portfolio", {

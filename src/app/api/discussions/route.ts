@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { apiSuccess, handleApiError, parseJsonBody } from "@/lib/api/response";
 import { db } from "@/lib/db";
-import { requireAuth, requireVerifiedEmail, validateCsrf } from "@/lib/auth/guards";
+import { requireVerifiedEmail, validateCsrf } from "@/lib/auth/guards";
 import { discussionCreateSchema, paginationSchema } from "@/lib/validations/content";
 import { PostCategory } from "@prisma/client";
 import { logUserActivity } from "@/lib/audit";

@@ -3,8 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
 }
 
 enum Role {
@@ -53,6 +53,10 @@ enum NotificationType {
   PRICE_ALERT
   ECONOMIC_EVENT
   PORTFOLIO_ALERT
+  ADMIN_MESSAGE
+  PROFILE_CHANGE
+  NEW_REGISTRATION
+  SUPPORT_MESSAGE
 }
 
 enum AssetCategory {
@@ -115,6 +119,7 @@ enum AuditAction {
   USER_BAN
   USER_UNBAN
   USER_ROLE_CHANGE
+  USER_PROFILE_UPDATE
   CONTENT_APPROVE
   CONTENT_REJECT
   CONTENT_DELETE
@@ -128,14 +133,53 @@ enum AuditAction {
   FEATURE_FLAG_TOGGLE
 }
 
+enum PreferredMarket {
+  CRYPTO
+  FOREX
+  STOCKS
+  COMMODITIES
+}
+
+enum AdminPresenceStatus {
+  ONLINE
+  OFFLINE
+  DND
+}
+
+enum FeedbackType {
+  CONTACT
+  FEEDBACK
+  BUG
+  SUGGESTION
+}
+
+enum FeedbackStatus {
+  NEW
+  IN_PROGRESS
+  REPLIED
+  CLOSED
+}
+
+enum SupportMessageStatus {
+  SENT
+  DELIVERED
+  READ
+}
+
 model User {
   id                   String    @id @default(cuid())
   email                String    @unique
+  username             String?   @unique
   passwordHash         String?
   name                 String
   role                 Role      @default(USER)
   avatar               String?
   bio                  String?
+  dateOfBirth          DateTime?
+  country              String?
+  timezone             String?   @default("UTC")
+  preferredLanguage    String?   @default("en")
+  onboardingCompleted  Boolean   @default(false)
   emailVerified        DateTime?
   twoFactorEnabled     Boolean   @default(false)
   twoFactorSecret      String?
@@ -171,8 +215,17 @@ model User {
   alertRules           AlertRule[]
   priceAlerts          PriceAlert[]
   portfolios           Portfolio[]
+  preferences          UserPreferences?
+  notificationSettings NotificationSettings?
+  favoriteAssets       FavoriteAsset[]
+  registrationAudit    RegistrationAudit?
+  supportConversations SupportConversation[] @relation("UserSupport")
+  feedbackSubmissions  FeedbackSubmission[]
+  adminPresence        AdminPresence?
+  puterTokensCreated   PuterToken[]      @relation("PuterTokenCreator")
 
   @@index([email])
+  @@index([username])
   @@index([role])
   @@index([deletedAt])
 }
@@ -268,6 +321,7 @@ model News {
   externalId        String?
   providerName      String?
   sourceUrl         String?
+  imageUrl          String?
   isPinned          Boolean           @default(false)
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
@@ -564,9 +618,15 @@ model PriceHistory {
   symbol    String
   assetType String
   price     Float
+  volume    Float?
+  high      Float?
+  low       Float?
+  open      Float?
+  close     Float?
   timestamp DateTime @default(now())
 
   @@index([symbol, assetType, timestamp])
+  @@index([symbol, timestamp])
 }
 
 model AssetProfile {
@@ -760,4 +820,159 @@ model AIUsageLog {
 
   @@index([userId])
   @@index([createdAt])
+}
+
+model PuterToken {
+  id             String   @id @default(cuid())
+  displayName    String
+  token          String
+  selectedModels Json     @default("[]")
+  isActive       Boolean  @default(true)
+  isExhausted    Boolean  @default(false)
+  requestLimit   Int      @default(1000)
+  requestCount   Int      @default(0)
+  successCount   Int      @default(0)
+  failureCount   Int      @default(0)
+  lastUsedAt     DateTime?
+  lastError      String?
+  createdById    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  createdBy User? @relation("PuterTokenCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([isActive, isExhausted])
+  @@index([lastUsedAt])
+  @@index([createdAt])
+}
+
+model UserPreferences {
+  id              String          @id @default(cuid())
+  userId          String          @unique
+  preferredMarket PreferredMarket @default(STOCKS)
+  theme           String          @default("dark")
+  chartInterval   String          @default("1H")
+  defaultSymbol   String?         @default("BTC/USD")
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model NotificationSettings {
+  id                String  @id @default(cuid())
+  userId            String  @unique
+  emailEnabled      Boolean @default(true)
+  pushEnabled       Boolean @default(true)
+  inAppEnabled      Boolean @default(true)
+  priceAlerts       Boolean @default(true)
+  newsAlerts        Boolean @default(true)
+  adminMessages     Boolean @default(true)
+  profileChanges    Boolean @default(true)
+  systemAnnounce    Boolean @default(true)
+  marketingEmails   Boolean @default(false)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model FavoriteAsset {
+  id        String        @id @default(cuid())
+  userId    String
+  symbol    String
+  assetType String
+  category  AssetCategory @default(STOCKS)
+  sortOrder Int           @default(0)
+  addedAt   DateTime      @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, symbol, assetType])
+  @@index([userId, sortOrder])
+}
+
+model RegistrationAudit {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  ipAddress    String?
+  country      String?
+  city         String?
+  browser      String?
+  deviceType   String?
+  os           String?
+  userAgent    String?
+  adminViewed  Boolean  @default(false)
+  registeredAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([registeredAt])
+  @@index([adminViewed])
+  @@index([country])
+}
+
+model FeedbackSubmission {
+  id        String         @id @default(cuid())
+  userId    String?
+  type      FeedbackType   @default(CONTACT)
+  name      String
+  email     String
+  subject   String
+  message   String
+  status    FeedbackStatus @default(NEW)
+  adminReply String?
+  repliedAt DateTime?
+  createdAt DateTime       @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([type])
+  @@index([createdAt])
+}
+
+model SupportConversation {
+  id        String   @id @default(cuid())
+  userId    String
+  subject   String   @default("Support")
+  isOpen    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user     User             @relation("UserSupport", fields: [userId], references: [id], onDelete: Cascade)
+  messages SupportMessage[]
+
+  @@index([userId])
+  @@index([isOpen])
+}
+
+model SupportMessage {
+  id             String               @id @default(cuid())
+  conversationId String
+  senderId       String
+  isAdmin        Boolean              @default(false)
+  content        String
+  attachmentUrl  String?
+  status         SupportMessageStatus @default(SENT)
+  createdAt      DateTime             @default(now())
+
+  conversation SupportConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([createdAt])
+}
+
+model AdminPresence {
+  id        String              @id @default(cuid())
+  adminId   String              @unique
+  status    AdminPresenceStatus @default(OFFLINE)
+  updatedAt DateTime            @updatedAt
+
+  admin User @relation(fields: [adminId], references: [id], onDelete: Cascade)
+}
+
+model ChatSettings {
+  id              String @id @default(cuid())
+  welcomeMessage  String @default("Welcome to TRADX support! How can we help you today?")
+  offlineMessage  String @default("Our team is currently offline. Leave a message and we'll respond soon.")
+  updatedAt       DateTime @updatedAt
 }

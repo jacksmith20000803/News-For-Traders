@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { db } from "@/lib/db";
 import { Badge } from "@/components/ui/badge";
 import { IMPORTANCE_CONFIG, RELIABILITY_CONFIG } from "@/lib/constants";
@@ -82,6 +83,17 @@ export default async function NewsDetailPage({
         <article className="space-y-6 lg:col-span-2">
           {/* Headline section */}
           <div className="dash-panel dash-panel-glow rounded-2xl p-6">
+            {news.imageUrl && (
+              <div className="mb-6 relative aspect-[16/9] w-full overflow-hidden rounded-lg bg-white/5">
+                <Image
+                  src={news.imageUrl}
+                  alt={news.headline}
+                  fill
+                  className="object-cover"
+                  unoptimized
+                />
+              </div>
+            )}
             <div className="mb-4 flex flex-wrap gap-2">
               <Badge className={IMPORTANCE_CONFIG[news.importance as ImportanceLevel].bg}>
                 {IMPORTANCE_CONFIG[news.importance as ImportanceLevel].label}
@@ -150,10 +162,10 @@ export default async function NewsDetailPage({
                 Market Impact
               </h2>
               {news.summary && (
-                <p className="text-base leading-relaxed text-muted-foreground">{news.summary}</p>
+                <p className="text-base leading-relaxed text-muted-foreground">{news.summary.replace(/<[^>]*>/g, '')}</p>
               )}
               {news.content && (
-                <div className="mt-4 whitespace-pre-wrap text-sm leading-relaxed">{news.content}</div>
+                <div className="mt-4 whitespace-pre-wrap text-sm leading-relaxed">{news.content.replace(/<[^>]*>/g, '')}</div>
               )}
             </section>
           )}

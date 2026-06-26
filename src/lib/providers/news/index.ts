@@ -2,11 +2,13 @@ import { FinnhubProvider } from "./finnhub";
 import { AlphaVantageProvider } from "./alphavantage";
 import { PolygonProvider } from "./polygon";
 import { TwelveDataProvider } from "./twelvedata";
+import { SyntheticNewsProvider } from "./synthetic";
 import type { NewsProvider, ProviderStatus } from "./types";
 
 export type { NewsProvider, NewsItem, MarketQuoteData, ProviderStatus } from "./types";
 
 const providers: NewsProvider[] = [
+  new SyntheticNewsProvider(),
   new FinnhubProvider(),
   new AlphaVantageProvider(),
   new PolygonProvider(),
@@ -18,7 +20,22 @@ export function getNewsProviders(): NewsProvider[] {
 }
 
 export function getConfiguredProviders(): NewsProvider[] {
-  return providers.filter((p) => p.isConfigured());
+  // Always include synthetic provider as fallback
+  const synthetic = providers.find(p => p.name === "Synthetic");
+  const configured = providers.filter((p) => p.isConfigured());
+
+  // If only synthetic is configured, return it
+  if (configured.length === 1 && configured[0].name === "Synthetic") {
+    return configured;
+  }
+
+  // If other providers are configured, include them
+  if (configured.length > 0) {
+    return configured;
+  }
+
+  // Fallback to synthetic
+  return synthetic ? [synthetic] : [];
 }
 
 export function isAnyProviderConfigured(): boolean {

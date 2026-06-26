@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { apiSuccess, apiError, handleApiError } from "@/lib/api/response";
 import { ingestNewsFromProviders, ingestMarketQuotes } from "@/lib/providers/news/ingest";
+import { syncAndBroadcastMarket } from "@/lib/market/stream";
 import {
   evaluatePriceAlerts,
   evaluateAlertRules,
@@ -15,15 +16,16 @@ export async function POST(request: NextRequest) {
       return apiError("Unauthorized", 401);
     }
 
-    const [news, quotes, priceResult, ruleResult, snapshots] = await Promise.all([
+    const [news, quotes, priceResult, ruleResult, snapshots, marketBroadcast] = await Promise.all([
       ingestNewsFromProviders(),
       ingestMarketQuotes(),
       evaluatePriceAlerts(),
       evaluateAlertRules(),
       snapshotPriceHistory(),
+      syncAndBroadcastMarket(),
     ]);
 
-    return apiSuccess({ news, quotes, alerts: { priceResult, ruleResult, snapshots } });
+    return apiSuccess({ news, quotes, alerts: { priceResult, ruleResult, snapshots, marketBroadcast } });
   } catch (error) {
     return handleApiError(error);
   }

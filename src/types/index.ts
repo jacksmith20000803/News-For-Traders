@@ -11,6 +11,7 @@ export interface SafeUser {
   contributionCount: number;
   emailVerified: Date | null;
   twoFactorEnabled: boolean;
+  onboardingCompleted: boolean;
   createdAt: Date;
 }
 

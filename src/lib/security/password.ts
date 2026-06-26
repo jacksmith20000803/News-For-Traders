@@ -2,9 +2,9 @@ import * as argon2 from "argon2";
 
 const ARGON2_OPTIONS: argon2.Options = {
   type: argon2.argon2id,
-  memoryCost: 65536,
-  timeCost: 3,
-  parallelism: 4,
+  memoryCost: 19456,
+  timeCost: 2,
+  parallelism: 1,
 };
 
 export async function hashPassword(password: string): Promise<string> {

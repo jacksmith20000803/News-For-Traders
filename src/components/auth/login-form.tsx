@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import Image from "next/image";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -9,6 +10,8 @@ import { loginSchema, type LoginInput } from "@/lib/validations/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useAuth } from "@/components/providers/auth-provider";
+import { setCsrfToken } from "@/lib/api/client";
 
 interface LoginFormProps {
   googleEnabled?: boolean;
@@ -16,9 +19,12 @@ interface LoginFormProps {
 }
 
 export function LoginForm({ googleEnabled, githubEnabled }: LoginFormProps) {
+  const { setAuthenticatedUser, user } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const redirectTo = getSafeRedirect(searchParams.get("redirect"));
 
   const {
     register,
@@ -28,6 +34,13 @@ export function LoginForm({ googleEnabled, githubEnabled }: LoginFormProps) {
     resolver: zodResolver(loginSchema),
   });
 
+  useEffect(() => {
+    if (user) {
+      router.replace(redirectTo);
+      router.refresh();
+    }
+  }, [redirectTo, router, user]);
+
   const onSubmit = async (data: LoginInput) => {
     setIsLoading(true);
     setError("");
@@ -35,6 +48,8 @@ export function LoginForm({ googleEnabled, githubEnabled }: LoginFormProps) {
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
+        cache: "no-store",
+        credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
@@ -46,7 +61,9 @@ export function LoginForm({ googleEnabled, githubEnabled }: LoginFormProps) {
         return;
       }
 
-      router.push("/");
+      setAuthenticatedUser(json.data?.user ?? null);
+      setCsrfToken(json.data?.csrfToken);
+      router.replace(redirectTo);
       router.refresh();
     } catch {
       setError("An unexpected error occurred");
@@ -56,10 +73,19 @@ export function LoginForm({ googleEnabled, githubEnabled }: LoginFormProps) {
   };
 
   return (
-    <Card className="w-full max-w-md">
+    <Card className="w-full max-w-md bg-white dark:bg-[#0a0c0c] border-gray-200 dark:border-white/10">
       <CardHeader className="text-center">
-        <CardTitle className="text-2xl">Welcome back</CardTitle>
-        <CardDescription>Sign in to your MarketPulse account</CardDescription>
+        <Image
+          src="/tradx-logo.png"
+          alt="TRADX"
+          width={168}
+          height={50}
+          className="mx-auto mb-3 h-auto w-40 object-contain"
+          style={{ height: "auto" }}
+          priority
+        />
+        <CardTitle className="text-2xl text-gray-900 dark:text-white">Welcome back</CardTitle>
+        <CardDescription className="text-gray-600 dark:text-gray-400">Sign in to your TRADX account</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -106,22 +132,22 @@ export function LoginForm({ googleEnabled, githubEnabled }: LoginFormProps) {
             </div>
             <div className="grid grid-cols-2 gap-3">
               {googleEnabled ? (
-                <a href="/api/auth/oauth/google">
+                <Link href="/api/auth/oauth/google">
                   <Button variant="outline" className="w-full" type="button">
                     Google
                   </Button>
-                </a>
+                </Link>
               ) : (
                 <Button variant="outline" disabled title="Configure GOOGLE_CLIENT_ID">
                   Google
                 </Button>
               )}
               {githubEnabled ? (
-                <a href="/api/auth/oauth/github">
+                <Link href="/api/auth/oauth/github">
                   <Button variant="outline" className="w-full" type="button">
                     GitHub
                   </Button>
-                </a>
+                </Link>
               ) : (
                 <Button variant="outline" disabled title="Configure GITHUB_CLIENT_ID">
                   GitHub
@@ -140,4 +166,10 @@ export function LoginForm({ googleEnabled, githubEnabled }: LoginFormProps) {
       </CardContent>
     </Card>
   );
+}
+
+function getSafeRedirect(value: string | null) {
+  if (!value || !value.startsWith("/") || value.startsWith("//")) return "/dashboard";
+  if (value.startsWith("/login") || value.startsWith("/register")) return "/dashboard";
+  return value;
 }

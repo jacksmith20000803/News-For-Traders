@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { Plus, GripVertical, Trash2, Bell, TrendingUp, TrendingDown } from "lucide-react";
 import { secureFetch } from "@/lib/api/client";
@@ -34,16 +34,24 @@ export function WatchlistManager() {
   const [dragItemId, setDragItemId] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
   const [addSymbol, setAddSymbol] = useState<Record<string, string>>({});
+  const mountedRef = useRef(true);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/watchlists");
     const json = await res.json();
-    if (json.success) setWatchlists(json.data);
-    setLoading(false);
+    if (json.success && mountedRef.current) {
+      setWatchlists(json.data);
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
-    load();
+    mountedRef.current = true;
+    const timer = setTimeout(() => load(), 0);
+    return () => {
+      mountedRef.current = false;
+      clearTimeout(timer);
+    };
   }, [load]);
 
   const createWatchlist = async () => {

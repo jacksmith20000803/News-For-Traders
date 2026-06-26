@@ -1,6 +1,5 @@
 import { db } from "@/lib/db";
-import { parseAssetSlug, symbolMatches } from "@/lib/assets/symbols";
-import { isAIConfigured } from "@/lib/providers/ai/openai";
+import { parseAssetSlug } from "@/lib/assets/symbols";
 
 export async function getAssetDetail(slug: string) {
   const asset = parseAssetSlug(slug);
@@ -70,7 +69,7 @@ export async function getAssetDetail(slug: string) {
       label: sentimentScore > 2 ? "Bullish" : sentimentScore < -2 ? "Bearish" : "Neutral",
     },
     performance,
-    aiConfigured: isAIConfigured(),
+    aiConfigured: true,
   };
 }
 

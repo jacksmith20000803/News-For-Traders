@@ -1,10 +1,9 @@
 import { NextRequest } from "next/server";
-import { apiSuccess, apiError, handleApiError, parseJsonBody } from "@/lib/api/response";
+import { apiSuccess, handleApiError, parseJsonBody } from "@/lib/api/response";
 import { requireAuth, validateCsrf } from "@/lib/auth/guards";
 import { db } from "@/lib/db";
 import {
   watchlistCreateSchema,
-  watchlistItemSchema,
   watchlistReorderSchema,
 } from "@/lib/validations/trader";
 

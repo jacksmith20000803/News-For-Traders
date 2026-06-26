@@ -1,7 +1,8 @@
 /**
  * Email delivery for alerts. Sends via SMTP when configured; otherwise no-ops silently.
  */
-export async function sendAlertEmail(to: string, subject: string, body: string): Promise<boolean> {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function sendAlertEmail(to: string, subject: string, _body: string): Promise<boolean> {
   const host = process.env.SMTP_HOST;
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASSWORD;

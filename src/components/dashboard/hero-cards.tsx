@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { Bot, Calendar, TrendingUp, Zap, AlertTriangle } from "lucide-react";
-import { isAIConfigured } from "@/lib/providers/ai/openai";
 
 interface HeroCardsProps {
   topHeadline?: string | null;
   topHeadlineId?: string | null;
   newsCount: number;
   discussionCount: number;
+  aiConfigured: boolean;
 }
 
 export function HeroCards({
@@ -14,8 +14,8 @@ export function HeroCards({
   topHeadlineId,
   newsCount,
   discussionCount,
+  aiConfigured,
 }: HeroCardsProps) {
-  const aiConfigured = isAIConfigured();
 
   return (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">

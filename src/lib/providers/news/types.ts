@@ -4,6 +4,7 @@ export interface NewsItem {
   summary?: string;
   content?: string;
   sourceUrl?: string;
+  imageUrl?: string;
   publishedAt: Date;
   symbols?: { symbol: string; assetType: string }[];
   category?: string;

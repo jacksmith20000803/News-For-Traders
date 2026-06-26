@@ -20,15 +20,15 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const params = searchSchema.parse({
-      q: searchParams.get("q"),
-      type: searchParams.get("type") ?? "all",
-      page: searchParams.get("page") ?? "1",
-      sort: searchParams.get("sort") ?? "newest",
+      q: searchParams.get("q") || "",
+      type: searchParams.get("type") || "all",
+      page: searchParams.get("page") || "1",
+      sort: searchParams.get("sort") || "newest",
     });
 
     const results = await globalSearch({
-      q: params.q,
-      type: params.type,
+      q: params.q || "",
+      type: params.type || "all",
       page: params.page,
       sort: params.sort,
     });

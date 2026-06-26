@@ -49,10 +49,10 @@ export const interestsSchema = z.object({
 });
 
 export const searchSchema = z.object({
-  q: z.string().min(1).max(200),
-  type: z.enum(["all", "news", "articles", "users", "discussions", "comments"]).optional(),
+  q: z.string().max(200).optional().default(""),
+  type: z.enum(["all", "news", "articles", "users", "discussions", "comments"]).optional().default("all"),
   page: z.coerce.number().int().min(1).default(1),
-  sort: z.enum(["relevance", "newest"]).optional(),
+  sort: z.enum(["relevance", "newest"]).optional().default("newest"),
 });
 
 export const aiMessageSchema = z.object({

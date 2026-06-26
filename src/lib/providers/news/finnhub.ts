@@ -28,6 +28,7 @@ export class FinnhubProvider implements NewsProvider {
         summary: string;
         source: string;
         url: string;
+        image: string;
         datetime: number;
         related?: string;
       }>;
@@ -38,6 +39,7 @@ export class FinnhubProvider implements NewsProvider {
           headline: item.headline,
           summary: item.summary,
           sourceUrl: item.url,
+          imageUrl: item.image,
           publishedAt: new Date(item.datetime * 1000),
           category,
           symbols: item.related

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { secureFetch } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -49,19 +49,25 @@ export function AlertsManager() {
     threshold: "",
     channels: "BOTH" as AlertChannel,
   });
+  const mountedRef = useRef(true);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/alerts");
     const json = await res.json();
-    if (json.success) {
+    if (json.success && mountedRef.current) {
       setPriceAlerts(json.data.priceAlerts);
       setRules(json.data.rules);
     }
-    setLoading(false);
+    if (mountedRef.current) setLoading(false);
   }, []);
 
   useEffect(() => {
-    load();
+    mountedRef.current = true;
+    const timer = setTimeout(() => load(), 0);
+    return () => {
+      mountedRef.current = false;
+      clearTimeout(timer);
+    };
   }, [load]);
 
   const createAlert = async () => {
@@ -120,7 +126,7 @@ export function AlertsManager() {
           <select
             value={form.alertType}
             onChange={(e) => setForm({ ...form, alertType: e.target.value as AlertType })}
-            className="rounded-lg border border-white/8 bg-white/5 px-3 py-2 text-sm"
+            className="btn-3d rounded-lg border border-white/8 bg-white/5 px-3 py-2 text-sm appearance-none cursor-pointer"
           >
             {Object.entries(ALERT_LABELS).map(([k, v]) => (
               <option key={k} value={k}>{v}</option>
@@ -136,7 +142,7 @@ export function AlertsManager() {
           <select
             value={form.channels}
             onChange={(e) => setForm({ ...form, channels: e.target.value as AlertChannel })}
-            className="rounded-lg border border-white/8 bg-white/5 px-3 py-2 text-sm"
+            className="btn-3d rounded-lg border border-white/8 bg-white/5 px-3 py-2 text-sm appearance-none cursor-pointer"
           >
             <option value="IN_APP">In-app only</option>
             <option value="EMAIL">Email only</option>

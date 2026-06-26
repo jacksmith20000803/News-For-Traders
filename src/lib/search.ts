@@ -18,6 +18,10 @@ export async function globalSearch(params: SearchParams) {
 
   const results: Record<string, unknown> = {};
 
+  if (!q) {
+    return results;
+  }
+
   const mode = Prisma.QueryMode.insensitive;
 
   if (type === "all" || type === "news") {

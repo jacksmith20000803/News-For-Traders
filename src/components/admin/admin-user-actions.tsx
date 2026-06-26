@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { secureFetch } from "@/lib/api/client";
+import { readJsonResponse, secureFetch } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import type { Role } from "@prisma/client";
 
@@ -29,7 +29,11 @@ export function AdminUserActions({
         method: "POST",
         body: JSON.stringify(payload),
       });
-      const json = await res.json();
+      const json = await readJsonResponse<{
+        success: boolean;
+        data?: { message?: string };
+        error?: string;
+      }>(res);
       if (json.success) {
         setMessage(json.data?.message ?? "Action completed");
         window.location.reload();

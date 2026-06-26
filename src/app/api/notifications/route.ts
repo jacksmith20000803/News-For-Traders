@@ -15,17 +15,19 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const unreadOnly = searchParams.get("unread") === "true";
     const limit = Math.min(parseInt(searchParams.get("limit") ?? "20", 10), 50);
+    const where = {
+      userId: user.id,
+      ...(unreadOnly ? { read: false } : {}),
+      NOT: { title: "Market Data Updated" },
+    };
 
     const [notifications, unreadCount] = await Promise.all([
       db.notification.findMany({
-        where: {
-          userId: user.id,
-          ...(unreadOnly ? { read: false } : {}),
-        },
+        where,
         orderBy: { createdAt: "desc" },
         take: limit,
       }),
-      db.notification.count({ where: { userId: user.id, read: false } }),
+      db.notification.count({ where: { ...where, read: false } }),
     ]);
 
     return apiSuccess({ notifications, unreadCount });

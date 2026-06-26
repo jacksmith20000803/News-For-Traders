@@ -19,7 +19,7 @@ export function verifyCsrfToken(signedToken: string): boolean {
   const parts = signedToken.split(".");
   if (parts.length !== 2) return false;
 
-  const [token, signature] = parts;
+  const [token, _signature] = parts; // eslint-disable-line @typescript-eslint/no-unused-vars
   const expected = signCsrfToken(token);
 
   try {

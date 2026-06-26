@@ -1,8 +1,26 @@
 import { db } from "@/lib/db";
 import { config } from "@/lib/config";
 
-const CACHE_TTL_MS = 10_000;
-const cache = new Map<string, { value: string; expiresAt: number }>();
+const CACHE_TTL_MS = 60_000;
+const SETTING_READ_TIMEOUT_MS = 350;
+const cache = new Map<string, { value: string | null; expiresAt: number }>();
+
+async function withTimeout<T>(promise: Promise<T>, fallback: T): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((resolve) => {
+        timeout = setTimeout(() => resolve(fallback), SETTING_READ_TIMEOUT_MS);
+      }),
+    ]);
+  } catch {
+    return fallback;
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
 
 async function getCachedSetting(key: string): Promise<string | null> {
   const now = Date.now();
@@ -11,11 +29,12 @@ async function getCachedSetting(key: string): Promise<string | null> {
     return cached.value;
   }
 
-  const setting = await db.siteSetting.findUnique({ where: { key } });
+  const setting = await withTimeout(
+    db.siteSetting.findUnique({ where: { key } }),
+    null
+  );
   const value = setting?.value ?? null;
-  if (value !== null) {
-    cache.set(key, { value, expiresAt: now + CACHE_TTL_MS });
-  }
+  cache.set(key, { value, expiresAt: now + CACHE_TTL_MS });
   return value;
 }
 
@@ -45,6 +64,9 @@ export async function getSiteSetting(key: string): Promise<string | null> {
 }
 
 export async function isFeatureEnabled(key: string): Promise<boolean> {
-  const flag = await db.featureFlag.findUnique({ where: { key } });
+  const flag = await withTimeout(
+    db.featureFlag.findUnique({ where: { key } }),
+    null
+  );
   return flag?.enabled ?? false;
 }
