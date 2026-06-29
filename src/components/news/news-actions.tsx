@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Heart } from "lucide-react";
-import { secureFetch } from "@/lib/api/client";
+import { readJsonResponse, secureFetch } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
 
 export function BookmarkButton({
@@ -14,9 +14,9 @@ export function BookmarkButton({
   initialSaved?: boolean;
   onChange?: (newsId: string, saved: boolean) => void;
 }) {
-  const [optimisticSaved, setOptimisticSaved] = useState<boolean | null>(null);
+  const [optimisticSaved, setOptimisticSaved] = useState<{ newsId: string; saved: boolean } | null>(null);
   const [loading, setLoading] = useState(false);
-  const saved = optimisticSaved ?? initialSaved;
+  const saved = optimisticSaved?.newsId === newsId ? optimisticSaved.saved : initialSaved;
 
   const toggle = async () => {
     setLoading(true);
@@ -29,13 +29,25 @@ export function BookmarkButton({
           newsId,
         }),
       });
-      const json = await res.json();
-      if (json.success) {
-        setOptimisticSaved(nextSaved);
-        onChange?.(newsId, nextSaved);
+      const json = await readJsonResponse<{ success: boolean; error?: string }>(res).catch(
+        (error) => ({
+          success: false,
+          error: error instanceof Error ? error.message : "Could not update favorite",
+        })
+      );
+
+      if (!res.ok || !json.success) {
+        if (res.status === 401) {
+          window.location.href = `/login?next=${encodeURIComponent(window.location.pathname)}`;
+          return;
+        }
+        throw new Error(json.error ?? "Could not update favorite");
       }
-    } catch {
-      // not signed in
+
+      setOptimisticSaved({ newsId, saved: nextSaved });
+      onChange?.(newsId, nextSaved);
+    } catch (error) {
+      console.error("Favorite update failed:", error);
     } finally {
       setLoading(false);
     }

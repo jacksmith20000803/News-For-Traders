@@ -10,9 +10,9 @@ interface LogoProps {
 
 export function Logo({ variant = "header", className, showTagline = false }: LogoProps) {
   const sizes = {
-    header: { width: 240, height: 72, imgClass: "h-16 w-auto" },
-    hero: { width: 400, height: 150, imgClass: "h-32 sm:h-40 w-auto" },
-    footer: { width: 200, height: 60, imgClass: "h-14 w-auto" },
+    header: { width: 56, height: 56, imgClass: "h-14 w-14" },
+    hero: { width: 144, height: 144, imgClass: "h-28 w-28 sm:h-36 sm:w-36" },
+    footer: { width: 88, height: 88, imgClass: "h-[88px] w-[88px]" },
   };
 
   const { width, height, imgClass } = sizes[variant];
@@ -26,7 +26,6 @@ export function Logo({ variant = "header", className, showTagline = false }: Log
           width={width}
           height={height}
           className={cn(imgClass, "object-contain object-left transition-all duration-500", variant === "header" && "animate-logo-glow")}
-          style={imgClass.includes("w-auto") ? { width: "auto" } : { height: "auto" }}
           priority={variant === "header"}
         />
         <style jsx>{`

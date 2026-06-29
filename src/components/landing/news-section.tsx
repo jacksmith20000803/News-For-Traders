@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { Clock, TrendingUp, ArrowRight } from "lucide-react";
 import { ButtonLink } from "@/components/ui/button";
 import Image from "next/image";
+import { readJsonResponse } from "@/lib/api/client";
 
 interface NewsItem {
   id: string;
@@ -38,61 +39,85 @@ const timeAgo = (dateString: string) => {
   return `${Math.floor(diffHrs / 24)}d ago`;
 };
 
+const stripHtml = (value: string | null | undefined) =>
+  (value ?? "")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const fallbackNews: NewsItem[] = [
+  {
+    id: "fallback-market-brief",
+    headline: "Market news is reconnecting",
+    summary: "Live news is temporarily unavailable. The feed will refresh automatically when the connection returns.",
+    importance: "MEDIUM",
+    publishedAt: new Date().toISOString(),
+    source: { name: "TRADX" },
+    imageUrl: null,
+    assets: [],
+  },
+];
+
+const landingNewsCache = new Map<string, NewsItem[]>();
+
 export function NewsSection({ coinSymbols }: NewsSectionProps) {
-  const [news, setNews] = useState<NewsItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [shouldLoad, setShouldLoad] = useState(false);
+  const cacheKey = coinSymbols?.length ? coinSymbols.map((symbol) => symbol.toUpperCase()).sort().join(",") : "all";
+  const cachedNews = landingNewsCache.get(cacheKey);
+  const [news, setNews] = useState<NewsItem[]>(cachedNews ?? []);
+  const [loading, setLoading] = useState(!cachedNews);
   const sectionRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
-    const section = sectionRef.current;
-    if (!section || !("IntersectionObserver" in window)) {
-      const timer = window.setTimeout(() => setShouldLoad(true), 1200);
-      return () => window.clearTimeout(timer);
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0]?.isIntersecting) {
-          setShouldLoad(true);
-          observer.disconnect();
-        }
-      },
-      { rootMargin: "600px" }
-    );
-
-    observer.observe(section);
-    return () => observer.disconnect();
-  }, []);
-
-  useEffect(() => {
-    if (!shouldLoad) return;
+    let cancelled = false;
+    const cached = landingNewsCache.get(cacheKey);
+    const coinSymbolList = cacheKey === "all" ? [] : cacheKey.split(",");
+    window.queueMicrotask(() => {
+      if (cancelled) return;
+      if (cached) {
+        setNews(cached);
+        setLoading(false);
+      } else {
+        setLoading(true);
+      }
+    });
 
     const fetchNews = async () => {
       try {
-        setLoading(true);
-        const res = await fetch("/api/news?limit=6");
-        const json = await res.json();
-        if (json.success && json.data.news) {
-          let filteredNews = json.data.news;
+        const res = await fetch("/api/news?limit=6&lite=true", { cache: "no-store" });
+        if (!res.ok) throw new Error(`News request failed with ${res.status}`);
+        const json = await readJsonResponse<{
+          success: boolean;
+          data?: { news?: NewsItem[] };
+        }>(res);
+        const incomingNews = json.data?.news ?? [];
+        if (json.success && incomingNews.length > 0) {
+          let filteredNews = incomingNews;
           
           // Filter news by coin symbols if provided
-          if (coinSymbols && coinSymbols.length > 0) {
-            filteredNews = json.data.news.filter((item: NewsItem) => {
+          if (coinSymbolList.length > 0) {
+            filteredNews = incomingNews.filter((item: NewsItem) => {
               if (!item.assets || item.assets.length === 0) return false;
               return item.assets.some(asset => 
-                coinSymbols.includes(asset.symbol.replace("/USD", ""))
+                coinSymbolList.includes(asset.symbol.replace("/USD", "").toUpperCase())
               );
             });
           }
           
           // If no coin-specific news, fall back to general news
-          setNews(filteredNews.length > 0 ? filteredNews : json.data.news);
+          const nextNews = filteredNews.length > 0 ? filteredNews : incomingNews;
+          landingNewsCache.set(cacheKey, nextNews);
+          if (!cancelled) setNews(nextNews);
         }
-      } catch (error) {
-        console.error("Failed to fetch news:", error);
+      } catch {
+        if (!cancelled) setNews(fallbackNews);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
@@ -100,8 +125,11 @@ export function NewsSection({ coinSymbols }: NewsSectionProps) {
     
     // Refresh news every 5 minutes
     const interval = setInterval(fetchNews, 300000);
-    return () => clearInterval(interval);
-  }, [coinSymbols, shouldLoad]);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [cacheKey]);
 
   if (loading) {
     return (
@@ -192,7 +220,7 @@ export function NewsSection({ coinSymbols }: NewsSectionProps) {
                   <div className="mb-4 rounded-lg overflow-hidden relative h-32" suppressHydrationWarning>
                     <Image
                       src={item.imageUrl}
-                      alt={item.headline}
+                      alt={stripHtml(item.headline)}
                       fill
                       className="object-cover"
                       unoptimized
@@ -201,10 +229,10 @@ export function NewsSection({ coinSymbols }: NewsSectionProps) {
                 )}
 
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors" suppressHydrationWarning>
-                  {item.headline}
+                  {stripHtml(item.headline)}
                 </h3>
 
-                <p className="text-gray-600 dark:text-gray-400 text-sm mb-4 line-clamp-2" suppressHydrationWarning>{item.summary}</p>
+                <p className="text-gray-600 dark:text-gray-400 text-sm mb-4 line-clamp-2" suppressHydrationWarning>{stripHtml(item.summary)}</p>
 
                 <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-white/6" suppressHydrationWarning>
                   <span className="text-xs text-gray-500 dark:text-gray-500" suppressHydrationWarning>{item.source?.name || 'Unknown'}</span>

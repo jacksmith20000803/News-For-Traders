@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { Bell, CheckCheck } from "lucide-react";
-import { secureFetch } from "@/lib/api/client";
+import { readJsonResponse, secureFetch } from "@/lib/api/client";
 import { subscribeSSE } from "@/components/realtime/sse-provider";
 import { formatRelative } from "@/lib/utils";
 import { useTheme } from "@/components/providers/theme-provider";
@@ -26,14 +26,23 @@ export function NotificationBell() {
   const [unreadCount, setUnreadCount] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
   const mountedRef = useRef(true);
+  const notificationIdsRef = useRef<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch("/api/notifications?limit=15");
-      const json = await res.json();
+      const res = await fetch("/api/notifications?limit=15", {
+        cache: "no-store",
+        credentials: "same-origin",
+      });
+      const json = await readJsonResponse<{
+        success: boolean;
+        data?: { notifications?: Notification[]; unreadCount?: number };
+      }>(res);
       if (json.success && mountedRef.current) {
-        setNotifications(json.data.notifications);
-        setUnreadCount(json.data.unreadCount);
+        const nextNotifications = json.data?.notifications ?? [];
+        notificationIdsRef.current = new Set(nextNotifications.map((notification) => notification.id));
+        setNotifications(nextNotifications);
+        setUnreadCount(json.data?.unreadCount ?? 0);
       }
     } catch {
       // user may not be logged in
@@ -42,10 +51,17 @@ export function NotificationBell() {
 
   useEffect(() => {
     mountedRef.current = true;
-    const timer = setTimeout(() => load(), 1500);
+    const initialTimer = window.setTimeout(() => load(), 0);
+    const timer = window.setInterval(() => load(), 15000);
+    const refreshOnFocus = () => {
+      if (document.visibilityState === "visible") void load();
+    };
+    document.addEventListener("visibilitychange", refreshOnFocus);
     return () => {
       mountedRef.current = false;
-      clearTimeout(timer);
+      window.clearTimeout(initialTimer);
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", refreshOnFocus);
     };
   }, [load]);
 
@@ -53,8 +69,19 @@ export function NotificationBell() {
     return subscribeSSE((event, data) => {
       if (event === "notification" && (data as { type?: string }).type === "notification.created") {
         const n = (data as { notification: Notification }).notification;
-        setNotifications((prev) => [n, ...prev].slice(0, 15));
-        setUnreadCount((c) => c + 1);
+        if (!n?.id) return;
+        const knownNotification = notificationIdsRef.current.has(n.id);
+        notificationIdsRef.current.add(n.id);
+        if (!knownNotification && !n.read) {
+          setUnreadCount((count) => count + 1);
+        }
+        setNotifications((prev) => {
+          const existing = prev.find((item) => item.id === n.id);
+          if (existing) {
+            return prev.map((item) => (item.id === n.id ? n : item));
+          }
+          return [n, ...prev].slice(0, 15);
+        });
       }
     });
   }, []);
@@ -77,10 +104,13 @@ export function NotificationBell() {
   };
 
   const markRead = async (notificationId: string) => {
+    const wasUnread = notifications.some((n) => n.id === notificationId && !n.read);
     setNotifications((prev) =>
       prev.map((n) => (n.id === notificationId ? { ...n, read: true } : n))
     );
-    setUnreadCount((count) => Math.max(0, count - 1));
+    if (wasUnread) {
+      setUnreadCount((count) => Math.max(0, count - 1));
+    }
     await secureFetch("/api/notifications", {
       method: "PATCH",
       body: JSON.stringify({ action: "mark_read", notificationId }),
@@ -105,18 +135,19 @@ export function NotificationBell() {
           const nextOpen = !open;
           setOpen(nextOpen);
           if (nextOpen) {
-            void (async () => {
-              if (unreadCount > 0) await markAllRead();
-              await load();
-            })();
+            void load();
           }
         }}
-        className="relative rounded-lg p-2 text-gray-700 dark:text-white hover:bg-gray-100 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white"
+        className={`relative flex h-10 w-10 items-center justify-center rounded-[14px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70 ${
+          open
+            ? "bg-emerald-500/15 text-emerald-600 hover:bg-emerald-500/20 dark:text-emerald-300"
+            : "text-gray-700 hover:bg-emerald-500/10 hover:text-emerald-600 active:bg-emerald-500/15 active:text-emerald-600 dark:text-white dark:hover:bg-emerald-500/10 dark:hover:text-emerald-300 dark:active:text-emerald-300"
+        }`}
         aria-label="Notifications"
       >
         <Bell className="h-5 w-5" />
         {unreadCount > 0 && (
-          <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold leading-none text-white ring-2 ring-white dark:ring-[#0a0c0c]">
+          <span className="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-extrabold leading-none text-white ring-2 ring-white dark:ring-[#050607]">
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}

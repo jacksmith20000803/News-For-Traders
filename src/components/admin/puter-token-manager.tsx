@@ -144,7 +144,7 @@ export function PuterTokenManager() {
   }
 
   async function deleteToken(id: string) {
-    if (!confirm("Delete this Puter token?")) return;
+    if (!confirm("Delete this AI token?")) return;
     setMessage("");
     try {
       const res = await secureFetch("/api/admin/puter-tokens", {
@@ -165,7 +165,7 @@ export function PuterTokenManager() {
       <form onSubmit={submitForm} className="rounded-xl border border-border bg-card p-4">
         <div className="mb-4 flex items-center gap-2">
           <Bot className="h-5 w-5 text-emerald-400" />
-          <h2 className="font-semibold">{editingId ? "Edit Puter Token" : "Add Puter Token"}</h2>
+          <h2 className="font-semibold">{editingId ? "Edit AI Token" : "Add AI Token"}</h2>
         </div>
         <div className="space-y-3">
           <label className="block text-sm">
@@ -179,7 +179,7 @@ export function PuterTokenManager() {
           </label>
           <label className="block text-sm">
             <span className="mb-1 block text-muted-foreground">
-              Puter token {editingId ? "(leave blank to keep current)" : ""}
+              AI token {editingId ? "(leave blank to keep current)" : ""}
             </span>
             <input
               value={form.token}
@@ -306,7 +306,7 @@ export function PuterTokenManager() {
               {!tokens.length && !loading && (
                 <tr>
                   <td className="py-6 text-center text-muted-foreground" colSpan={6}>
-                    No Puter tokens stored yet.
+                    No AI tokens stored yet.
                   </td>
                 </tr>
               )}

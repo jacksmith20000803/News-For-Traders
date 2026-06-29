@@ -47,10 +47,10 @@ export default function AIPage() {
       setIsLoading(true);
 
       try {
-        const content = await chatWithPuter(text.trim());
+        const response = await chatWithPuter(text.trim());
         setMessages((prev) => [
           ...prev,
-          { id: clientId("msg"), role: "assistant", content },
+          { id: clientId("msg"), role: "assistant", content: response.content },
         ]);
       } catch (err) {
         const errorMsg =
@@ -85,7 +85,7 @@ export default function AIPage() {
           </div>
           <div>
             <h1 className="text-lg font-bold gradient-text">AI Market Assistant</h1>
-            <p className="text-xs text-muted-foreground">Powered by Puter.js</p>
+            <p className="text-xs text-muted-foreground">Powered by AI</p>
           </div>
         </div>
         {lastFailedPrompt && (

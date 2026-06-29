@@ -11,7 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/components/providers/auth-provider";
-import { setCsrfToken } from "@/lib/api/client";
+import { readJsonResponse, setCsrfToken } from "@/lib/api/client";
+import { cn } from "@/lib/utils";
 
 interface LoginFormProps {
   googleEnabled?: boolean;
@@ -24,7 +25,13 @@ export function LoginForm({ googleEnabled, githubEnabled }: LoginFormProps) {
   const searchParams = useSearchParams();
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [requiresTwoFactor, setRequiresTwoFactor] = useState(false);
+  const [challengeToken, setChallengeToken] = useState("");
+  const [rememberDevice, setRememberDevice] = useState(false);
+  const [recoveryMode, setRecoveryMode] = useState(false);
+  const [recoveryCode, setRecoveryCode] = useState("");
   const redirectTo = getSafeRedirect(searchParams.get("redirect"));
+  const twoFactorWarning = error.toLowerCase().includes("two-factor");
 
   const {
     register,
@@ -46,18 +53,73 @@ export function LoginForm({ googleEnabled, githubEnabled }: LoginFormProps) {
     setError("");
 
     try {
-      const res = await fetch("/api/auth/login", {
+      if (requiresTwoFactor && recoveryMode) {
+        await recoverWithCode(data.email);
+        return;
+      }
+
+      const isMfaStep = requiresTwoFactor && challengeToken;
+      const res = await fetch(isMfaStep ? "/api/auth/login/mfa" : "/api/auth/login", {
         method: "POST",
         cache: "no-store",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify(
+          isMfaStep
+            ? {
+                challengeToken,
+                token: data.twoFactorCode ?? "",
+                rememberDevice,
+                deviceName: navigator.userAgent,
+              }
+            : data
+        ),
       });
 
-      const json = await res.json();
+      const json = await readJsonResponse<{
+        success: boolean;
+        error?: string;
+        code?: string;
+        data?: {
+          user?: Parameters<typeof setAuthenticatedUser>[0];
+          csrfToken?: string;
+          mfaRequired?: boolean;
+          challengeToken?: string;
+          message?: string;
+        };
+      }>(res);
 
       if (!json.success) {
+        if (json.code === "TWO_FACTOR_REQUIRED") {
+          setRequiresTwoFactor(true);
+          setError("Enter your authenticator code to finish signing in.");
+          return;
+        }
+        if (json.code === "INVALID_CHALLENGE") {
+          setChallengeToken("");
+          setRequiresTwoFactor(false);
+          setRecoveryMode(false);
+          setError("Your two-factor challenge expired. Please sign in again.");
+          return;
+        }
+        if (
+          isMfaStep ||
+          json.code === "INVALID_MFA_TOKEN" ||
+          json.code === "INVALID_TWO_FACTOR_CODE" ||
+          json.code === "INVALID_TOKEN"
+        ) {
+          setError("Warning: incorrect two-factor authentication code.");
+          return;
+        }
         setError(json.error ?? "Login failed");
+        return;
+      }
+
+      if (json.data?.mfaRequired) {
+        setRequiresTwoFactor(true);
+        setChallengeToken(json.data.challengeToken ?? "");
+        setRecoveryMode(false);
+        setError(json.data.message ?? "Enter your authenticator code to finish signing in.");
         return;
       }
 
@@ -72,16 +134,67 @@ export function LoginForm({ googleEnabled, githubEnabled }: LoginFormProps) {
     }
   };
 
+  const recoverWithCode = async (email: string) => {
+    if (!recoveryCode.trim()) {
+      setError("Enter one of your recovery codes.");
+      return;
+    }
+
+    const recoverResponse = await fetch("/api/auth/recover-mfa", {
+      method: "POST",
+      cache: "no-store",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, recoveryCode }),
+    });
+    const recoverJson = await readJsonResponse<{
+      success: boolean;
+      error?: string;
+      data?: { recoveryToken?: string };
+    }>(recoverResponse);
+
+    if (!recoverJson.success || !recoverJson.data?.recoveryToken) {
+      setError(recoverJson.error ?? "Recovery code could not be verified.");
+      return;
+    }
+
+    const resetResponse = await fetch("/api/auth/reset-mfa", {
+      method: "POST",
+      cache: "no-store",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ recoveryToken: recoverJson.data.recoveryToken }),
+    });
+    const resetJson = await readJsonResponse<{
+      success: boolean;
+      error?: string;
+      data?: {
+        user?: Parameters<typeof setAuthenticatedUser>[0];
+        csrfToken?: string;
+        message?: string;
+      };
+    }>(resetResponse);
+
+    if (!resetJson.success) {
+      setError(resetJson.error ?? "Could not reset two-factor authentication.");
+      return;
+    }
+
+    setAuthenticatedUser(resetJson.data?.user ?? null);
+    setCsrfToken(resetJson.data?.csrfToken);
+    router.replace(redirectTo);
+    router.refresh();
+  };
+
   return (
     <Card className="w-full max-w-md bg-white dark:bg-[#0a0c0c] border-gray-200 dark:border-white/10">
       <CardHeader className="text-center">
         <Image
           src="/tradx-logo.png"
           alt="TRADX"
-          width={168}
-          height={50}
-          className="mx-auto mb-3 h-auto w-40 object-contain"
-          style={{ height: "auto" }}
+          width={200}
+          height={190}
+          className="mx-auto mb-3 object-contain"
           priority
         />
         <CardTitle className="text-2xl text-gray-900 dark:text-white">Welcome back</CardTitle>
@@ -90,7 +203,15 @@ export function LoginForm({ googleEnabled, githubEnabled }: LoginFormProps) {
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           {error && (
-            <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
+            <div
+              role="alert"
+              className={cn(
+                "rounded-lg border p-3 text-sm font-semibold",
+                twoFactorWarning
+                  ? "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-200"
+                  : "border-destructive/30 bg-destructive/10 text-destructive"
+              )}
+            >
               {error}
             </div>
           )}
@@ -110,13 +231,74 @@ export function LoginForm({ googleEnabled, githubEnabled }: LoginFormProps) {
             error={errors.password?.message}
             {...register("password")}
           />
+          {requiresTwoFactor && !recoveryMode && (
+            <div className="space-y-3 rounded-2xl border border-primary/20 bg-primary/5 p-3">
+              <Input
+                label="Authenticator code"
+                id="twoFactorCode"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                placeholder="123456"
+                error={errors.twoFactorCode?.message}
+                {...register("twoFactorCode")}
+              />
+              {twoFactorWarning && (
+                <p
+                  role="alert"
+                  className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-700 dark:text-amber-200"
+                >
+                  Warning: incorrect two-factor authentication code.
+                </p>
+              )}
+              <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={rememberDevice}
+                  onChange={(event) => setRememberDevice(event.target.checked)}
+                  className="h-4 w-4 rounded border-border accent-primary"
+                />
+                Remember this device for 30 days
+              </label>
+              <button
+                type="button"
+                className="text-sm font-medium text-primary hover:underline"
+                onClick={() => {
+                  setRecoveryMode(true);
+                  setError("");
+                }}
+              >
+                Use a recovery code instead
+              </button>
+            </div>
+          )}
+          {requiresTwoFactor && recoveryMode && (
+            <div className="space-y-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3">
+              <Input
+                label="Recovery code"
+                id="recoveryCode"
+                placeholder="xxxx-xxxx-xxxx-xxxx"
+                value={recoveryCode}
+                onChange={(event) => setRecoveryCode(event.target.value)}
+              />
+              <button
+                type="button"
+                className="text-sm font-medium text-primary hover:underline"
+                onClick={() => {
+                  setRecoveryMode(false);
+                  setError("");
+                }}
+              >
+                Use authenticator code instead
+              </button>
+            </div>
+          )}
           <div className="flex justify-end">
             <Link href="/forgot-password" className="text-sm text-primary hover:underline">
               Forgot password?
             </Link>
           </div>
           <Button type="submit" className="w-full" isLoading={isLoading}>
-            Sign in
+            {requiresTwoFactor ? "Verify and sign in" : "Sign in"}
           </Button>
         </form>
 

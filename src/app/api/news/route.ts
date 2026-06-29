@@ -6,12 +6,17 @@ import { paginationSchema } from "@/lib/validations/content";
 import { INTEREST_TO_NEWS_SLUGS } from "@/lib/constants";
 import { ImportanceLevel, Prisma } from "@prisma/client";
 import { z } from "zod";
+import { isDatabaseConnectivityError } from "@/lib/db-errors";
+import { getFallbackNews } from "@/lib/fallback-data";
 
 const newsQuerySchema = paginationSchema.extend({
   importance: z.nativeEnum(ImportanceLevel).optional(),
   coin: z.string().trim().min(1).max(30).optional(),
   search: z.string().trim().max(200).optional(),
   favorites: z.enum(["true", "false"]).optional(),
+  lite: z.enum(["true", "false"]).optional(),
+  fast: z.enum(["true", "false"]).optional(),
+  personalized: z.enum(["true", "false"]).optional(),
 });
 
 export async function GET(request: NextRequest) {
@@ -24,19 +29,15 @@ export async function GET(request: NextRequest) {
       coin: searchParams.get("coin") || undefined,
       search: searchParams.get("search") || undefined,
       favorites: searchParams.get("favorites") === "true" ? "true" : "false",
+      lite: searchParams.get("lite") === "true" ? "true" : "false",
+      fast: searchParams.get("fast") === "true" ? "true" : "false",
+      personalized: searchParams.get("personalized") === "true" ? "true" : "false",
     });
 
-    const user = await getCurrentUser();
     const favoriteOnly = params.favorites === "true";
-
-    if (favoriteOnly && !user) {
-      return apiSuccess({
-        news: [],
-        personalized: null,
-        favoriteNewsIds: [],
-        pagination: { page: params.page, limit: params.limit, total: 0, totalPages: 0 },
-      });
-    }
+    const lite = params.lite === "true" && !favoriteOnly;
+    const fast = params.fast === "true" || lite;
+    const includePersonalized = params.personalized === "true";
 
     const where: Prisma.NewsWhereInput = {};
     if (params.importance) where.importance = params.importance;
@@ -57,25 +58,71 @@ export async function GET(request: NextRequest) {
         { summary: { contains: params.search, mode: "insensitive" } },
       ];
     }
-    if (favoriteOnly && user) {
-      where.bookmarks = { some: { userId: user.id } };
-    }
 
-    const [news, total] = await Promise.all([
-      db.news.findMany({
+    if (lite) {
+      const news = await db.news.findMany({
         where,
-        include: {
-          source: { select: { name: true, reliabilityScore: true } },
-          category: { select: { name: true, slug: true } },
+        select: {
+          id: true,
+          headline: true,
+          summary: true,
+          publishedAt: true,
+          importance: true,
+          reliabilityStatus: true,
+          imageUrl: true,
+          source: { select: { name: true } },
           assets: { select: { symbol: true, assetType: true } },
-          _count: { select: { comments: true } },
         },
         orderBy: { publishedAt: "desc" },
         skip: (params.page - 1) * params.limit,
         take: params.limit,
-      }),
-      db.news.count({ where }),
-    ]);
+      });
+
+      return apiSuccess({
+        news,
+        personalized: null,
+        favoriteNewsIds: [],
+        pagination: {
+          page: params.page,
+          limit: params.limit,
+          total: news.length,
+          totalPages: news.length < params.limit ? params.page : params.page + 1,
+        },
+      });
+    }
+
+    const user = await getCurrentUser();
+    if (favoriteOnly && !user) {
+      return apiSuccess({
+        news: [],
+        personalized: null,
+        favoriteNewsIds: [],
+        pagination: { page: params.page, limit: params.limit, total: 0, totalPages: 0 },
+      });
+    }
+
+    if (favoriteOnly && user) {
+      where.bookmarks = { some: { userId: user.id } };
+    }
+
+    const newsWithProbe = await db.news.findMany({
+      where,
+      include: {
+        source: fast
+          ? { select: { name: true } }
+          : { select: { name: true, reliabilityScore: true } },
+        category: fast ? false : { select: { name: true, slug: true } },
+        assets: { select: { symbol: true, assetType: true } },
+        _count: fast ? false : { select: { comments: true } },
+      },
+      orderBy: { publishedAt: "desc" },
+      skip: (params.page - 1) * params.limit,
+      take: fast ? params.limit + 1 : params.limit,
+    });
+
+    const hasMore = fast && newsWithProbe.length > params.limit;
+    const news = hasMore ? newsWithProbe.slice(0, params.limit) : newsWithProbe;
+    const total = fast ? null : await db.news.count({ where });
 
     const favoriteNewsIds = user
       ? (
@@ -92,7 +139,7 @@ export async function GET(request: NextRequest) {
       : [];
 
     let personalized = null;
-    if (user) {
+    if (user && includePersonalized) {
       const interests = await db.userInterest.findMany({
         where: { userId: user.id },
         select: { category: true },
@@ -136,10 +183,34 @@ export async function GET(request: NextRequest) {
         page: params.page,
         limit: params.limit,
         total,
-        totalPages: Math.ceil(total / params.limit),
+        totalPages: fast
+          ? hasMore
+            ? params.page + 1
+            : params.page
+          : Math.ceil((total ?? 0) / params.limit),
       },
     });
   } catch (error) {
+    if (isDatabaseConnectivityError(error)) {
+      const { searchParams } = new URL(request.url);
+      const limit = Math.min(50, Math.max(1, Number(searchParams.get("limit") ?? 12)));
+      const page = Math.max(1, Number(searchParams.get("page") ?? 1));
+      const favoriteOnly = searchParams.get("favorites") === "true";
+      const news = favoriteOnly ? [] : getFallbackNews(limit);
+
+      return apiSuccess({
+        news,
+        personalized: null,
+        favoriteNewsIds: [],
+        degraded: true,
+        pagination: {
+          page,
+          limit,
+          total: news.length,
+          totalPages: news.length ? 1 : 0,
+        },
+      });
+    }
     return handleApiError(error);
   }
 }

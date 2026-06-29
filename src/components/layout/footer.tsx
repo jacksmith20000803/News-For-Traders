@@ -3,22 +3,21 @@ import Image from "next/image";
 
 export function Footer() {
   return (
-    <footer className="mt-auto border-t border-border bg-card" suppressHydrationWarning>
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6" suppressHydrationWarning>
-        <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4" suppressHydrationWarning>
-          <div suppressHydrationWarning>
+    <footer className="relative isolate mt-auto overflow-hidden border-t border-gray-200 bg-white/95 text-gray-900 transition-colors dark:border-white/10 dark:bg-[#0b0f12]/95 dark:text-white pb-24 lg:pb-10" suppressHydrationWarning>
+      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6" suppressHydrationWarning>
+        <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[1.45fr_1fr_1fr_1fr]" suppressHydrationWarning>
+          <div className="max-w-sm" suppressHydrationWarning>
             <Image
               src="/tradx-logo.png"
               alt="TRADX"
-              width={200}
-              height={60}
-              className="mb-3 h-14 w-auto object-contain object-left"
-              style={{ width: "auto" }}
+              width={88}
+              height={88}
+              className="mb-5 h-[88px] w-[88px] object-contain object-left"
             />
             <p className="text-[10px] font-medium uppercase tracking-[0.3em] text-muted-foreground mb-2">
               Trade. Invest. Grow.
             </p>
-            <p className="text-sm text-muted-foreground">
+            <p className="max-w-xs text-sm leading-6 text-muted-foreground">
               Professional trading intelligence for serious traders.
             </p>
           </div>
@@ -49,8 +48,8 @@ export function Footer() {
             </ul>
           </div>
         </div>
-        <div className="mt-8 pt-6 border-t border-border text-center text-xs text-muted-foreground" suppressHydrationWarning>
-          © {new Date().getFullYear()} TRADX. All rights reserved.
+        <div className="mt-10 border-t border-gray-200 pt-6 text-center text-xs text-muted-foreground transition-colors dark:border-white/10 lg:pr-44" suppressHydrationWarning style={{ paddingRight: "0px" }}>
+          &copy; {new Date().getFullYear()} TRADX. All rights reserved.
         </div>
       </div>
     </footer>

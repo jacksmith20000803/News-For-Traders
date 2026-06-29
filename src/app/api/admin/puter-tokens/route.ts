@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
     const ip = getClientIp(request);
     const data = tokenSchema.parse(await parseJsonBody(request));
 
-    if (!data.token) return apiError("Puter token is required", 422);
+    if (!data.token) return apiError("AI token is required", 422);
 
     const token = await db.puterToken.create({
       data: {
@@ -174,7 +174,7 @@ export async function DELETE(request: NextRequest) {
       ipAddress: ip,
     });
 
-    return apiSuccess({ message: "Puter token deleted" });
+    return apiSuccess({ message: "AI token deleted" });
   } catch (error) {
     return handleApiError(error);
   }

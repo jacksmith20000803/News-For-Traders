@@ -9,6 +9,7 @@ interface AuthContextValue {
   isLoading: boolean;
   refresh: () => Promise<void>;
   setAuthenticatedUser: (user: SafeUser | null) => void;
+  updateAuthenticatedUser: (patch: Partial<SafeUser>) => void;
 }
 
 const AuthContext = createContext<AuthContextValue>({
@@ -16,6 +17,7 @@ const AuthContext = createContext<AuthContextValue>({
   isLoading: true,
   refresh: async () => {},
   setAuthenticatedUser: () => {},
+  updateAuthenticatedUser: () => {},
 });
 
 export function AuthProvider({
@@ -33,6 +35,15 @@ export function AuthProvider({
   const setAuthenticatedUser = useCallback((nextUser: SafeUser | null) => {
     setUser(nextUser);
     initialUserRef.current = nextUser;
+  }, []);
+
+  const updateAuthenticatedUser = useCallback((patch: Partial<SafeUser>) => {
+    setUser((currentUser) => {
+      if (!currentUser) return currentUser;
+      const nextUser = { ...currentUser, ...patch };
+      initialUserRef.current = nextUser;
+      return nextUser;
+    });
   }, []);
 
   const refresh = useCallback(async () => {
@@ -65,7 +76,7 @@ export function AuthProvider({
   }, [refresh]);
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, refresh, setAuthenticatedUser }}>
+    <AuthContext.Provider value={{ user, isLoading, refresh, setAuthenticatedUser, updateAuthenticatedUser }}>
       {children}
     </AuthContext.Provider>
   );

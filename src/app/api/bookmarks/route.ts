@@ -7,6 +7,7 @@ import {
 } from "@/lib/api/response";
 import { requireAuth, validateCsrf } from "@/lib/auth/guards";
 import { db } from "@/lib/db";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 
 export async function GET() {
@@ -59,14 +60,31 @@ export async function POST(request: NextRequest) {
     }
 
     if (data.action === "add") {
-      const bookmark = await db.bookmark.create({
-        data: {
-          userId: user.id,
-          newsId: data.newsId,
-          articleId: data.articleId,
-        },
-      });
-      return apiSuccess(bookmark, 201);
+      const where = data.newsId
+        ? { userId: user.id, newsId: data.newsId }
+        : { userId: user.id, articleId: data.articleId };
+      const existingBookmark = await db.bookmark.findFirst({ where });
+
+      if (existingBookmark) {
+        return apiSuccess(existingBookmark);
+      }
+
+      try {
+        const bookmark = await db.bookmark.create({
+          data: {
+            userId: user.id,
+            newsId: data.newsId,
+            articleId: data.articleId,
+          },
+        });
+        return apiSuccess(bookmark, 201);
+      } catch (error) {
+        if (isUniqueConstraintError(error)) {
+          const bookmark = await db.bookmark.findFirst({ where });
+          if (bookmark) return apiSuccess(bookmark);
+        }
+        throw error;
+      }
     }
 
     await db.bookmark.deleteMany({
@@ -80,4 +98,8 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     return handleApiError(error);
   }
+}
+
+function isUniqueConstraintError(error: unknown) {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
 }

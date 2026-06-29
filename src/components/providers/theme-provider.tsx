@@ -46,7 +46,7 @@ function applyTheme(theme: Theme): "light" | "dark" {
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>(() => getStoredTheme());
+  const [theme, setThemeState] = useState<Theme>("dark");
   const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">(() => "dark");
   const [mounted, setMounted] = useState(false);
 
@@ -55,6 +55,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       setMounted(true);
       const initialTheme = getStoredTheme();
       const resolved = applyTheme(initialTheme);
+      setThemeState(initialTheme);
       setResolvedTheme(resolved);
     }, 0);
     return () => window.clearTimeout(timer);

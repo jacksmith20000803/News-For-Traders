@@ -13,14 +13,18 @@ const providers = {
 };
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ provider: string }> }
 ) {
   const { provider } = await params;
   const config = providers[provider as keyof typeof providers];
+  const returnTo = sanitizeReturnTo(request.nextUrl.searchParams.get("returnTo"));
 
   if (!config || !config.configured()) {
-    return NextResponse.redirect(new URL("/login?error=oauth_not_configured", _request.url));
+    const fallback = returnTo
+      ? `${returnTo}${returnTo.includes("?") ? "&" : "?"}connection_error=oauth_not_configured`
+      : "/login?error=oauth_not_configured";
+    return NextResponse.redirect(new URL(fallback, request.url));
   }
 
   const state = generateToken();
@@ -32,6 +36,20 @@ export async function GET(
     maxAge: 600,
     path: "/",
   });
+  if (returnTo) {
+    response.cookies.set(`oauth_return_to_${provider}`, returnTo, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 600,
+      path: "/",
+    });
+  }
 
   return response;
+}
+
+function sanitizeReturnTo(value: string | null) {
+  if (!value || !value.startsWith("/") || value.startsWith("//")) return "";
+  return value;
 }

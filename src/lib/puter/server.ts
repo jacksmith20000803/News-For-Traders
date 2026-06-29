@@ -22,7 +22,11 @@ type PuterChatResponse =
     };
 type PuterInstance = {
   ai: {
-    chat: (prompt: string, options?: PuterChatOptions) => Promise<PuterChatResponse>;
+    chat: (
+      prompt: string,
+      mediaOrOptions?: string[] | PuterChatOptions,
+      options?: PuterChatOptions
+    ) => Promise<PuterChatResponse>;
   };
 };
 type PuterInit = (authToken?: string) => PuterInstance;
@@ -58,7 +62,7 @@ const init: PuterInit = (authToken) => {
 
   const puter = context.puter as PuterInstance | undefined;
   if (!puter?.ai?.chat) {
-    throw new Error("Puter.js failed to initialize.");
+    throw new Error("AI provider failed to initialize.");
   }
 
   if (authToken && "setAuthToken" in puter && typeof puter.setAuthToken === "function") {
@@ -68,11 +72,56 @@ const init: PuterInit = (authToken) => {
   return puter;
 };
 
-const MISSING_TOKEN_TITLE = "Puter token required";
+const GREETING_RESPONSE = "Hi, I'm AI Assistant of tradx. How can I help you?";
+const MISSING_TOKEN_TITLE = "AI token required";
+const TRADING_ASSISTANT_SYSTEM_PROMPT = `
+You are AI Assistant of tradx, a concise trading support assistant.
+Primary scope: trading, investing, market news, crypto/forex/stocks/commodities, charts, risk management, portfolio questions, and how to use tradx trading tools.
+If the user asks something unrelated to trading or tradx, briefly steer them back to trading topics instead of continuing the unrelated topic.
+If the user greets you, respond exactly: "Hi, I'm AI Assistant of tradx. How can I help you?"
+If the user attaches screenshots, charts, images, or text files, analyze the supplied attachment context and mention any limitations only when the attachment content is insufficient.
+If a visual example would clarify your answer, you may include a direct Markdown image link using the form ![description](url) when the user supplied or requested a relevant image URL.
+Do not add unnecessary remarks, disclaimers, jokes, or long introductions.
+When giving trading information, be clear, practical, and avoid claiming certainty. Do not present informational analysis as financial advice.
+`.trim();
+
+export interface PuterAttachmentContext {
+  name: string;
+  type: string;
+  size: number;
+  kind: "text" | "image";
+  text?: string;
+  dataUrl?: string;
+}
 
 function normalizeModels(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+}
+
+function isGreetingOnly(message: string) {
+  return /^(hi|hello|hey|good morning|good afternoon|good evening|greetings|yo|sup)[!.?\s]*$/i.test(
+    message.trim()
+  );
+}
+
+function buildTradingAssistantPrompt(userMessage: string, attachments: PuterAttachmentContext[] = []) {
+  const attachmentContext = buildAttachmentContext(attachments);
+  return `${TRADING_ASSISTANT_SYSTEM_PROMPT}${attachmentContext}\n\nUser message:\n${userMessage.trim()}`;
+}
+
+function buildAttachmentContext(attachments: PuterAttachmentContext[]) {
+  if (attachments.length === 0) return "";
+
+  const summaries = attachments.map((attachment, index) => {
+    const label = `Attachment ${index + 1}: ${attachment.name} (${attachment.type || "unknown"}, ${attachment.size} bytes)`;
+    if (attachment.kind === "text" && attachment.text) {
+      return `${label}\nText content:\n${attachment.text.slice(0, 12000)}`;
+    }
+    return `${label}\nImage/screenshot is provided as visual input. Inspect it directly when answering.`;
+  });
+
+  return `\n\nAttachment context:\n${summaries.join("\n\n")}`;
 }
 
 function normalizeContent(value: unknown): string {
@@ -138,7 +187,18 @@ async function notifyAdminsMissingToken(message: string) {
 export async function chatWithManagedPuterTokens(params: {
   message: string;
   model?: string;
+  attachments?: PuterAttachmentContext[];
 }) {
+  const userMessage = params.message.trim();
+  const attachments = params.attachments ?? [];
+  if (attachments.length === 0 && isGreetingOnly(userMessage)) {
+    return {
+      content: GREETING_RESPONSE,
+      model: "trading-assistant",
+      tokenDisplayName: "AI Assistant",
+    };
+  }
+
   await ensurePuterTokenTable();
 
   const tokens = await db.puterToken.findMany({
@@ -148,15 +208,15 @@ export async function chatWithManagedPuterTokens(params: {
   });
 
   if (tokens.length === 0) {
-    await notifyAdminsMissingToken("No active Puter token is available for the AI assistant.");
+    await notifyAdminsMissingToken("No active AI token is available for the AI assistant.");
     throw new ApiError(
       503,
-      "AI is temporarily unavailable. An administrator must add an active Puter token.",
-      "PUTER_TOKEN_REQUIRED"
+      "AI is temporarily unavailable. An administrator must add an active AI token.",
+      "AI_TOKEN_REQUIRED"
     );
   }
 
-  let lastError = "No usable Puter token was found.";
+  let lastError = "No usable AI token was found.";
 
   for (const token of tokens) {
     const models = normalizeModels(token.selectedModels);
@@ -167,13 +227,18 @@ export async function chatWithManagedPuterTokens(params: {
 
     try {
       const puter = init(token.token);
-      const response = await puter.ai.chat(
-        params.message,
-        selectedModel ? { model: selectedModel } : undefined
-      );
+      const prompt = buildTradingAssistantPrompt(userMessage, attachments);
+      const imageInputs = attachments
+        .filter((attachment) => attachment.kind === "image" && attachment.dataUrl)
+        .map((attachment) => attachment.dataUrl!);
+      const options = selectedModel ? { model: selectedModel } : undefined;
+      const response =
+        imageInputs.length > 0
+          ? await puter.ai.chat(prompt, imageInputs, options)
+          : await puter.ai.chat(prompt, options);
       const content = normalizePuterResponse(response);
 
-      if (!content) throw new Error("Puter returned an empty response.");
+      if (!content) throw new Error("AI returned an empty response.");
 
       const exhaustedByLimit = token.requestCount + 1 >= token.requestLimit;
       await db.puterToken.update({
@@ -189,7 +254,7 @@ export async function chatWithManagedPuterTokens(params: {
 
       return {
         content,
-        model: selectedModel ?? "puter-default",
+        model: selectedModel ?? "ai-default",
         tokenDisplayName: token.displayName,
       };
     } catch (error) {
@@ -207,6 +272,6 @@ export async function chatWithManagedPuterTokens(params: {
     }
   }
 
-  await notifyAdminsMissingToken(`All active Puter tokens failed. Last error: ${lastError}`);
-  throw new ApiError(503, "AI is temporarily unavailable. Please try again later.", "PUTER_FAILED");
+  await notifyAdminsMissingToken(`All active AI tokens failed. Last error: ${lastError}`);
+  throw new ApiError(503, "AI is temporarily unavailable. Please try again later.", "AI_FAILED");
 }

@@ -11,9 +11,9 @@ export default async function AdminAIPage() {
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
       <div className="mb-6 flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Puter Token Management</h1>
+          <h1 className="text-2xl font-bold">AI Token Management</h1>
           <p className="text-sm text-muted-foreground">
-            Store multiple Puter tokens for the AI assistant. Users never see a Puter login prompt.
+            Store multiple AI access tokens for the assistant. Users never see an external login prompt.
           </p>
         </div>
         <Link href="/admin" className="text-sm text-primary hover:underline">

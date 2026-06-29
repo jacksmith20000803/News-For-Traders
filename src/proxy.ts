@@ -7,7 +7,6 @@ const MAINTENANCE_COOKIE = "nft_maintenance";
 const SESSION_COOKIE = "nft_session";
 
 const protectedRoutes = ["/dashboard", "/admin"];
-const authRoutes = ["/login", "/register", "/forgot-password"];
 
 function isMaintenanceActive(request: NextRequest): boolean {
   if (appConfig.features.maintenanceMode) return true;
@@ -52,7 +51,6 @@ export async function proxy(request: NextRequest) {
   }
 
   const isProtected = protectedRoutes.some((route) => pathname.startsWith(route));
-  const isAuthRoute = authRoutes.some((route) => pathname.startsWith(route));
 
   if (isProtected && !isAuthenticated) {
     const loginUrl = new URL("/login", request.url);
@@ -60,10 +58,6 @@ export async function proxy(request: NextRequest) {
     const redirect = NextResponse.redirect(loginUrl);
     if (shouldClearSession) clearSessionCookie(redirect);
     return redirect;
-  }
-
-  if (isAuthRoute && isAuthenticated) {
-    return NextResponse.redirect(new URL("/", request.url));
   }
 
   const response = NextResponse.next();

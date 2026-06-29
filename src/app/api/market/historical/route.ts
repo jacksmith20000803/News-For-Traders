@@ -1,8 +1,10 @@
 import { NextRequest } from "next/server";
-import { apiSuccess, apiError, handleApiError } from "@/lib/api/response";
+import { apiSuccess, apiError } from "@/lib/api/response";
 import { db } from "@/lib/db";
 import { checkRateLimit, getClientIp } from "@/lib/security/rate-limit";
 import { config } from "@/lib/config";
+import { getFallbackQuotes } from "@/lib/fallback-data";
+import { toAssetSlug } from "@/lib/assets/symbols";
 
 interface CoinGeckoHistoricalData {
   prices: [number, number][];
@@ -37,7 +39,6 @@ export async function GET(request: NextRequest) {
       config.rateLimit.windowMs
     );
     if (!rateLimit.success) {
-      const { apiError } = await import("@/lib/api/response");
       return apiError("Too many requests. Please try again later.", 429);
     }
 
@@ -102,7 +103,11 @@ export async function GET(request: NextRequest) {
     );
 
     if (!response.ok) {
-      return apiError("Failed to fetch historical data from external API", 502);
+      return apiSuccess({
+        symbol: rawSymbol,
+        data: generateFallbackHistoricalData(rawSymbol, days),
+        degraded: true,
+      });
     }
 
     const coinGeckoData: CoinGeckoHistoricalData = await response.json();
@@ -143,6 +148,44 @@ export async function GET(request: NextRequest) {
       })),
     });
   } catch (error) {
-    return handleApiError(error);
+    console.warn("[market/historical] Falling back after historical API error:", error);
+    const { searchParams } = new URL(request.url);
+    const rawSymbol = searchParams.get("symbol") || "BTC";
+    const days = parseInt(searchParams.get("days") || "730", 10);
+    return apiSuccess({
+      symbol: rawSymbol,
+      data: generateFallbackHistoricalData(rawSymbol, days),
+      degraded: true,
+    });
   }
+}
+
+function generateFallbackHistoricalData(rawSymbol: string, days: number) {
+  const compactSymbol = rawSymbol.toUpperCase().replace("/USD", "");
+  const slug = toAssetSlug(compactSymbol);
+  const fallback = getFallbackQuotes().find((quote) => toAssetSlug(quote.symbol) === slug);
+  const basePrice = fallback?.price ?? 100;
+  const totalDays = Math.max(1, Math.min(days, 730));
+  const now = Date.now();
+  let price = basePrice;
+
+  return Array.from({ length: totalDays }, (_, index) => {
+    const dayOffset = totalDays - index - 1;
+    const drift = (Math.sin(index / 11) + Math.cos(index / 17)) * basePrice * 0.006;
+    const open = price;
+    const close = Math.max(basePrice * 0.1, open + drift);
+    const high = Math.max(open, close) * 1.01;
+    const low = Math.min(open, close) * 0.99;
+    price = close;
+
+    return {
+      timestamp: now - dayOffset * 24 * 60 * 60 * 1000,
+      price: close,
+      volume: null,
+      high,
+      low,
+      open,
+      close,
+    };
+  });
 }

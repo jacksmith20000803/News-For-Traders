@@ -14,6 +14,8 @@ export { SESSION_COOKIE, CSRF_COOKIE };
 export interface SessionPayload {
   userId: string;
   sessionId: string;
+  mfaVerified?: boolean;
+  authTime?: number;
 }
 
 const secret = new TextEncoder().encode(config.security.sessionSecret);
@@ -91,6 +93,7 @@ export async function getCurrentUser() {
             id: true,
             email: true,
             name: true,
+            username: true,
             role: true,
             avatar: true,
             bio: true,
@@ -128,7 +131,8 @@ export async function getCurrentUser() {
 export async function createUserSession(
   userId: string,
   ipAddress?: string,
-  userAgent?: string
+  userAgent?: string,
+  auth?: Pick<SessionPayload, "mfaVerified" | "authTime">
 ) {
   const sessionToken = generateSessionToken();
   const expiresAt = new Date(Date.now() + config.security.sessionMaxAge * 1000);
@@ -146,10 +150,18 @@ export async function createUserSession(
   const jwt = await createSessionToken({
     userId,
     sessionId: session.id,
+    mfaVerified: auth?.mfaVerified,
+    authTime: auth?.authTime,
   });
 
   await setSessionCookie(jwt);
   return session;
+}
+
+export async function getCurrentSessionPayload(): Promise<SessionPayload | null> {
+  const token = await getSessionToken();
+  if (!token) return null;
+  return verifySessionToken(token);
 }
 
 function generateSessionToken(): string {
@@ -214,6 +226,7 @@ export function toSafeUser(user: NonNullable<Awaited<ReturnType<typeof getCurren
     id: user.id,
     email: user.email,
     name: user.name,
+    username: user.username,
     role: user.role,
     avatar: user.avatar,
     bio: user.bio,

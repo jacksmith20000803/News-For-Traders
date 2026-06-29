@@ -4,6 +4,7 @@ import type { Prisma } from "@prisma/client";
 export const safeUserSelect = {
   id: true,
   name: true,
+  username: true,
   email: true,
   role: true,
   avatar: true,

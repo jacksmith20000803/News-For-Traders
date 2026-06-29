@@ -1,6 +1,6 @@
 "use client";
 
-import { PieChart } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 interface Allocation {
@@ -17,12 +17,12 @@ interface ApiAllocation {
 }
 
 const colorMap: Record<string, string> = {
-  Technology: "#3b82f6",
+  Technology: "#22c55e",
   Finance: "#10b981",
   Healthcare: "#8b5cf6",
-  Energy: "#eab308",
-  Cash: "#6b7280",
-  Crypto: "#f97316",
+  Energy: "#f59e0b",
+  Cash: "#fbbf24",
+  Crypto: "#3b82f6",
   RealEstate: "#ec4899",
   Other: "#06b6d4",
 };
@@ -48,7 +48,7 @@ export function PortfolioAllocation() {
             const realAllocations = json.data.allocation.map((alloc: ApiAllocation) => ({
               name: alloc.category || alloc.name || "Other",
               value: alloc.percentage || alloc.value || 0,
-              color: colorMap[alloc.category || ""] || colorMap[alloc.name || ""] || "bg-cyan-500",
+              color: colorMap[alloc.category || ""] || colorMap[alloc.name || ""] || "#06b6d4",
             }));
             if (realAllocations.length > 0) {
               setAllocations(realAllocations);
@@ -66,12 +66,15 @@ export function PortfolioAllocation() {
   }, []);
 
   return (
-    <div className="dash-panel p-4 sm:p-5">
-      <h3 className="text-xs sm:text-sm font-semibold text-muted-foreground mb-3 sm:mb-4 uppercase tracking-wider">
-        Portfolio Allocation
-      </h3>
-      <div className="flex items-center gap-4 sm:gap-6">
-        <div className="relative w-24 h-24 sm:w-32 sm:h-32 shrink-0">
+    <div className="dash-panel flex h-full min-h-[330px] flex-col p-5 sm:p-6">
+      <div className="mb-5 flex items-center justify-between">
+        <h3 className="text-base font-bold text-foreground">Portfolio Allocation</h3>
+        <Link href="/dashboard/portfolio" className="text-xs font-bold text-primary hover:underline">
+          View Report
+        </Link>
+      </div>
+      <div className="grid flex-1 items-center gap-6 lg:grid-cols-[minmax(220px,0.9fr)_1fr]">
+        <div className="relative mx-auto aspect-square w-full max-w-[17rem] shrink-0 sm:max-w-[19rem] lg:max-w-[20rem]">
           <svg viewBox="0 0 100 100" className="w-full h-full transform -rotate-90">
             {allocations.map((alloc, index) => {
               const offset = allocations.slice(0, index).reduce((sum, a) => sum + a.value, 0);
@@ -89,7 +92,7 @@ export function PortfolioAllocation() {
                   r="40"
                   fill="none"
                   stroke={alloc.color}
-                  strokeWidth="13"
+                  strokeWidth="15"
                   strokeLinecap="butt"
                   style={{
                     strokeDasharray,
@@ -99,23 +102,34 @@ export function PortfolioAllocation() {
               );
             })}
           </svg>
-          <div className="absolute inset-0 flex items-center justify-center">
-            <PieChart className="h-6 w-6 sm:h-8 sm:w-8 text-muted-foreground" />
+          <div className="absolute inset-[18%] rounded-full bg-background/85 shadow-inner ring-1 ring-border/60" />
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+            <span className="text-sm font-semibold text-muted-foreground">Total</span>
+            <span className="font-mono text-lg font-extrabold tracking-tight sm:text-xl">$126,430</span>
           </div>
         </div>
 
-        {/* Legend */}
-        <div className="flex-1 space-y-1.5 sm:space-y-2">
+        <div className="grid gap-3">
           {loading ? (
-            <div className="text-xs text-muted-foreground">Loading...</div>
+            <div className="rounded-2xl border border-border bg-background/60 p-4 text-sm text-muted-foreground">
+              Loading...
+            </div>
           ) : (
             allocations.map((alloc) => (
-              <div key={alloc.name} className="flex items-center justify-between">
+              <div
+                key={alloc.name}
+                className="flex items-center justify-between gap-4 rounded-2xl border border-border bg-background/55 p-3 shadow-sm"
+              >
                 <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 sm:w-3 sm:h-3 rounded" style={{ backgroundColor: alloc.color }} />
-                  <span className="text-xs sm:text-sm">{alloc.name}</span>
+                  <div className="h-3 w-3 rounded-full shadow-sm" style={{ backgroundColor: alloc.color }} />
+                  <span className="text-sm font-bold">{alloc.name}</span>
                 </div>
-                <span className="text-xs sm:text-sm font-mono font-bold">{alloc.value.toFixed(1)}%</span>
+                <div className="text-right">
+                  <p className="font-mono text-sm font-extrabold">{alloc.value.toFixed(1)}%</p>
+                  <p className="font-mono text-[11px] text-muted-foreground">
+                    ${((alloc.value / 100) * 126430).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  </p>
+                </div>
               </div>
             ))
           )}

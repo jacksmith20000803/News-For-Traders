@@ -12,7 +12,10 @@ export default async function NotificationsPage() {
   if (!user) redirect("/login");
 
   const notifications = await db.notification.findMany({
-    where: { userId: user.id },
+    where: {
+      userId: user.id,
+      NOT: { title: "Market Data Updated" },
+    },
     orderBy: { createdAt: "desc" },
     take: 50,
   });

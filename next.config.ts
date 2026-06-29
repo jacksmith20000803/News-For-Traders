@@ -13,7 +13,7 @@ const securityHeaders = [
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: https: https://static2.finnhub.io https://images.investinglive.com",
+      "img-src 'self' data: blob: https: https://static2.finnhub.io https://images.investinglive.com",
       "font-src 'self' data:",
       "connect-src 'self' https://puter.com https://*.puter.com",
       "frame-src 'self' https://puter.com https://*.puter.com",

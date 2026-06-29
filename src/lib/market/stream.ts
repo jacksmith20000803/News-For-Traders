@@ -38,7 +38,8 @@ function generateSyntheticCandles(
   symbol: string,
   interval: MarketInterval,
   limit = 200,
-  seedPrice?: number
+  seedPrice?: number,
+  endUnixSeconds?: number
 ): Array<{ time: number; open: number; high: number; low: number; close: number }> {
   const basePrices: Record<string, number> = {
     "BTC/USD": 95000,
@@ -63,7 +64,7 @@ function generateSyntheticCandles(
   };
 
   const bucketMs = msMap[interval];
-  const now = Math.floor(Date.now() / 1000);
+  const now = endUnixSeconds ?? Math.floor(Date.now() / 1000);
   const candles: Array<{ time: number; open: number; high: number; low: number; close: number }> = [];
   let currentPrice = basePrice;
 
@@ -88,10 +89,17 @@ export async function getCandles(
   symbol: string,
   assetType: string,
   interval: MarketInterval,
-  limit = 200
+  limit = 200,
+  beforeUnixSeconds?: number
 ) {
   const historyRows = await db.priceHistory.findMany({
-    where: { symbol, assetType },
+    where: {
+      symbol,
+      assetType,
+      ...(beforeUnixSeconds
+        ? { timestamp: { lt: new Date(beforeUnixSeconds * 1000) } }
+        : {}),
+    },
     orderBy: { timestamp: "desc" },
     take: limit * 4,
   });
@@ -99,7 +107,7 @@ export async function getCandles(
 
   if (history.length === 0) {
     const quote = await db.marketQuote.findFirst({ where: { symbol, assetType } });
-    return generateSyntheticCandles(symbol, interval, limit, quote?.price);
+    return generateSyntheticCandles(symbol, interval, limit, quote?.price, beforeUnixSeconds);
   }
 
   const msMap: Record<MarketInterval, number> = {
@@ -141,7 +149,7 @@ export async function getCandles(
   // If we have very few candles, supplement with synthetic data
   if (candles.length < 10) {
     const quote = await db.marketQuote.findFirst({ where: { symbol, assetType } });
-    return generateSyntheticCandles(symbol, interval, limit, quote?.price);
+    return generateSyntheticCandles(symbol, interval, limit, quote?.price, beforeUnixSeconds);
   }
 
   return candles;

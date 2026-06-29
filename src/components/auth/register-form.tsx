@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
@@ -11,13 +10,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/components/providers/auth-provider";
-import { setCsrfToken } from "@/lib/api/client";
+import { readJsonResponse, setCsrfToken } from "@/lib/api/client";
 
 export function RegisterForm() {
   const { setAuthenticatedUser, user } = useAuth();
-  const router = useRouter();
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
 
   const {
     register,
@@ -29,14 +28,14 @@ export function RegisterForm() {
 
   useEffect(() => {
     if (user) {
-      router.replace("/dashboard");
-      router.refresh();
+      window.location.replace("/dashboard");
     }
-  }, [router, user]);
+  }, [user]);
 
   const onSubmit = async (data: RegisterInput) => {
     setIsLoading(true);
     setError("");
+    let didRedirect = false;
 
     try {
       const res = await fetch("/api/auth/register", {
@@ -47,23 +46,43 @@ export function RegisterForm() {
         body: JSON.stringify(data),
       });
 
-      const json = await res.json();
+      const json = await readJsonResponse<{
+        success: boolean;
+        error?: string;
+        data?: {
+          user?: Parameters<typeof setAuthenticatedUser>[0];
+          csrfToken?: string;
+          redirectTo?: string;
+        };
+      }>(res);
 
       if (!json.success) {
         setError(json.error ?? "Registration failed");
         return;
       }
 
-      setAuthenticatedUser(json.data?.user ?? null);
       setCsrfToken(json.data?.csrfToken);
-      router.replace(json.data?.redirectTo ?? "/onboarding");
-      router.refresh();
+      setAuthenticatedUser(json.data?.user ?? null);
+      didRedirect = true;
+      setRedirecting(true);
+      window.location.replace(json.data?.redirectTo ?? "/dashboard");
     } catch {
       setError("An unexpected error occurred");
     } finally {
-      setIsLoading(false);
+      if (!didRedirect) setIsLoading(false);
     }
   };
+
+  if (redirecting || user) {
+    return (
+      <Card className="w-full max-w-md border-gray-200 bg-white dark:border-white/10 dark:bg-[#0a0c0c]">
+        <CardContent className="p-8 text-center">
+          <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent" />
+          <p className="mt-4 text-sm font-semibold text-muted-foreground">Opening your dashboard...</p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="w-full max-w-md bg-white dark:bg-[#0a0c0c] border-gray-200 dark:border-white/10">
@@ -71,10 +90,9 @@ export function RegisterForm() {
         <Image
           src="/tradx-logo.png"
           alt="TRADX"
-          width={168}
-          height={50}
-          className="mx-auto mb-3 h-auto w-40 object-contain"
-          style={{ height: "auto" }}
+          width={200}
+          height={190}
+          className="mx-auto mb-3 object-contain"
           priority
         />
         <CardTitle className="text-2xl text-gray-900 dark:text-white">Create your account</CardTitle>

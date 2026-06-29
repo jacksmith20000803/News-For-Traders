@@ -11,6 +11,7 @@ export interface SyncPayload {
     symbol: string;
     assetType: string;
     price: number;
+    change?: number | null;
     changePercent: number | null;
     updatedAt: string;
   }>;
@@ -19,6 +20,7 @@ export interface SyncPayload {
 }
 
 const handlers = new Set<SyncHandler>();
+let lastPayloadSignature = "";
 
 export function subscribeRealtimeSync(handler: SyncHandler) {
   handlers.add(handler);
@@ -28,6 +30,18 @@ export function subscribeRealtimeSync(handler: SyncHandler) {
 }
 
 function notify(data: SyncPayload) {
+  const signature = JSON.stringify({
+    quotes: data.quotes.map((quote) => [
+      quote.symbol,
+      quote.assetType,
+      quote.price,
+      quote.change,
+      quote.changePercent,
+    ]),
+    news: data.news.map((item) => [item.id, item.publishedAt]),
+  });
+  if (signature === lastPayloadSignature) return;
+  lastPayloadSignature = signature;
   handlers.forEach((h) => h(data));
 }
 
@@ -41,7 +55,7 @@ async function fetchSync(): Promise<SyncPayload | null> {
   }
 }
 
-/** Polls market/news every 10s + listens to SSE for instant updates */
+/** Polls market/news every second + listens to SSE for instant updates */
 export function RealtimeSyncProvider({ children }: { children: React.ReactNode }) {
   const lastNewsId = useRef<string | null>(null);
 
@@ -55,8 +69,8 @@ export function RealtimeSyncProvider({ children }: { children: React.ReactNode }
       }
     };
 
-    const start = window.setTimeout(poll, 1200);
-    const interval = setInterval(poll, 30000);
+    const start = window.setTimeout(poll, 300);
+    const interval = setInterval(poll, 1000);
 
     const unsub = subscribeSSE((event) => {
       if (event === "market" || event === "news") {
@@ -74,14 +88,14 @@ export function RealtimeSyncProvider({ children }: { children: React.ReactNode }
   return <>{children}</>;
 }
 
-export function useRealtimePoll(intervalMs = 10000) {
+export function useRealtimePoll(intervalMs = 1000) {
   useEffect(() => {
     const poll = async () => {
       if (document.visibilityState === "hidden") return;
       const data = await fetchSync();
       if (data) notify(data);
     };
-    const start = window.setTimeout(poll, 1200);
+    const start = window.setTimeout(poll, 300);
     const id = setInterval(poll, intervalMs);
     return () => {
       clearTimeout(start);

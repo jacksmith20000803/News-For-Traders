@@ -15,6 +15,7 @@ export async function GET(
   const code = searchParams.get("code");
   const state = searchParams.get("state");
   const storedState = request.cookies.get(`oauth_state_${provider}`)?.value;
+  const returnTo = sanitizeReturnTo(request.cookies.get(`oauth_return_to_${provider}`)?.value ?? null);
 
   const loginError = (msg: string) =>
     NextResponse.redirect(new URL(`/login?error=${encodeURIComponent(msg)}`, request.url));
@@ -32,11 +33,17 @@ export async function GET(
       return loginError("OAuth provider not configured");
     }
 
-    const response = NextResponse.redirect(new URL("/", request.url));
+    const response = NextResponse.redirect(new URL(returnTo || "/", request.url));
     response.cookies.delete(`oauth_state_${provider}`);
+    response.cookies.delete(`oauth_return_to_${provider}`);
     return response;
   } catch (err) {
     const message = err instanceof Error ? err.message : "OAuth failed";
     return loginError(message);
   }
+}
+
+function sanitizeReturnTo(value: string | null) {
+  if (!value || !value.startsWith("/") || value.startsWith("//")) return "";
+  return value;
 }

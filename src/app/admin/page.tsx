@@ -44,7 +44,7 @@ export default async function AdminDashboardPage() {
     { label: "Unviewed Registrations", value: unviewedRegs, icon: Users, href: "/admin/registrations" },
     { label: "News Items", value: newsCount, icon: Newspaper, href: "/admin/news" },
     { label: "Feedback Inbox", value: newFeedback, icon: MessageSquare, href: "/admin/feedback" },
-    { label: "AI Assistant", value: "Puter", icon: Bot, href: "/admin/ai" },
+    { label: "AI Assistant", value: "Managed", icon: Bot, href: "/admin/ai" },
     { label: "Pending Reports", value: reportCount, icon: AlertTriangle, href: "/admin/moderation" },
   ];
 

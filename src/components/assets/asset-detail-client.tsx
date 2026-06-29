@@ -84,7 +84,7 @@ export function AssetDetailClient({ symbol, initialQuote, initialPositive }: Ass
       if (document.visibilityState !== "hidden") {
         void fetchRealTimeData();
       }
-    }, 15000);
+    }, 1000);
     return () => {
       clearTimeout(initialTimer);
       clearInterval(interval);

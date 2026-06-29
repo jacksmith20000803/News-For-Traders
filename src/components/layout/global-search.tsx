@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/components/providers/theme-provider";
+import { readJsonResponse } from "@/lib/api/client";
 
 interface SearchSuggestion {
   id: string;
@@ -33,11 +34,14 @@ export function GlobalSearchBar({ className }: { className?: string }) {
     setLoading(true);
     try {
       const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&type=all&limit=5`);
-      const json = await res.json();
+      const json = await readJsonResponse<{
+        success: boolean;
+        data?: Record<string, { items: Array<Record<string, unknown>> }>;
+      }>(res);
       if (!json.success) return;
 
       const items: SearchSuggestion[] = [];
-      const data = json.data as Record<string, { items: Array<Record<string, unknown>> }>;
+      const data = json.data ?? {};
 
       for (const [type, section] of Object.entries(data)) {
         if (!section?.items) continue;
@@ -101,8 +105,8 @@ export function GlobalSearchBar({ className }: { className?: string }) {
     }
   };
 
-  const inputBg = currentTheme === "dark" ? "bg-white/5" : "bg-gray-100";
-  const inputBorder = currentTheme === "dark" ? "border-white/10" : "border-gray-300";
+  const inputBg = currentTheme === "dark" ? "bg-[#111315]" : "bg-white";
+  const inputBorder = currentTheme === "dark" ? "border-white/5" : "border-gray-200";
   const inputText = currentTheme === "dark" ? "text-white" : "text-gray-900";
   const placeholderColor = currentTheme === "dark" ? "placeholder:text-gray-400" : "placeholder:text-gray-500";
   const dropdownBg = currentTheme === "dark" ? "bg-[#0a0c0c]" : "bg-white";
@@ -110,13 +114,12 @@ export function GlobalSearchBar({ className }: { className?: string }) {
   const hoverBg = currentTheme === "dark" ? "hover:bg-white/5" : "hover:bg-gray-100";
 
   return (
-    <div ref={ref} className={cn("relative", className)} style={{ maxWidth: "350px" }} suppressHydrationWarning>
-      <div className={`flex items-center gap-2 rounded-xl border ${inputBorder} ${inputBg} px-3 py-1.5 backdrop-blur-sm transition-all focus-within:border-primary/30 focus-within:ring-1 focus-within:ring-primary/20`} suppressHydrationWarning>
-        <Search className="h-4 w-4 shrink-0 text-gray-500 dark:text-gray-400" />
+    <div ref={ref} className={cn("relative w-full", className)} suppressHydrationWarning>
+      <div className={`flex h-10 items-center gap-2.5 rounded-[14px] border ${inputBorder} ${inputBg} px-3.5 shadow-[0_10px_24px_rgba(0,0,0,0.18)] backdrop-blur-xl transition-all focus-within:border-emerald-400/30 focus-within:ring-1 focus-within:ring-emerald-400/20 dark:shadow-[0_10px_24px_rgba(0,0,0,0.32)]`} suppressHydrationWarning>
+        <Search className="h-4 w-4 shrink-0 text-gray-500 dark:text-gray-300" />
         <input
           id="global-search-input"
           name="search"
-          style={{ width: "100%" }}
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
@@ -125,8 +128,8 @@ export function GlobalSearchBar({ className }: { className?: string }) {
           }}
           onFocus={() => setOpen(true)}
           onKeyDown={handleKeyDown}
-          placeholder="Search…"
-          className={`w-32 min-w-0 bg-transparent text-sm outline-none ${inputText} ${placeholderColor} transition-all focus:w-48`}
+          placeholder="Search markets, assets..."
+          className={`min-w-0 flex-1 bg-transparent text-[13px] font-medium outline-none ${inputText} ${placeholderColor}`}
           autoComplete="off"
           suppressHydrationWarning
         />

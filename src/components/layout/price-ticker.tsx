@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { TrendingUp, TrendingDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useTheme } from "@/components/providers/theme-provider";
 import { subscribeRealtimeSync } from "@/components/realtime/realtime-sync";
 
 interface TickerItem {
@@ -14,15 +13,21 @@ interface TickerItem {
 }
 
 export function PriceTicker() {
-  const { theme, resolvedTheme } = useTheme();
-  const currentTheme = theme === "system" ? (resolvedTheme ?? "dark") : (theme ?? "dark");
   const initialTickers = useMemo<TickerItem[]>(() => [
-    { symbol: "BTC/USD", price: 67234.00, change: 234.50, changePercent: 0.35 },
-    { symbol: "ETH/USD", price: 3456.78, change: -45.23, changePercent: -1.29 },
-    { symbol: "SOL/USD", price: 145.67, change: 8.90, changePercent: 6.51 },
-    { symbol: "XRP/USD", price: 0.5234, change: 0.0123, changePercent: 2.41 },
-    { symbol: "ADA/USD", price: 0.4567, change: -0.0089, changePercent: -1.91 },
-    { symbol: "DOGE/USD", price: 0.1234, change: 0.0056, changePercent: 4.76 },
+    { symbol: "ADA/USD", price: 0.45, change: 0, changePercent: 0 },
+    { symbol: "ATOM/USD", price: 6.2, change: 0, changePercent: 0 },
+    { symbol: "AVAX/USD", price: 28, change: 0, changePercent: 0 },
+    { symbol: "BNB/USD", price: 620, change: 0, changePercent: 0 },
+    { symbol: "BTC/USD", price: 95000, change: 0, changePercent: 0 },
+    { symbol: "DOGE/USD", price: 0.12, change: 0, changePercent: 0 },
+    { symbol: "DOT/USD", price: 4.8, change: 0, changePercent: 0 },
+    { symbol: "ETH/USD", price: 3500, change: 0, changePercent: 0 },
+    { symbol: "EUR/USD", price: 1.08, change: 0, changePercent: 0 },
+    { symbol: "LINK/USD", price: 14, change: 0, changePercent: 0 },
+    { symbol: "LTC/USD", price: 85, change: 0, changePercent: 0 },
+    { symbol: "SOL/USD", price: 145, change: 0, changePercent: 0 },
+    { symbol: "UNI/USD", price: 9.5, change: 0, changePercent: 0 },
+    { symbol: "XRP/USD", price: 0.52, change: 0, changePercent: 0 },
   ], []);
   const [tickers, setTickers] = useState<TickerItem[]>(initialTickers);
 
@@ -38,30 +43,27 @@ export function PriceTicker() {
         return {
           ...item,
           price: quote.price,
+          change: quote.change ?? item.change,
           changePercent: quote.changePercent ?? 0,
         };
       }));
     });
   }, []);
 
-  const bgColor = currentTheme === "dark" ? "bg-[#0a0c0c]" : "bg-gray-100";
-  const borderColor = currentTheme === "dark" ? "border-white/5" : "border-gray-300";
-  const textColor = currentTheme === "dark" ? "text-white/90" : "text-gray-900";
-  const priceColor = currentTheme === "dark" ? "text-cyan-400" : "text-blue-600";
-  const emeraldColor = currentTheme === "dark" ? "text-emerald-400" : "text-emerald-600";
-  const redColor = currentTheme === "dark" ? "text-red-400" : "text-red-600";
-  const sweepColor = currentTheme === "dark" ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.05)";
-
   return (
-    <div className={cn("w-full border-b overflow-hidden relative", bgColor, borderColor)} suppressHydrationWarning>
+    <div className="w-full border-b border-gray-300 bg-gray-100 overflow-hidden relative dark:border-white/5 dark:bg-[#0a0c0c]" suppressHydrationWarning>
       {/* Slow-scrolling animation */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute inset-0" style={{
-          background: `linear-gradient(90deg, transparent 0%, ${sweepColor} 50%, transparent 100%)`,
-          animation: 'slowScroll 20s linear infinite',
-          transform: 'translateX(-100%)',
-        }} />
+        <div className="ticker-sweep absolute inset-0" />
         <style jsx>{`
+          .ticker-sweep {
+            background: linear-gradient(90deg, transparent 0%, rgba(0,0,0,0.05) 50%, transparent 100%);
+            animation: slowScroll 20s linear infinite;
+            transform: translateX(-100%);
+          }
+          :global(.dark) .ticker-sweep {
+            background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.03) 50%, transparent 100%);
+          }
           @keyframes slowScroll {
             0% { transform: translateX(-100%); }
             100% { transform: translateX(100%); }
@@ -71,14 +73,16 @@ export function PriceTicker() {
 
       {/* 10-second glow effect */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute inset-0" style={{
-          background: currentTheme === "dark" 
-            ? 'radial-gradient(circle at 50% 50%, rgba(34,211,238,0.1) 0%, transparent 50%)'
-            : 'radial-gradient(circle at 50% 50%, rgba(59,130,246,0.1) 0%, transparent 50%)',
-          animation: 'glowPulse 10s ease-in-out infinite',
-          opacity: 0,
-        }} />
+        <div className="ticker-glow absolute inset-0" />
         <style jsx>{`
+          .ticker-glow {
+            background: radial-gradient(circle at 50% 50%, rgba(59,130,246,0.1) 0%, transparent 50%);
+            animation: glowPulse 10s ease-in-out infinite;
+            opacity: 0;
+          }
+          :global(.dark) .ticker-glow {
+            background: radial-gradient(circle at 50% 50%, rgba(34,211,238,0.1) 0%, transparent 50%);
+          }
           @keyframes glowPulse {
             0%, 100% { opacity: 0; }
             50% { opacity: 1; }
@@ -102,13 +106,15 @@ export function PriceTicker() {
             className="flex items-center gap-2 shrink-0 whitespace-nowrap"
             suppressHydrationWarning
           >
-            <span className={cn("text-xs font-semibold", textColor)}>{ticker.symbol}</span>
-            <span className={cn("text-xs font-mono", priceColor)}>
+            <span className="text-xs font-semibold text-gray-900 dark:text-white/90">{ticker.symbol}</span>
+            <span className="text-xs font-mono text-blue-600 dark:text-cyan-400">
               ${ticker.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
             <div className={cn(
               "flex items-center gap-0.5 text-[10px] font-medium",
-              ticker.changePercent >= 0 ? emeraldColor : redColor
+              ticker.changePercent >= 0
+                ? "text-emerald-600 dark:text-emerald-400"
+                : "text-red-600 dark:text-red-400"
             )} suppressHydrationWarning>
               {ticker.changePercent >= 0 ? (
                 <TrendingUp className="h-2.5 w-2.5" />

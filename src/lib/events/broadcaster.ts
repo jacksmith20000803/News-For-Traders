@@ -18,7 +18,7 @@ class EventBroadcaster {
   publish(channel: EventType, payload: unknown, userId?: string) {
     const message = `event: ${channel}\ndata: ${JSON.stringify(payload)}\n\n`;
     for (const client of this.clients.values()) {
-      if (userId && client.userId && client.userId !== userId) continue;
+      if (userId && client.userId !== userId) continue;
       try {
         client.send(message);
       } catch {

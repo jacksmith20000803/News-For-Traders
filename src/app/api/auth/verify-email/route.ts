@@ -66,7 +66,12 @@ export async function POST(request: Request) {
       },
     });
 
-    return apiSuccess({ message: "Verification email sent" });
+    const verificationUrl = new URL(`/verify-email?token=${encodeURIComponent(token)}`, request.url).toString();
+
+    return apiSuccess({
+      message: "Verification link generated",
+      verificationUrl,
+    });
   } catch (error) {
     return handleApiError(error);
   }

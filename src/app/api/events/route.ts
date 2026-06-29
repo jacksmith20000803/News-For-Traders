@@ -2,11 +2,17 @@ import { NextRequest } from "next/server";
 import { getCurrentUser } from "@/lib/auth/session";
 import { eventBus } from "@/lib/events/broadcaster";
 import { v4 as uuidv4 } from "uuid";
+import { isDatabaseConnectivityError } from "@/lib/db-errors";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
-  const user = await getCurrentUser();
+  let user: Awaited<ReturnType<typeof getCurrentUser>> = null;
+  try {
+    user = await getCurrentUser();
+  } catch (error) {
+    if (!isDatabaseConnectivityError(error)) throw error;
+  }
   const clientId = uuidv4();
 
   const stream = new ReadableStream({

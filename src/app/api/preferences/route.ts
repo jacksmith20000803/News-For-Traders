@@ -3,9 +3,11 @@ import { apiSuccess, handleApiError, parseJsonBody } from "@/lib/api/response";
 import { requireAuth, validateCsrf } from "@/lib/auth/guards";
 import { db } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
+import { PreferredMarket } from "@prisma/client";
 import { z } from "zod";
 
 const profileSchema = z.object({
+  section: z.literal("profile").optional(),
   name: z.string().min(2).max(100).optional(),
   username: z.string().min(3).max(30).regex(/^[a-zA-Z0-9_]+$/).optional(),
   bio: z.string().max(500).optional(),
@@ -17,6 +19,7 @@ const profileSchema = z.object({
 });
 
 const notifSettingsSchema = z.object({
+  section: z.literal("notifications").optional(),
   emailEnabled: z.boolean().optional(),
   pushEnabled: z.boolean().optional(),
   inAppEnabled: z.boolean().optional(),
@@ -26,6 +29,14 @@ const notifSettingsSchema = z.object({
   profileChanges: z.boolean().optional(),
   systemAnnounce: z.boolean().optional(),
   marketingEmails: z.boolean().optional(),
+});
+
+const connectionSettingsSchema = z.object({
+  section: z.literal("connection"),
+  preferredMarket: z.nativeEnum(PreferredMarket).optional(),
+  theme: z.enum(["light", "dark", "system"]).optional(),
+  chartInterval: z.enum(["100ms", "1M", "5M", "15M", "1H", "4H", "1D", "1W"]).optional(),
+  defaultSymbol: z.string().trim().min(1).max(20).optional(),
 });
 
 export async function GET() {
@@ -54,30 +65,80 @@ export async function PATCH(request: NextRequest) {
   try {
     await validateCsrf(request);
     const user = await requireAuth();
-    const body = await parseJsonBody(request);
+    const rawBody = await parseJsonBody(request);
+    const body = isRecord(rawBody) ? rawBody : {};
 
-    if (notifSettingsSchema.safeParse(body).success) {
+    if (body.section === "connection") {
+      const data = connectionSettingsSchema.parse(body);
+      const settingsData = {
+        preferredMarket: data.preferredMarket,
+        theme: data.theme,
+        chartInterval: data.chartInterval,
+        defaultSymbol: data.defaultSymbol,
+      };
+      const settings = await db.userPreferences.upsert({
+        where: { userId: user.id },
+        create: { userId: user.id, ...settingsData },
+        update: settingsData,
+      });
+      return apiSuccess(settings);
+    }
+
+    const notificationKeys = [
+      "emailEnabled",
+      "pushEnabled",
+      "inAppEnabled",
+      "priceAlerts",
+      "newsAlerts",
+      "adminMessages",
+      "profileChanges",
+      "systemAnnounce",
+      "marketingEmails",
+    ];
+
+    if (body.section === "notifications" || notificationKeys.some((key) => key in body)) {
       const data = notifSettingsSchema.parse(body);
+      const settingsData = {
+        emailEnabled: data.emailEnabled,
+        pushEnabled: data.pushEnabled,
+        inAppEnabled: data.inAppEnabled,
+        priceAlerts: data.priceAlerts,
+        newsAlerts: data.newsAlerts,
+        adminMessages: data.adminMessages,
+        profileChanges: data.profileChanges,
+        systemAnnounce: data.systemAnnounce,
+        marketingEmails: data.marketingEmails,
+      };
       const settings = await db.notificationSettings.upsert({
         where: { userId: user.id },
-        create: { userId: user.id, ...data },
-        update: data,
+        create: { userId: user.id, ...settingsData },
+        update: settingsData,
       });
       return apiSuccess(settings);
     }
 
     const data = profileSchema.parse(body);
+    const profileData = {
+      name: data.name,
+      username: data.username,
+      bio: data.bio,
+      country: data.country,
+      timezone: data.timezone,
+      preferredLanguage: data.preferredLanguage,
+      dateOfBirth: data.dateOfBirth,
+      avatar: data.avatar,
+    };
     const updated = await db.user.update({
       where: { id: user.id },
       data: {
-        name: data.name,
-        username: data.username,
-        bio: data.bio,
-        country: data.country,
-        timezone: data.timezone,
-        preferredLanguage: data.preferredLanguage,
-        avatar: data.avatar,
-        dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : data.dateOfBirth === null ? null : undefined,
+        name: profileData.name,
+        username: profileData.username,
+        bio: profileData.bio,
+        country: profileData.country,
+        timezone: profileData.timezone,
+        preferredLanguage: profileData.preferredLanguage,
+        avatar: profileData.avatar,
+        dateOfBirth: profileData.dateOfBirth ? new Date(profileData.dateOfBirth) : profileData.dateOfBirth === null ? null : undefined,
       },
     });
 
@@ -100,7 +161,7 @@ export async function PATCH(request: NextRequest) {
         action: "USER_PROFILE_UPDATE",
         targetType: "User",
         targetId: user.id,
-        metadata: { fields: Object.keys(data) },
+        metadata: { fields: Object.keys(profileData) },
       },
     });
 
@@ -108,4 +169,8 @@ export async function PATCH(request: NextRequest) {
   } catch (error) {
     return handleApiError(error);
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }

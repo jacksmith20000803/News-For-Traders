@@ -15,6 +15,8 @@ export const registerSchema = z.object({
 export const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
   password: z.string().min(1, "Password is required"),
+  twoFactorCode: z.string().trim().optional().or(z.literal("")),
+  rememberDevice: z.boolean().optional(),
 });
 
 export const forgotPasswordSchema = z.object({
@@ -59,9 +61,19 @@ export const updateProfileSchema = z.object({
     .regex(/^[a-zA-Z0-9_]+$/, "Username can only use letters, numbers, and underscores")
     .optional()
     .or(z.literal("")),
-  avatar: z.string().url("Avatar must be a valid URL").optional().or(z.literal("")),
+  avatar: z
+    .string()
+    .trim()
+    .max(500)
+    .refine(
+      (value) => value === "" || value.startsWith("/") || /^https?:\/\//i.test(value),
+      "Avatar must be a valid image URL or site image path"
+    )
+    .optional()
+    .or(z.literal("")),
   bio: z.string().max(500).optional(),
   dateOfBirth: z.string().optional().or(z.literal("")),
+  location: z.string().trim().max(100, "Location must be at most 100 characters").optional().or(z.literal("")),
   currentPassword: z.string().optional(),
   newPassword: z
     .string()

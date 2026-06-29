@@ -1,8 +1,10 @@
-import { apiSuccess, handleApiError } from "@/lib/api/response";
+import { apiSuccess } from "@/lib/api/response";
 import { db } from "@/lib/db";
 import { isAnyProviderConfigured, getProviderStatuses } from "@/lib/providers/news";
-import { updateMarketQuotes } from "@/lib/market/realtime-fetcher";
+import { queueMarketQuoteRefresh } from "@/lib/market/realtime-fetcher";
 import { toAssetSlug } from "@/lib/assets/symbols";
+import { isDatabaseConnectivityError } from "@/lib/db-errors";
+import { getFallbackQuotes, mergeFallbackQuotes } from "@/lib/fallback-data";
 
 export async function GET(request: Request) {
   try {
@@ -11,9 +13,8 @@ export async function GET(request: Request) {
     const symbol = searchParams.get("symbol");
     const assetType = searchParams.get("assetType");
 
-    // Trigger sync if requested
     if (sync) {
-      await updateMarketQuotes();
+      queueMarketQuoteRefresh(100);
     }
 
     if (symbol) {
@@ -31,12 +32,16 @@ export async function GET(request: Request) {
         where: assetType ? { AND: [{ assetType }, symbolWhere] } : symbolWhere,
         orderBy: { updatedAt: "desc" },
       });
+      const fallbackQuotes = getFallbackQuotes().filter((item) => {
+        const fallbackSlug = toAssetSlug(item.symbol);
+        return fallbackSlug === slug || toAssetSlug(item.symbol.replace("/USD", "")) === slug;
+      });
 
       return apiSuccess({
-        configured: isAnyProviderConfigured(),
-        providers: getProviderStatuses(),
-        quote,
-        quotes: quote ? [quote] : [],
+        configured: safeIsAnyProviderConfigured(),
+        providers: safeProviderStatuses(),
+        quote: quote ?? fallbackQuotes[0] ?? null,
+        quotes: quote ? [quote] : fallbackQuotes,
       });
     }
 
@@ -46,11 +51,49 @@ export async function GET(request: Request) {
     });
 
     return apiSuccess({
-      configured: isAnyProviderConfigured(),
-      providers: getProviderStatuses(),
-      quotes,
+      configured: safeIsAnyProviderConfigured(),
+      providers: safeProviderStatuses(),
+      quotes: mergeFallbackQuotes(quotes),
     });
   } catch (error) {
-    return handleApiError(error);
+    if (!isDatabaseConnectivityError(error)) {
+      console.error("[market] Falling back after quote API error:", error);
+    }
+
+    const { searchParams } = new URL(request.url);
+    const symbol = searchParams.get("symbol");
+    const assetType = searchParams.get("assetType");
+    const quotes = getFallbackQuotes().filter((quote) => {
+      if (assetType && quote.assetType !== assetType) return false;
+      if (!symbol) return true;
+      const slug = toAssetSlug(symbol.toUpperCase());
+      return [quote.symbol, toAssetSlug(quote.symbol), quote.symbol.replace("/USD", "")]
+        .map((value) => toAssetSlug(value))
+        .includes(slug);
+    });
+
+    return apiSuccess({
+      configured: false,
+      providers: safeProviderStatuses(),
+      degraded: true,
+      quote: symbol ? quotes[0] ?? null : null,
+      quotes,
+    });
+  }
+}
+
+function safeProviderStatuses() {
+  try {
+    return getProviderStatuses();
+  } catch {
+    return [];
+  }
+}
+
+function safeIsAnyProviderConfigured() {
+  try {
+    return isAnyProviderConfigured();
+  } catch {
+    return false;
   }
 }

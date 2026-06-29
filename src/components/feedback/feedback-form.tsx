@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { readJsonResponse } from "@/lib/api/client";
 
 const TYPES = [
   { value: "CONTACT", label: "Contact" },
@@ -19,21 +20,31 @@ export function FeedbackForm() {
     message: "",
   });
   const [sent, setSent] = useState(false);
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-    const submit = async (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setError("");
     try {
       const res = await fetch("/api/feedback", {
         method: "POST",
+        credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
-      if (res.ok) {
-        setSent(true);
-        setForm({ type: "CONTACT", name: "", email: "", subject: "", message: "" });
+
+      const json = await readJsonResponse<{ success: boolean; error?: string }>(res);
+      if (!res.ok || !json.success) {
+        setError(json.error ?? "Feedback could not be sent.");
+        return;
       }
+
+      setSent(true);
+      setForm({ type: "CONTACT", name: "", email: "", subject: "", message: "" });
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : "Feedback could not be sent.");
     } finally {
       setLoading(false);
     }
@@ -52,6 +63,11 @@ export function FeedbackForm() {
 
   return (
     <form onSubmit={submit} className="dash-panel space-y-4 rounded-2xl p-6">
+      {error && (
+        <div className="rounded-xl border border-red-500/25 bg-red-500/10 px-3 py-2 text-sm font-semibold text-red-500">
+          {error}
+        </div>
+      )}
       <div className="grid gap-4 sm:grid-cols-2">
         <select
           value={form.type}

@@ -39,12 +39,14 @@ function Sparkline({ positive }: { positive: boolean }) {
 export function MarketOverview() {
   const [marketItems, setMarketItems] = useState<MarketItem[]>([
     { name: "S&P 500", symbol: "SPY", value: "5,234.56", change: "+1.2%", changePositive: true },
-    { name: "NASDAQ", symbol: "QQQ", value: "16,456.78", change: "+0.8%", changePositive: true },
+    { name: "NASDAQ 100", symbol: "QQQ", value: "16,456.78", change: "+0.8%", changePositive: true },
     { name: "BTC/USD", symbol: "BTC/USD", value: "67,234.00", change: "+2.4%", changePositive: true },
     { name: "ETH/USD", symbol: "ETH/USD", value: "3,456.78", change: "-0.5%", changePositive: false },
     { name: "GOLD", symbol: "XAU/USD", value: "2,345.60", change: "+0.3%", changePositive: true },
-    { name: "DOW", symbol: "DIA", value: "39,123.45", change: "+0.6%", changePositive: true },
+    { name: "DOW JONES", symbol: "DIA", value: "39,123.45", change: "+0.6%", changePositive: true },
   ]);
+  const advancingCount = marketItems.filter((item) => item.changePositive).length;
+  const riskTone = advancingCount >= 4 ? "Risk-on" : advancingCount >= 3 ? "Mixed" : "Defensive";
 
   useEffect(() => {
     const applyQuote = (tick: { symbol: string; price: number; changePercent?: number | null }) => {
@@ -68,7 +70,7 @@ export function MarketOverview() {
           if (direction) {
             setTimeout(() => {
               setMarketItems(items => items.map(i => i.symbol === item.symbol ? { ...i, direction: null } : i));
-            }, 200);
+            }, 10);
           }
           
           return updated;
@@ -94,34 +96,63 @@ export function MarketOverview() {
   }, []);
 
   return (
-    <div className="dash-panel p-4 sm:p-5" suppressHydrationWarning>
-      <h3 className="text-xs sm:text-sm font-semibold text-muted-foreground mb-3 sm:mb-4 uppercase tracking-wider">
-        Market Overview
-      </h3>
-      <div className="space-y-2 sm:space-y-3" suppressHydrationWarning>
+    <div className="dash-panel flex h-full min-h-[330px] flex-col p-5 sm:p-6" suppressHydrationWarning>
+      <div className="mb-5 flex items-center justify-between">
+        <h3 className="text-base font-bold text-foreground">Market Overview</h3>
+        <a href="/charts" className="text-xs font-bold text-primary hover:underline">
+          View All
+        </a>
+      </div>
+      <div className="flex-1 space-y-2" suppressHydrationWarning>
         {marketItems.map((item) => (
           <div
             key={item.symbol}
             className={cn(
-              "flex items-center justify-between py-2 border-b border-border last:border-0 transition-all",
+              "grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 rounded-2xl border border-border/60 bg-background/45 px-3 py-3 transition-all hover:bg-muted/60",
               item.direction === "up" && "price-flash-up",
               item.direction === "down" && "price-flash-down"
             )}
             suppressHydrationWarning
           >
             <div className="flex-1 min-w-0" suppressHydrationWarning>
-              <p className="text-xs sm:text-sm font-medium truncate">{item.name}</p>
-              <p className="text-sm sm:text-lg font-bold font-mono tabular-nums">{item.value}</p>
+              <p className="truncate text-xs font-bold text-foreground">{item.name}</p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">{item.symbol}</p>
             </div>
             <Sparkline positive={item.changePositive} />
-            <div className={cn(
-              "text-xs sm:text-sm font-bold font-mono tabular-nums w-12 sm:w-16 text-right shrink-0",
-              item.changePositive ? "text-cyan-400" : "text-red-500"
-            )} suppressHydrationWarning>
-              {item.change}
+            <div className="text-right" suppressHydrationWarning>
+              <p className="font-mono text-xs font-semibold tabular-nums text-foreground">{item.value}</p>
+              <p className={cn(
+                "font-mono text-xs font-bold tabular-nums",
+                item.changePositive ? "text-success" : "text-error"
+              )}>
+                {item.change}
+              </p>
             </div>
           </div>
         ))}
+      </div>
+      <div className="mt-4 grid gap-3 rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/10 via-background/80 to-cyan-500/10 p-4 sm:grid-cols-3">
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Tone</p>
+          <p className="mt-1 text-sm font-extrabold text-foreground">{riskTone}</p>
+        </div>
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Advancing</p>
+          <p className="mt-1 text-sm font-extrabold text-emerald-500">
+            {advancingCount}/{marketItems.length} markets
+          </p>
+        </div>
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Monitor</p>
+          <div className="mt-2 flex h-2 overflow-hidden rounded-full bg-muted">
+            {marketItems.map((item) => (
+              <span
+                key={`bar-${item.symbol}`}
+                className={cn("flex-1", item.changePositive ? "bg-emerald-400" : "bg-red-400")}
+              />
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );

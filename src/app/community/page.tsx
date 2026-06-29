@@ -6,18 +6,56 @@ import { MessageSquare, ArrowUp, ArrowDown } from "lucide-react";
 import { formatRelative } from "@/lib/utils";
 import { COMMUNITY_RULES, POST_CATEGORY_LABELS } from "@/lib/constants";
 import type { PostCategory } from "@prisma/client";
+import { isDatabaseConnectivityError } from "@/lib/db-errors";
 
 export const metadata = { title: "Community" };
 
+type CommunityDiscussion = {
+  id: string;
+  title: string;
+  content: string;
+  category: PostCategory;
+  isPinned: boolean;
+  upvoteCount: number;
+  downvoteCount: number;
+  createdAt: Date;
+  author: { id: string; name: string; reputation: number };
+  _count: { comments: number };
+};
+
+async function getDiscussions(): Promise<CommunityDiscussion[]> {
+  try {
+    return await db.discussion.findMany({
+      include: {
+        author: { select: { id: true, name: true, reputation: true } },
+        _count: { select: { comments: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+    });
+  } catch (error) {
+    if (!isDatabaseConnectivityError(error)) throw error;
+
+    return [
+      {
+        id: "fallback-community-reconnecting",
+        title: "Community feed is reconnecting",
+        content:
+          "Live discussions are temporarily unavailable. The page will automatically use the latest community posts when the database connection returns.",
+        category: "RISK_MANAGEMENT",
+        isPinned: false,
+        upvoteCount: 0,
+        downvoteCount: 0,
+        createdAt: new Date(),
+        author: { id: "system", name: "TRADX", reputation: 100 },
+        _count: { comments: 0 },
+      },
+    ];
+  }
+}
+
 export default async function CommunityPage() {
-  const discussions = await db.discussion.findMany({
-    include: {
-      author: { select: { id: true, name: true, reputation: true } },
-      _count: { select: { comments: true } },
-    },
-    orderBy: { createdAt: "desc" },
-    take: 20,
-  });
+  const discussions = await getDiscussions();
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">

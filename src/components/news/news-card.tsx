@@ -123,7 +123,7 @@ export function NewsCard({
         <div className="mt-3 flex items-center justify-between">
           <div className="text-[10px] text-muted-foreground">
             <span className="font-medium text-foreground/80">{source}</span>
-            <span className="mx-1.5">·</span>
+            <span className="mx-1.5">&middot;</span>
             {formatRelative(publishedAt)}
           </div>
           <div className="flex items-center gap-0.5">
@@ -202,7 +202,7 @@ export function NewsCard({
         <div className="mt-3 flex items-center justify-between" suppressHydrationWarning>
           <div className="text-[10px] text-muted-foreground" suppressHydrationWarning>
             <span className="font-medium text-foreground/80">{source}</span>
-            <span className="mx-1.5">·</span>
+            <span className="mx-1.5">&middot;</span>
             {formatRelative(publishedAt)}
           </div>
           <div className="flex items-center gap-0.5" suppressHydrationWarning>

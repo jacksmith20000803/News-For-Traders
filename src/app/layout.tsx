@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { AuthProvider } from "@/components/providers/auth-provider";
 import { SSEProvider } from "@/components/realtime/sse-provider";
@@ -13,33 +12,9 @@ import { PageLoader } from "@/components/loading/page-loader";
 import { AIChatModal } from "@/components/layout/ai-chat-modal";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
-const themeScript = `
-(() => {
-  try {
-    const stored = localStorage.getItem("theme") || "dark";
-    const systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    const resolved = stored === "system" ? (systemDark ? "dark" : "light") : stored;
-    document.documentElement.classList.toggle("dark", resolved === "dark");
-    document.documentElement.classList.toggle("light", resolved !== "dark");
-  } catch {
-    document.documentElement.classList.add("dark");
-  }
-})();
-`;
-
 export const metadata: Metadata = {
   title: {
-    default: "TRADX — Trade. Invest. Grow.",
+    default: "TRADX - Trade. Invest. Grow.",
     template: "%s | TRADX",
   },
   description:
@@ -53,10 +28,7 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning className={`${geistSans.variable} ${geistMono.variable} h-full`}>
-      <head>
-        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
-      </head>
+    <html lang="en" suppressHydrationWarning className="dark h-full">
       <body className="min-h-full flex flex-col antialiased" suppressHydrationWarning>
         <ThemeProvider>
           <AuthProvider initialUser={null}>

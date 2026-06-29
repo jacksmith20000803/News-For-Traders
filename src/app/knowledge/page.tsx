@@ -6,20 +6,58 @@ import { BookOpen, PenLine } from "lucide-react";
 import { formatRelative } from "@/lib/utils";
 import { POST_CATEGORY_LABELS } from "@/lib/constants";
 import type { PostCategory } from "@prisma/client";
+import { isDatabaseConnectivityError } from "@/lib/db-errors";
 
 export const metadata = { title: "Knowledge Plaza" };
 
+type KnowledgeArticle = {
+  id: string;
+  title: string;
+  slug: string;
+  excerpt: string | null;
+  category: PostCategory;
+  featured: boolean;
+  publishedAt: Date | null;
+  createdAt: Date;
+  author: { id: string; name: string; reputation: number };
+  _count: { likes: number; comments: number };
+};
+
+async function getPublishedArticles(): Promise<KnowledgeArticle[]> {
+  try {
+    return await db.article.findMany({
+      where: { status: "PUBLISHED" },
+      include: {
+        author: { select: { id: true, name: true, reputation: true } },
+        tags: { include: { tag: true } },
+        _count: { select: { likes: true, comments: true } },
+      },
+      orderBy: [{ featured: "desc" }, { publishedAt: "desc" }],
+      take: 20,
+    });
+  } catch (error) {
+    if (!isDatabaseConnectivityError(error)) throw error;
+
+    return [
+      {
+        id: "fallback-knowledge-market-discipline",
+        title: "Market research is reconnecting",
+        slug: "market-research-reconnecting",
+        excerpt:
+          "Community research is temporarily unavailable. The page will automatically use live articles again when the database connection returns.",
+        category: "RISK_MANAGEMENT",
+        featured: false,
+        publishedAt: new Date(),
+        createdAt: new Date(),
+        author: { id: "system", name: "TRADX", reputation: 100 },
+        _count: { likes: 0, comments: 0 },
+      },
+    ];
+  }
+}
+
 export default async function KnowledgePage() {
-  const articles = await db.article.findMany({
-    where: { status: "PUBLISHED" },
-    include: {
-      author: { select: { id: true, name: true, reputation: true } },
-      tags: { include: { tag: true } },
-      _count: { select: { likes: true, comments: true } },
-    },
-    orderBy: [{ featured: "desc" }, { publishedAt: "desc" }],
-    take: 20,
-  });
+  const articles = await getPublishedArticles();
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">

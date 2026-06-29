@@ -36,6 +36,10 @@ const COINGECKO_IDS: Record<string, string> = {
   "ETC": "ethereum-classic",
 };
 
+const FOREX_FALLBACK_QUOTES = [
+  { symbol: "EUR/USD", assetType: "forex", name: "Euro / US Dollar", basePrice: 1.08 },
+];
+
 /**
  * Fetch real-time crypto prices from CoinGecko API (free, no API key required)
  */
@@ -85,13 +89,12 @@ export async function fetchCryptoPrices(): Promise<CryptoPrice[]> {
 export async function updateMarketQuotes() {
   try {
     const prices = await fetchCryptoPrices();
-    
-    if (prices.length === 0) {
-      return { success: false, error: "No prices fetched" };
-    }
-    
     let updated = 0;
-    
+
+    if (prices.length === 0) {
+      console.warn("No crypto prices fetched; continuing with available fallback quotes.");
+    }
+
     for (const priceData of prices) {
       try {
         // Skip if price is null or invalid
@@ -159,12 +162,77 @@ export async function updateMarketQuotes() {
         console.error(`Error updating ${priceData.symbol}:`, error);
       }
     }
+
+    for (const fallback of FOREX_FALLBACK_QUOTES) {
+      try {
+        const existing = await db.marketQuote.findFirst({
+          where: { symbol: fallback.symbol, assetType: fallback.assetType },
+        });
+        const previousPrice = existing?.price ?? fallback.basePrice;
+        const drift = (Math.random() - 0.5) * fallback.basePrice * 0.001;
+        const price = Math.max(0.0001, previousPrice + drift);
+        const change = price - previousPrice;
+        const changePercent = previousPrice > 0 ? (change / previousPrice) * 100 : 0;
+
+        await db.marketQuote.upsert({
+          where: { symbol_assetType: { symbol: fallback.symbol, assetType: fallback.assetType } },
+          create: {
+            symbol: fallback.symbol,
+            assetType: fallback.assetType,
+            name: fallback.name,
+            price,
+            change,
+            changePercent,
+            providerName: "fallback",
+          },
+          update: {
+            name: fallback.name,
+            price,
+            change,
+            changePercent,
+            providerName: "fallback",
+          },
+        });
+
+        broadcastMarketTick({
+          symbol: fallback.symbol,
+          assetType: fallback.assetType,
+          price,
+          change,
+          changePercent,
+          updatedAt: new Date().toISOString(),
+        });
+
+        updated++;
+      } catch (error) {
+        console.error(`Error updating ${fallback.symbol}:`, error);
+      }
+    }
     
-    return { success: true, updated };
+    return updated > 0
+      ? { success: true, updated }
+      : { success: false, error: "No prices fetched" };
   } catch (error) {
     console.error("Error updating market quotes:", error);
     return { success: false, error: String(error) };
   }
+}
+
+let pendingMarketRefresh: Promise<unknown> | null = null;
+let lastMarketRefreshStartedAt = 0;
+
+export function queueMarketQuoteRefresh(minIntervalMs = 1000) {
+  const now = Date.now();
+  if (pendingMarketRefresh || now - lastMarketRefreshStartedAt < minIntervalMs) return;
+
+  lastMarketRefreshStartedAt = now;
+  pendingMarketRefresh = updateMarketQuotes()
+    .catch((error) => {
+      console.error("Background market quote refresh failed:", error);
+    })
+    .finally(() => {
+      pendingMarketRefresh = null;
+    });
 }
 
 /**

@@ -35,7 +35,7 @@ export default async function AssetPage({
   const positive = (data.quote?.changePercent ?? data.performance ?? 0) >= 0;
   const heroBackground =
     data.asset.category === "CRYPTO"
-      ? `/coin-backgrounds/${data.asset.slug.toLowerCase()}.jpg`
+      ? `/coin-badge/${data.asset.slug.toLowerCase()}.png`
       : "/default-news.jpg";
 
   return (

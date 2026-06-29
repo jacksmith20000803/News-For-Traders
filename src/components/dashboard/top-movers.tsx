@@ -1,9 +1,5 @@
-"use client";
-
 import { TrendingUp, TrendingDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ViewToggle, ViewMode } from "@/components/ui/view-toggle";
-import { useState } from "react";
 
 interface Mover {
   symbol: string;
@@ -22,84 +18,49 @@ const movers: Mover[] = [
 ];
 
 export function TopMovers() {
-  const [viewMode, setViewMode] = useState<ViewMode>("list");
-
   return (
     <div className="dash-panel p-4 sm:p-5">
       <div className="flex items-center justify-between mb-3 sm:mb-4">
-        <h3 className="text-xs sm:text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-          Top Movers
-        </h3>
-        <ViewToggle viewMode={viewMode} onViewModeChange={setViewMode} />
-      </div>
-      
-      {viewMode === "list" ? (
-        <div className="space-y-2">
-          {movers.map((mover) => (
-            <div
-              key={mover.symbol}
-              className="flex items-center justify-between py-2 px-2 sm:px-3 rounded-lg hover:bg-white/5 transition-colors"
-            >
-              <div className="flex items-center gap-2 sm:gap-3">
-                <div className={cn(
-                  "p-1.5 sm:p-2 rounded-lg",
-                  mover.changePositive ? "bg-success/10" : "bg-error/10"
-                )}>
-                  {mover.changePositive ? (
-                    <TrendingUp className={cn("h-3 w-3 sm:h-4 sm:w-4 text-success")} />
-                  ) : (
-                    <TrendingDown className={cn("h-3 w-3 sm:h-4 sm:w-4 text-error")} />
-                  )}
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xs sm:text-sm font-bold truncate">{mover.symbol}</p>
-                  <p className="text-[10px] sm:text-xs text-muted-foreground truncate">{mover.name}</p>
-                </div>
-              </div>
-              <div className="text-right shrink-0">
-                <p className="text-xs sm:text-sm font-mono font-medium">{mover.price}</p>
-                <p className={cn(
-                  "text-[10px] sm:text-xs font-mono font-bold",
-                  mover.changePositive ? "text-success" : "text-error"
-                )}>
-                  {mover.change}
-                </p>
-              </div>
-            </div>
-          ))}
+        <h3 className="text-sm font-semibold text-foreground">Top Movers</h3>
+        <div className="flex rounded-lg bg-muted p-1 text-[11px] font-bold text-muted-foreground">
+          <span className="rounded-md bg-primary/15 px-2 py-1 text-primary">Gainers</span>
+          <span className="px-2 py-1">Losers</span>
+          <span className="px-2 py-1">Active</span>
         </div>
-      ) : (
-        <div className="grid grid-cols-2 gap-2 sm:gap-3">
-          {movers.map((mover) => (
-            <div
-              key={mover.symbol}
-              className="card-3d-enhanced p-3 rounded-lg border border-border"
-            >
-              <div className="flex items-center gap-2 mb-2">
-                <div className={cn(
-                  "p-1.5 rounded-lg",
-                  mover.changePositive ? "bg-success/10" : "bg-error/10"
-                )}>
-                  {mover.changePositive ? (
-                    <TrendingUp className={cn("h-3 w-3 text-success")} />
-                  ) : (
-                    <TrendingDown className={cn("h-3 w-3 text-error")} />
-                  )}
-                </div>
-                <p className="text-xs font-bold truncate">{mover.symbol}</p>
-              </div>
-              <p className="text-[10px] text-muted-foreground truncate mb-1">{mover.name}</p>
-              <p className="text-sm font-mono font-medium">{mover.price}</p>
+      </div>
+
+      <div className="space-y-1">
+        {movers.map((mover) => (
+          <div
+            key={mover.symbol}
+            className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-muted/60"
+          >
+            <div className={cn(
+              "flex h-8 w-8 items-center justify-center rounded-full text-xs font-black",
+              mover.changePositive ? "bg-success/12 text-success" : "bg-error/12 text-error"
+            )}>
+              {mover.changePositive ? (
+                <TrendingUp className="h-4 w-4" />
+              ) : (
+                <TrendingDown className="h-4 w-4" />
+              )}
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-bold">{mover.symbol}</p>
+              <p className="truncate text-xs text-muted-foreground">{mover.name}</p>
+            </div>
+            <div className="text-right">
+              <p className="font-mono text-xs font-semibold">{mover.price}</p>
               <p className={cn(
-                "text-xs font-mono font-bold",
+                "font-mono text-xs font-bold",
                 mover.changePositive ? "text-success" : "text-error"
               )}>
                 {mover.change}
               </p>
             </div>
-          ))}
-        </div>
-      )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

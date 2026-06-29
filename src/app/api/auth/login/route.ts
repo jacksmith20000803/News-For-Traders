@@ -17,6 +17,18 @@ import { createSignedCsrfToken } from "@/lib/security/csrf";
 import { checkRateLimit, getClientIp } from "@/lib/security/rate-limit";
 import { config } from "@/lib/config";
 import { logUserActivity } from "@/lib/audit";
+import { verifyTotpCode } from "@/lib/security/totp";
+import {
+  createMfaChallengeToken,
+  decryptTotpSecret,
+  generateTrustedDeviceToken,
+  getDeviceName,
+  hashTrustedDeviceToken,
+  MFA_TRUST_COOKIE,
+  mfaTrustCookieMaxAge,
+  trustedDeviceExpiresAt,
+  TOTP_VALID_WINDOW,
+} from "@/lib/security/mfa";
 
 export async function POST(request: NextRequest) {
   try {
@@ -78,6 +90,121 @@ export async function POST(request: NextRequest) {
       return apiError("Your account has been suspended", 403, "ACCOUNT_SUSPENDED");
     }
 
+    if (user.twoFactorEnabled) {
+      if (!user.twoFactorSecret) {
+        return apiError("Two-factor setup is incomplete. Contact support.", 409, "MFA_SECRET_MISSING");
+      }
+
+      const trustedToken = request.cookies.get(MFA_TRUST_COOKIE)?.value;
+      if (trustedToken) {
+        const trustedDevice = await db.trustedDevice.findFirst({
+          where: {
+            userId: user.id,
+            tokenHash: hashTrustedDeviceToken(trustedToken),
+            expiresAt: { gt: new Date() },
+          },
+        });
+
+        if (trustedDevice) {
+          await db.trustedDevice.update({
+            where: { id: trustedDevice.id },
+            data: { expiresAt: trustedDeviceExpiresAt() },
+          });
+
+          await db.user.update({
+            where: { id: user.id },
+            data: {
+              failedLoginAttempts: 0,
+              lockedUntil: null,
+              twoFactorLastVerifiedAt: new Date(),
+            },
+          });
+
+          await createUserSession(
+            user.id,
+            ip,
+            request.headers.get("user-agent") ?? undefined,
+            { mfaVerified: true, authTime: Math.floor(Date.now() / 1000) }
+          );
+
+          const csrfToken = createSignedCsrfToken();
+          await setCsrfCookie(csrfToken);
+          await logUserActivity(user.id, "LOGIN_TRUSTED_DEVICE", { ip, trustedDeviceId: trustedDevice.id });
+
+          const response = apiSuccess({ user: toSafeUser(user), csrfToken, mfaRequired: false });
+          response.cookies.set(MFA_TRUST_COOKIE, trustedToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "strict",
+            maxAge: mfaTrustCookieMaxAge(),
+            path: "/",
+          });
+          return response;
+        }
+      }
+
+      if (data.twoFactorCode) {
+        const secret = decryptTotpSecret(user.twoFactorSecret);
+        if (!verifyTotpCode(secret, data.twoFactorCode, TOTP_VALID_WINDOW)) {
+          await logUserActivity(user.id, "MFA_LOGIN_FAILURE", { ip });
+          return apiError("Invalid two-factor code", 401, "INVALID_TWO_FACTOR_CODE");
+        }
+
+        const rememberDevice = data.rememberDevice === true;
+        let rawTrustedToken: string | null = null;
+        if (rememberDevice) {
+          rawTrustedToken = generateTrustedDeviceToken();
+          await db.trustedDevice.create({
+            data: {
+              userId: user.id,
+              tokenHash: hashTrustedDeviceToken(rawTrustedToken),
+              deviceName: getDeviceName(request.headers.get("user-agent")),
+              expiresAt: trustedDeviceExpiresAt(),
+            },
+          });
+        }
+
+        await db.user.update({
+          where: { id: user.id },
+          data: {
+            failedLoginAttempts: 0,
+            lockedUntil: null,
+            twoFactorLastVerifiedAt: new Date(),
+          },
+        });
+
+        await createUserSession(
+          user.id,
+          ip,
+          request.headers.get("user-agent") ?? undefined,
+          { mfaVerified: true, authTime: Math.floor(Date.now() / 1000) }
+        );
+
+        const csrfToken = createSignedCsrfToken();
+        await setCsrfCookie(csrfToken);
+        await logUserActivity(user.id, "LOGIN_MFA", { ip });
+
+        const response = apiSuccess({ user: toSafeUser(user), csrfToken, mfaRequired: false });
+        if (rawTrustedToken) {
+          response.cookies.set(MFA_TRUST_COOKIE, rawTrustedToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "strict",
+            maxAge: mfaTrustCookieMaxAge(),
+            path: "/",
+          });
+        }
+        return response;
+      }
+
+      const challengeToken = await createMfaChallengeToken(user.id);
+      return apiSuccess({
+        mfaRequired: true,
+        challengeToken,
+        message: "Two-factor verification required",
+      });
+    }
+
     await db.user.update({
       where: { id: user.id },
       data: { failedLoginAttempts: 0, lockedUntil: null },
@@ -86,7 +213,8 @@ export async function POST(request: NextRequest) {
     await createUserSession(
       user.id,
       ip,
-      request.headers.get("user-agent") ?? undefined
+      request.headers.get("user-agent") ?? undefined,
+      { mfaVerified: false, authTime: Math.floor(Date.now() / 1000) }
     );
 
     const csrfToken = createSignedCsrfToken();

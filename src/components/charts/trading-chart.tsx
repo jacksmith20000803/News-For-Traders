@@ -9,6 +9,7 @@ import {
   HistogramSeries,
   type IChartApi,
   type ISeriesApi,
+  type LogicalRange,
   type Time,
 } from "lightweight-charts";
 import { subscribeSSE } from "@/components/realtime/sse-provider";
@@ -89,7 +90,10 @@ export function TradingChart({ initialSymbol = "BTC/USD", initialAssetType = "cr
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
+  const candleDataRef = useRef<Candle[]>([]);
   const latestCandleRef = useRef<Candle | null>(null);
+  const pollInFlightRef = useRef(false);
+  const olderFetchInFlightRef = useRef(false);
 
   const [symbol, setSymbol] = useState(initialSymbol);
   const [assetType, setAssetType] = useState(initialAssetType);
@@ -126,6 +130,7 @@ export function TradingChart({ initialSymbol = "BTC/USD", initialAssetType = "cr
         close: newPrice,
       };
       series.update(firstCandle);
+      candleDataRef.current = [firstCandle];
       latestCandleRef.current = firstCandle;
       return;
     }
@@ -152,8 +157,53 @@ export function TradingChart({ initialSymbol = "BTC/USD", initialAssetType = "cr
           };
 
     series.update(nextCandle);
+    candleDataRef.current =
+      nextTime > latestTime
+        ? [...candleDataRef.current, nextCandle]
+        : candleDataRef.current.map((candle) =>
+            toUnixTime(candle.time) === latestTime ? nextCandle : candle
+          );
     latestCandleRef.current = nextCandle;
   }, [chartInterval]);
+
+  const fetchOlderCandles = useCallback(async () => {
+    if (olderFetchInFlightRef.current || chartInterval === "1D" || chartInterval === "1W") return;
+
+    const firstCandle = candleDataRef.current[0];
+    const firstTime = firstCandle ? toUnixTime(firstCandle.time) : null;
+    if (!firstTime) return;
+
+    olderFetchInFlightRef.current = true;
+    try {
+      const response = await fetch(
+        `/api/market/candles?symbol=${encodeURIComponent(symbol)}&assetType=${assetType}&interval=${chartInterval}&before=${firstTime}&limit=240`,
+        { cache: "no-store" }
+      );
+      const json = await response.json().catch(() => null);
+      if (!response.ok || !json?.success || !Array.isArray(json.data?.candles)) return;
+
+      const olderCandles = normalizeCandles(
+        json.data.candles.map(
+          (c: { time: number; open: number; high: number; low: number; close: number }) => ({
+            ...c,
+            time: c.time as Time,
+          })
+        )
+      ).filter((candle) => {
+        const time = toUnixTime(candle.time);
+        return time !== null && time < firstTime;
+      });
+
+      if (olderCandles.length === 0) return;
+
+      const merged = normalizeCandles([...olderCandles, ...candleDataRef.current]);
+      candleDataRef.current = merged;
+      candleRef.current?.setData(merged);
+      latestCandleRef.current = merged[merged.length - 1] ?? latestCandleRef.current;
+    } finally {
+      olderFetchInFlightRef.current = false;
+    }
+  }, [assetType, chartInterval, symbol]);
 
   const loadChart = useCallback(async () => {
     setLoading(true);
@@ -162,7 +212,7 @@ export function TradingChart({ initialSymbol = "BTC/USD", initialAssetType = "cr
     // Fetch full historical data from past to current time
     const useHistorical = chartInterval === "1D" || chartInterval === "1W";
 
-    const [candlesRes, quoteRes] = await Promise.all([
+    const responses = await Promise.all([
       useHistorical
         ? fetch(
             `/api/market/historical?symbol=${encodeURIComponent(symbol.replace("/USD", ""))}&days=${chartInterval === "1D" ? 365 : 730}`,
@@ -173,11 +223,17 @@ export function TradingChart({ initialSymbol = "BTC/USD", initialAssetType = "cr
             { cache: "no-store" }
           ),
       fetch(`/api/market?symbol=${encodeURIComponent(symbol)}`, { cache: "no-store" }),
-    ]);
+    ]).catch(() => null);
+
+    if (!responses) {
+      setLoading(false);
+      return;
+    }
+
+    const [candlesRes, quoteRes] = responses;
 
     // Check if responses are OK before parsing JSON
     if (!candlesRes.ok || !quoteRes.ok) {
-      console.error('API request failed:', { candlesStatus: candlesRes.status, quoteStatus: quoteRes.status });
       setLoading(false);
       return;
     }
@@ -186,7 +242,6 @@ export function TradingChart({ initialSymbol = "BTC/USD", initialAssetType = "cr
     const quoteJson = await quoteRes.json().catch(() => null);
 
     if (!candlesJson || !quoteJson) {
-      console.error('Failed to parse JSON responses');
       setLoading(false);
       return;
     }
@@ -271,6 +326,7 @@ export function TradingChart({ initialSymbol = "BTC/USD", initialAssetType = "cr
 
     candleSeries.setData(candles);
     candleRef.current = candleSeries;
+    candleDataRef.current = candles;
     latestCandleRef.current = candles[candles.length - 1] ?? null;
 
     const closes = candles.map((c) => c.close);
@@ -320,13 +376,17 @@ export function TradingChart({ initialSymbol = "BTC/USD", initialAssetType = "cr
     }
 
     chart.timeScale().fitContent();
+    chart.timeScale().subscribeVisibleLogicalRangeChange((range: LogicalRange | null) => {
+      if (!range || range.from > 18) return;
+      void fetchOlderCandles();
+    });
     chartRef.current = chart;
 
     if (candles.length > 0) {
       setPrice((current) => current ?? candles[candles.length - 1].close);
     }
     setLoading(false);
-  }, [symbol, assetType, chartInterval, indicators]);
+  }, [symbol, assetType, chartInterval, indicators, fetchOlderCandles]);
 
   useEffect(() => {
     const timer = setTimeout(() => loadChart(), 0);
@@ -350,6 +410,7 @@ export function TradingChart({ initialSymbol = "BTC/USD", initialAssetType = "cr
       }
       chartRef.current = null;
       candleRef.current = null;
+      candleDataRef.current = [];
       latestCandleRef.current = null;
     };
   }, [loadChart]);
@@ -399,12 +460,17 @@ export function TradingChart({ initialSymbol = "BTC/USD", initialAssetType = "cr
 
     const poll = setInterval(async () => {
       if (document.visibilityState === "hidden") return;
+      if (pollInFlightRef.current) return;
+      pollInFlightRef.current = true;
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 2500);
+
       try {
-        const res = await fetch(`/api/market?symbol=${encodeURIComponent(symbol)}`, {
+        const res = await fetch(`/api/market?symbol=${encodeURIComponent(symbol)}&sync=true`, {
           cache: "no-store",
+          signal: controller.signal,
         });
         if (!res.ok) {
-          console.error('Polling API request failed:', res.status);
           return;
         }
         const json = await res.json().catch(() => null);
@@ -420,10 +486,13 @@ export function TradingChart({ initialSymbol = "BTC/USD", initialAssetType = "cr
             updatedAt: json.data.quote.updatedAt,
           });
         }
-      } catch (error) {
-        console.error('Polling error:', error);
+      } catch {
+        // Polling is a best-effort fallback. SSE/realtime sync keep the chart alive.
+      } finally {
+        window.clearTimeout(timeout);
+        pollInFlightRef.current = false;
       }
-    }, 15000);
+    }, 100);
 
     return () => {
       unsub();

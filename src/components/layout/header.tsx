@@ -5,7 +5,6 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { GlobalSearchBar } from "@/components/layout/global-search";
-import { ConnectionStatus } from "@/components/layout/connection-status";
 import {
   LayoutDashboard,
   MessageSquare,
@@ -20,13 +19,14 @@ import {
   LogOut,
   Calendar,
   TrendingUp,
+  ChevronDown,
+  UserRound,
 } from "lucide-react";
 import { logout } from "@/lib/api/client";
 import { useTheme } from "@/components/providers/theme-provider";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/providers/auth-provider";
-import { Button } from "@/components/ui/button";
 import { canAccessAdmin } from "@/lib/auth/permissions";
 import { useMounted } from "@/lib/hooks/use-mounted";
 
@@ -50,9 +50,36 @@ export function Header() {
   const currentTheme = theme === "system" ? resolvedTheme : theme;
   const { user } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
+  const accountMenuRef = useRef<HTMLDivElement>(null);
   const mounted = useMounted();
 
   const navItems = user ? authenticatedNavItems : publicNavItems;
+  const accountName = user?.name?.trim() || "Trader";
+  const accountHandle = user?.username ? `@${user.username}` : user?.email ? `@${user.email.split("@")[0]}` : "@user";
+  const accountInitials = accountName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join("") || "TD";
+
+  useEffect(() => {
+    if (!accountOpen) return;
+
+    const closeOnOutside = (event: MouseEvent | FocusEvent) => {
+      const target = event.target as Node | null;
+      if (target && accountMenuRef.current?.contains(target)) return;
+      setAccountOpen(false);
+    };
+
+    document.addEventListener("mousedown", closeOnOutside);
+    document.addEventListener("focusin", closeOnOutside);
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutside);
+      document.removeEventListener("focusin", closeOnOutside);
+    };
+  }, [accountOpen]);
 
   return (
     <header className="sticky top-0 z-50 backdrop-blur-xl bg-white/90 dark:bg-[#0a0c0c]/90 border-b border-gray-200 dark:border-white/5 transition-all duration-300" suppressHydrationWarning>
@@ -62,18 +89,11 @@ export function Header() {
             <Image
               src="/tradx-logo.png"
               alt="TRADX"
-              width={240}
-              height={72}
-              className="h-16 w-auto object-contain object-left transition-transform duration-500 group-hover:scale-105"
-              style={{ width: "auto" }}
+              width={220}
+              height={90}
+              style={{width: "220px", height: "90px"}}
+              className="object-contain object-left transition-transform duration-500 group-hover:scale-105"
               priority
-            />
-            <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/0 via-cyan-500/10 to-cyan-500/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-            <div
-              className="absolute inset-0 bg-gradient-to-r from-purple-500/0 via-purple-500/20 to-purple-500/0 opacity-0"
-              style={{
-                animation: 'logoGlow 30s ease-in-out infinite',
-              }}
             />
             <style jsx>{`
               @keyframes logoGlow {
@@ -84,16 +104,120 @@ export function Header() {
           </div>
         </Link>
 
-        <div className="hidden items-center justify-center gap-2 flex-1 md:flex" suppressHydrationWarning>
-          <div suppressHydrationWarning>
-            <ConnectionStatus />
-          </div>
-          <div suppressHydrationWarning>
-            <GlobalSearchBar className="flex-1 max-w-lg" />
-          </div>
-        </div>
+        {user ? (
+          <div className="ml-auto hidden items-center gap-4 md:flex" suppressHydrationWarning>
+            <GlobalSearchBar className="w-[min(38vw,380px)]" />
+            <NotificationBell />
+            <button
+              type="button"
+              onClick={() => setTheme(currentTheme === "dark" ? "light" : "dark")}
+              className="rounded-lg p-2.5 text-gray-700 transition-all duration-300 hover:scale-110 hover:bg-gray-100 hover:text-gray-900 dark:text-white dark:hover:bg-white/5 dark:hover:text-white"
+              aria-label="Switch theme"
+              suppressHydrationWarning
+            >
+              {mounted && currentTheme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+            </button>
+            <div className="relative" ref={accountMenuRef}>
+              <button
+                type="button"
+                onClick={() => setAccountOpen((open) => !open)}
+                className="flex h-12 items-center gap-3 rounded-[16px] border border-gray-200 bg-white px-3 pr-3.5 text-left text-gray-900 shadow-[0_10px_24px_rgba(15,23,42,0.08)] transition-colors hover:bg-gray-50 dark:border-white/10 dark:bg-[#101214] dark:text-white dark:shadow-[0_10px_24px_rgba(0,0,0,0.28)] dark:hover:bg-[#15181b]"
+                aria-label="Open account menu"
+                aria-expanded={accountOpen}
+              >
+                <span
+                  className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-emerald-100 text-[12px] font-extrabold text-emerald-700 ring-1 ring-emerald-500/10 dark:bg-[#0b2a1f] dark:text-emerald-400"
+                  style={
+                    user.avatar
+                      ? {
+                          backgroundImage: `url(${user.avatar})`,
+                          backgroundSize: "cover",
+                          backgroundPosition: "center",
+                        }
+                      : undefined
+                  }
+                >
+                  {!user.avatar && accountInitials}
+                </span>
+                <span className="min-w-0">
+                  <span className="block max-w-32 truncate text-sm font-extrabold leading-4 text-gray-950 dark:text-white">
+                    {accountName}
+                  </span>
+                  <span className="block max-w-32 truncate text-[11px] font-medium leading-4 text-gray-500 dark:text-gray-300">
+                    {accountHandle}
+                  </span>
+                </span>
+                <ChevronDown
+                  className={cn(
+                    "h-4 w-4 text-gray-500 transition-transform dark:text-gray-300",
+                    accountOpen && "rotate-180"
+                  )}
+                />
+              </button>
 
-        <div className="ml-auto flex items-center gap-2" suppressHydrationWarning>
+              {accountOpen && (
+                <div className="absolute right-0 top-full z-50 mt-3 w-56 overflow-hidden rounded-2xl border border-gray-200 bg-white p-2 text-gray-900 shadow-2xl shadow-black/10 dark:border-white/10 dark:bg-[#101214] dark:text-white dark:shadow-black/40">
+                  <div className="mb-1 flex items-center gap-3 rounded-xl bg-gray-50 px-3 py-3 dark:bg-white/5">
+                    <span
+                      className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-emerald-100 text-[12px] font-extrabold text-emerald-700 ring-1 ring-emerald-500/10 dark:bg-[#0b2a1f] dark:text-emerald-400"
+                      style={
+                        user.avatar
+                          ? {
+                              backgroundImage: `url(${user.avatar})`,
+                              backgroundSize: "cover",
+                              backgroundPosition: "center",
+                            }
+                          : undefined
+                      }
+                    >
+                      {!user.avatar && accountInitials}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-extrabold text-gray-950 dark:text-white">
+                        {accountName}
+                      </span>
+                      <span className="block truncate text-xs font-medium text-gray-500 dark:text-gray-300">
+                        {accountHandle}
+                      </span>
+                    </span>
+                  </div>
+                  <Link
+                    href="/profile"
+                    onClick={() => setAccountOpen(false)}
+                    className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-gray-800 hover:bg-gray-100 dark:text-white dark:hover:bg-white/8"
+                  >
+                    <UserRound className="h-4 w-4" />
+                    Edit profile
+                  </Link>
+                  {canAccessAdmin(user.role) && (
+                    <Link
+                      href="/admin"
+                      onClick={() => setAccountOpen(false)}
+                      className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-gray-800 hover:bg-gray-100 dark:text-white dark:hover:bg-white/8"
+                    >
+                      <Shield className="h-4 w-4" />
+                      Admin
+                    </Link>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => logout()}
+                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-medium text-red-500 hover:bg-red-500/10 dark:text-red-300"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    Sign out
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="hidden flex-1 items-center justify-center md:flex" suppressHydrationWarning>
+            <GlobalSearchBar className="max-w-[480px]" />
+          </div>
+        )}
+
+        <div className="ml-auto flex items-center gap-2 md:ml-0" suppressHydrationWarning>
           <Link
             href="/search"
             className="md:hidden rounded-lg p-2.5 text-gray-700 dark:text-muted-foreground hover:bg-gray-100 dark:hover:bg-white/5"
@@ -102,44 +226,47 @@ export function Header() {
             <Search className="h-5 w-5" />
           </Link>
 
-          <button
-            type="button"
-            onClick={() => setTheme(currentTheme === "dark" ? "light" : "dark")}
-            className="rounded-lg p-2.5 text-gray-700 dark:text-white hover:bg-gray-100 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white transition-all duration-300 hover:scale-110"
-            aria-label="Toggle theme"
-            suppressHydrationWarning
-          >
-            {mounted && currentTheme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-          </button>
+          {!user && (
+            <button
+              type="button"
+              onClick={() => setTheme(currentTheme === "dark" ? "light" : "dark")}
+              className="rounded-lg p-2.5 text-gray-700 transition-all duration-300 hover:scale-110 hover:bg-gray-100 hover:text-gray-900 dark:text-white dark:hover:bg-white/5 dark:hover:text-white"
+              aria-label="Toggle theme"
+              suppressHydrationWarning
+            >
+              {mounted && currentTheme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+            </button>
+          )}
 
           {user ? (
-            <>
+            <div className="flex items-center gap-2 md:hidden">
               <NotificationBell />
-              {canAccessAdmin(user.role) && (
-                <Link
-                  href="/admin"
-                  className="hidden sm:inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 hover:scale-[1.02] active:scale-95 active:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-gray-200 dark:border-white/10 bg-transparent dark:hover:bg-white/5 px-3 h-9 text-sm text-gray-700 dark:text-white"
-                >
-                  <Shield className="h-4 w-4" />
-                  Admin
-                </Link>
-              )}
+              <button
+                type="button"
+                onClick={() => setTheme(currentTheme === "dark" ? "light" : "dark")}
+                className="rounded-lg p-2.5 text-gray-700 transition-all duration-300 hover:bg-gray-100 dark:text-white dark:hover:bg-white/5"
+                aria-label="Switch theme"
+                suppressHydrationWarning
+              >
+                {mounted && currentTheme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+              </button>
               <Link
-                href="/dashboard"
-                className="inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 hover:scale-[1.02] active:scale-95 active:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-emerald-500 text-white hover:bg-emerald-600 px-3 h-9 text-sm"
+                href="/profile"
+                aria-label="Edit profile"
+                className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-[#0b2a1f] text-xs font-extrabold text-emerald-400"
+                style={
+                  user.avatar
+                    ? {
+                        backgroundImage: `url(${user.avatar})`,
+                        backgroundSize: "cover",
+                        backgroundPosition: "center",
+                      }
+                    : undefined
+                }
               >
-                {user.name.split(" ")[0]}
+                {!user.avatar && accountInitials}
               </Link>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-9 w-9 text-gray-700 dark:text-white hover:bg-gray-200 dark:hover:bg-white/5"
-                aria-label="Sign out"
-                onClick={() => logout()}
-              >
-                <LogOut className="h-4 w-4" />
-              </Button>
-            </>
+            </div>
           ) : (
             <>
               <Link

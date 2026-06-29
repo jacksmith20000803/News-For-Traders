@@ -183,6 +183,8 @@ model User {
   emailVerified        DateTime?
   twoFactorEnabled     Boolean   @default(false)
   twoFactorSecret      String?
+  twoFactorRecoveryCodes String?
+  twoFactorLastVerifiedAt DateTime?
   reputation           Int       @default(0)
   contributionCount    Int       @default(0)
   isSuspended          Boolean   @default(false)
@@ -223,11 +225,27 @@ model User {
   feedbackSubmissions  FeedbackSubmission[]
   adminPresence        AdminPresence?
   puterTokensCreated   PuterToken[]      @relation("PuterTokenCreator")
+  trustedDevices       TrustedDevice[]
 
   @@index([email])
   @@index([username])
   @@index([role])
   @@index([deletedAt])
+}
+
+model TrustedDevice {
+  id         String   @id @default(cuid())
+  userId     String
+  tokenHash  String   @unique
+  deviceName String?
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 model Session {

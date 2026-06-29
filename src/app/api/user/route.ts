@@ -26,6 +26,7 @@ export async function GET() {
             bio: true,
             avatar: true,
             dateOfBirth: true,
+            country: true,
             reputation: true,
             contributionCount: true,
             emailVerified: true,
@@ -78,7 +79,7 @@ export async function PATCH(request: NextRequest) {
     const body = await parseJsonBody(request);
     const { updateProfileSchema } = await import("@/lib/validations/auth");
     const data = updateProfileSchema.parse(body);
-    const { currentPassword, newPassword, ...profileData } = data;
+    const { currentPassword, newPassword, location, ...profileData } = data;
 
     const updateData: {
       name?: string;
@@ -86,6 +87,7 @@ export async function PATCH(request: NextRequest) {
       avatar?: string | null;
       bio?: string;
       dateOfBirth?: Date | null;
+      country?: string | null;
       passwordHash?: string;
     } = {};
 
@@ -107,6 +109,7 @@ export async function PATCH(request: NextRequest) {
     if (profileData.dateOfBirth !== undefined) {
       updateData.dateOfBirth = profileData.dateOfBirth ? new Date(profileData.dateOfBirth) : null;
     }
+    if (location !== undefined) updateData.country = location || null;
 
     if (newPassword) {
       if (!currentPassword) {
@@ -137,6 +140,8 @@ export async function PATCH(request: NextRequest) {
       avatar: updated.avatar,
       bio: updated.bio,
       dateOfBirth: updated.dateOfBirth,
+      location: updated.country,
+      country: updated.country,
     });
   } catch (error) {
     return handleApiError(error);

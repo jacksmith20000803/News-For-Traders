@@ -41,7 +41,7 @@ const FEATURED_COIN_META: CoinCardMeta[] = [
   { symbol: "DOGE", name: "Dogecoin" },
   { symbol: "DOT", name: "Polkadot" },
   { symbol: "ETH", name: "Ethereum" },
-  { symbol: "EUR", name: "Euro / US Dollar", slug: "EURUSD", background: null },
+  { symbol: "EUR", name: "Euro / US Dollar"},
   { symbol: "LINK", name: "Chainlink" },
   { symbol: "LTC", name: "Litecoin" },
   { symbol: "SOL", name: "Solana" },
@@ -266,7 +266,7 @@ export function CoinPricesSection() {
       applyQuotes(payload.quotes.map((quote) => ({
         symbol: quote.symbol,
         price: quote.price,
-        change: 0,
+        change: quote.change ?? undefined,
         changePercent: quote.changePercent ?? 0,
         assetType: quote.assetType,
       })));

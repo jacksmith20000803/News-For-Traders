@@ -45,7 +45,7 @@ export const reportSchema = z.object({
 });
 
 export const interestsSchema = z.object({
-  categories: z.array(z.nativeEnum(InterestCategory)).min(1).max(6),
+  categories: z.array(z.nativeEnum(InterestCategory)).max(6),
 });
 
 export const searchSchema = z.object({

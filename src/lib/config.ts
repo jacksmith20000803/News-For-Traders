@@ -61,7 +61,7 @@ export const config = {
   },
   cronSecret: process.env.CRON_SECRET ?? "",
   ai: {
-    model: "puter.ai.chat",
+    model: "managed-ai-chat",
   },
 } as const;
 

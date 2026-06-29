@@ -1,11 +1,41 @@
 import { db } from "@/lib/db";
 import Link from "next/link";
+import { isDatabaseConnectivityError } from "@/lib/db-errors";
+import { FALLBACK_MARKET_QUOTES } from "@/lib/fallback-data";
+
+type AssetSummary = {
+  id: string;
+  slug: string;
+  symbol: string;
+  assetType: string;
+  name: string;
+};
+
+async function getAssetProfiles(): Promise<AssetSummary[]> {
+  try {
+    return await db.assetProfile.findMany({
+      select: { id: true, slug: true, symbol: true, assetType: true, name: true },
+      orderBy: { symbol: "asc" },
+      take: 50,
+    });
+  } catch (error) {
+    if (!isDatabaseConnectivityError(error)) throw error;
+
+    return FALLBACK_MARKET_QUOTES.map((asset) => {
+      const slug = asset.symbol.replace(/\/USD$/i, "");
+      return {
+        id: `fallback-${slug.toLowerCase()}`,
+        slug,
+        symbol: asset.symbol,
+        assetType: asset.assetType,
+        name: asset.name,
+      };
+    });
+  }
+}
 
 export default async function AssetsPage() {
-  const assetProfiles = await db.assetProfile.findMany({
-    orderBy: { symbol: "asc" },
-    take: 50,
-  });
+  const assetProfiles = await getAssetProfiles();
 
   return (
     <div className="min-h-full">
@@ -19,7 +49,7 @@ export default async function AssetsPage() {
           {assetProfiles.map((asset) => (
             <Link
               key={asset.id}
-              href={`/assets/${asset.symbol}`}
+              href={`/assets/${asset.slug}`}
               className="p-4 rounded-lg border border-white/10 bg-card hover:border-primary/30 transition-colors"
             >
               <div className="flex items-center justify-between mb-2">
