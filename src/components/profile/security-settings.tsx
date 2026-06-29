@@ -1,13 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   CheckCircle2,
   Download,
-  ExternalLink,
   KeyRound,
   MailCheck,
   RefreshCw,
@@ -18,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { BrandedQRCode } from "@/components/ui/branded-qr-code";
 import { readJsonResponse, secureFetch } from "@/lib/api/client";
 import { useAuth } from "@/components/providers/auth-provider";
 
@@ -36,7 +34,7 @@ export function SecuritySettings({
   const { refresh } = useAuth();
   const [verified, setVerified] = useState(emailVerified);
   const [twoFactor, setTwoFactor] = useState(twoFactorEnabled);
-  const [verificationUrl, setVerificationUrl] = useState("");
+  const [verificationCode, setVerificationCode] = useState("");
   const [setupSecret, setSetupSecret] = useState("");
   const [setupQrCode, setSetupQrCode] = useState("");
   const [setupCode, setSetupCode] = useState("");
@@ -51,28 +49,59 @@ export function SecuritySettings({
     setLoadingAction("email");
     setMessage("");
     setError("");
-    setVerificationUrl("");
 
     try {
-      const response = await secureFetch("/api/auth/verify-email", { method: "POST" });
+      const response = await secureFetch("/api/auth/send-verification-code", { method: "POST" });
       const json = await readJsonResponse<{
         success: boolean;
         error?: string;
-        data?: { message?: string; verificationUrl?: string };
+        data?: { message?: string; retryAfterSeconds?: number };
       }>(response);
 
       if (!json.success) {
-        setError(json.error ?? "Could not create verification link");
+        setError(json.error ?? "Could not send verification code");
         return;
       }
 
-      setMessage(json.data?.message ?? "Verification link generated");
-      setVerificationUrl(json.data?.verificationUrl ?? "");
-      if (!json.data?.verificationUrl && json.data?.message?.toLowerCase().includes("already")) {
+      setMessage(json.data?.message ?? "Verification code sent. Check your email.");
+      if (json.data?.message?.toLowerCase().includes("already")) {
         setVerified(true);
       }
     } catch {
-      setError("Could not create verification link");
+      setError("Could not send verification code");
+    } finally {
+      setLoadingAction(null);
+    }
+  };
+
+  const confirmEmailVerification = async () => {
+    setLoadingAction("email");
+    setMessage("");
+    setError("");
+
+    try {
+      const response = await secureFetch("/api/auth/verify-email", {
+        method: "POST",
+        body: JSON.stringify({ code: verificationCode }),
+      });
+      const json = await readJsonResponse<{
+        success: boolean;
+        error?: string;
+        data?: { message?: string };
+      }>(response);
+
+      if (!json.success) {
+        setError(json.error ?? "Incorrect verification code");
+        return;
+      }
+
+      setVerified(true);
+      setVerificationCode("");
+      setMessage(json.data?.message ?? "Email verification is complete.");
+      await refresh();
+      router.refresh();
+    } catch {
+      setError("Could not verify this code");
     } finally {
       setLoadingAction(null);
     }
@@ -90,7 +119,7 @@ export function SecuritySettings({
       const json = await readJsonResponse<{
         success: boolean;
         error?: string;
-        data?: { qrCodeDataUrl?: string; manualKey?: string; message?: string };
+        data?: { qrDataUrl?: string; qrCodeDataUrl?: string; manualKey?: string; message?: string };
       }>(response);
 
       if (!json.success) {
@@ -99,7 +128,7 @@ export function SecuritySettings({
       }
 
       setSetupSecret(json.data?.manualKey ?? "");
-      setSetupQrCode(json.data?.qrCodeDataUrl ?? "");
+      setSetupQrCode(json.data?.qrDataUrl ?? json.data?.qrCodeDataUrl ?? "");
       setRecoveryCodes([]);
       setMessage(json.data?.message ?? "Scan the QR code, then enter the 6-digit code.");
     } catch {
@@ -295,6 +324,27 @@ export function SecuritySettings({
             </div>
           ) : (
             <div className="space-y-3">
+              <Input
+                label="Verification code"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                placeholder="123456"
+                value={verificationCode}
+                onChange={(event) =>
+                  setVerificationCode(event.target.value.replace(/\D/g, "").slice(0, 6))
+                }
+              />
+              <Button
+                type="button"
+                variant="success"
+                isLoading={loadingAction === "email"}
+                disabled={verificationCode.length !== 6}
+                onClick={confirmEmailVerification}
+                className="w-full"
+              >
+                Verify Email
+              </Button>
               <Button
                 type="button"
                 variant="outline"
@@ -302,17 +352,8 @@ export function SecuritySettings({
                 onClick={requestVerification}
                 className="w-full"
               >
-                Generate Verification Link
+                Send Verification Code
               </Button>
-              {verificationUrl && (
-                <Link
-                  href={verificationUrl}
-                  className="flex items-center justify-center gap-2 rounded-xl border border-primary/30 bg-primary/10 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/15"
-                >
-                  Open verification page
-                  <ExternalLink className="h-4 w-4" />
-                </Link>
-              )}
             </div>
           )}
         </div>
@@ -400,13 +441,13 @@ export function SecuritySettings({
               <div className="mt-4 grid gap-4 sm:grid-cols-[auto_1fr] sm:items-center">
                 {setupQrCode && (
                   <div className="mx-auto rounded-2xl border border-border bg-white p-3 shadow-lg sm:mx-0">
-                    <Image
-                      src={setupQrCode}
+                    <BrandedQRCode
+                      qrDataUrl={setupQrCode}
+                      logoSrc="/tradx-logo.png"
+                      size={180}
+                      logoSizePercent={20}
+                      showDownload={false}
                       alt="Two-factor authentication QR code"
-                      width={160}
-                      height={160}
-                      unoptimized
-                      className="h-40 w-40 rounded-xl object-contain"
                     />
                   </div>
                 )}

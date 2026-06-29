@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { eventBus } from "@/lib/events/broadcaster";
 
-export type MarketInterval = "1s" | "1m" | "5m" | "15m" | "1H" | "4H" | "1D" | "1W";
+export type MarketInterval = "1s" | "1m" | "5m" | "15m" | "1H" | "4H" | "1D" | "1W" | "1Y";
 
 export interface MarketTick {
   symbol: string;
@@ -62,6 +62,7 @@ function generateSyntheticCandles(
     "4H": 14400000,
     "1D": 86400000,
     "1W": 604800000,
+    "1Y": 31536000000,
   };
 
   const bucketMs = msMap[interval];
@@ -120,6 +121,7 @@ export async function getCandles(
     "4H": 14400000,
     "1D": 86400000,
     "1W": 604800000,
+    "1Y": 31536000000,
   };
 
   const bucketMs = msMap[interval];

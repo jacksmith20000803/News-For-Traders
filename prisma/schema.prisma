@@ -226,6 +226,7 @@ model User {
   adminPresence        AdminPresence?
   puterTokensCreated   PuterToken[]      @relation("PuterTokenCreator")
   trustedDevices       TrustedDevice[]
+  visitorActivities    VisitorActivity[]
 
   @@index([email])
   @@index([username])
@@ -289,12 +290,14 @@ model PasswordResetToken {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([token])
+  @@index([userId])
 }
 
 model EmailVerificationToken {
   id        String   @id @default(cuid())
   userId    String
   token     String   @unique
+  attempts  Int      @default(0)
   expiresAt DateTime
   createdAt DateTime @default(now())
 
@@ -748,6 +751,33 @@ model UserActivity {
 
   @@index([userId])
   @@index([createdAt])
+}
+
+model VisitorActivity {
+  id         String   @id @default(cuid())
+  visitorId  String
+  userId     String?
+  action     String
+  path       String?
+  target     String?
+  ipAddress  String?
+  country    String?
+  region     String?
+  city       String?
+  timezone   String?
+  browser    String?
+  os         String?
+  deviceType String?
+  userAgent  String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([visitorId])
+  @@index([userId])
+  @@index([createdAt])
+  @@index([visitorId, createdAt])
 }
 
 model Badge {

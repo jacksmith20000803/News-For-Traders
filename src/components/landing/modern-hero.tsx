@@ -6,6 +6,7 @@ import { TrendingUp, Calendar } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useTheme } from "@/components/providers/theme-provider";
 import { cn } from "@/lib/utils";
+import { useMounted } from "@/lib/hooks/use-mounted";
 
 interface MarketPerspective {
   title: string;
@@ -41,6 +42,7 @@ const perspectives: MarketPerspective[] = [
 
 export function ModernHero() {
   const [currentPerspective, setCurrentPerspective] = useState(0);
+  const mounted = useMounted();
   const { theme, resolvedTheme } = useTheme();
   const currentTheme = theme === "system" ? (resolvedTheme ?? "dark") : (theme ?? "dark");
 
@@ -134,89 +136,98 @@ export function ModernHero() {
             </motion.p>
 
             {/* Trading-themed animation */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: 0.25 }}
-              className="relative h-48 overflow-hidden rounded-2xl border border-cyan-300/20 bg-white/70 shadow-2xl shadow-cyan-950/10 backdrop-blur dark:bg-[#0d1114]/80 dark:shadow-black/30"
-              suppressHydrationWarning
-            >
+            {mounted ? (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, delay: 0.25 }}
+                className="relative h-48 overflow-hidden rounded-2xl border border-cyan-300/20 bg-white/70 shadow-2xl shadow-cyan-950/10 backdrop-blur dark:bg-[#0d1114]/80 dark:shadow-black/30"
+                suppressHydrationWarning
+              >
+                <div
+                  className="absolute inset-0 opacity-70"
+                  suppressHydrationWarning
+                  style={{
+                    backgroundImage:
+                      "linear-gradient(rgba(56,189,248,0.14) 1px, transparent 1px), linear-gradient(90deg, rgba(56,189,248,0.14) 1px, transparent 1px)",
+                    backgroundSize: "34px 34px",
+                  }}
+                />
+                <svg className="absolute inset-x-0 top-8 h-28 w-full text-cyan-400" viewBox="0 0 680 160" preserveAspectRatio="none">
+                  <motion.path
+                    d="M0 116 C72 84 108 130 176 92 S304 52 380 76 S500 120 580 64 S652 42 680 32"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                    strokeLinecap="round"
+                    initial={{ pathLength: 0, opacity: 0.25 }}
+                    animate={{ pathLength: [0, 1, 1], opacity: [0.28, 1, 0.48] }}
+                    transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
+                  />
+                  <motion.path
+                    d="M0 116 C72 84 108 130 176 92 S304 52 380 76 S500 120 580 64 S652 42 680 32 L680 160 L0 160 Z"
+                    fill="url(#heroSignalFill)"
+                    initial={{ opacity: 0.08 }}
+                    animate={{ opacity: [0.08, 0.2, 0.1] }}
+                    transition={{ duration: 4, repeat: Infinity }}
+                  />
+                  <defs>
+                    <linearGradient id="heroSignalFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="currentColor" stopOpacity="0.35" />
+                      <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
+                    </linearGradient>
+                  </defs>
+                </svg>
+                <div className="absolute bottom-5 left-6 right-6 flex items-end justify-between gap-3" suppressHydrationWarning>
+                  <div className="flex h-24 items-end gap-2" suppressHydrationWarning>
+                    {bars.map((bar, i) => (
+                      <motion.div
+                        key={i}
+                        className="w-1.5 rounded-full bg-gradient-to-t from-cyan-500/10 via-cyan-300/80 to-white/60 shadow-[0_0_18px_rgba(56,189,248,0.45)]"
+                        initial={{ height: 10 }}
+                        animate={{
+                          height: [10, bar.height, 10],
+                        }}
+                        transition={{
+                          duration: bar.duration,
+                          repeat: Infinity,
+                          delay: bar.delay,
+                        }}
+                        style={{ width: "4px" }}
+                      />
+                    ))}
+                  </div>
+                  <div className="grid min-w-28 gap-2 text-right" suppressHydrationWarning>
+                    {[
+                      ["BTC", "+2.14%"],
+                      ["ETH", "+0.86%"],
+                      ["SOL", "+4.31%"],
+                    ].map(([label, value]) => (
+                      <div key={label} className="rounded-lg border border-cyan-300/20 bg-black/35 px-3 py-1.5 text-xs text-cyan-50 shadow-lg backdrop-blur" suppressHydrationWarning>
+                        <span className="mr-2 font-mono text-cyan-200">{label}</span>
+                        <span className="font-bold text-emerald-200">{value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-cyan-300/15 to-transparent animate-shimmer" suppressHydrationWarning />
+                <style jsx>{`
+                  @keyframes shimmer {
+                    0% { transform: translateX(-100%); }
+                    100% { transform: translateX(100%); }
+                  }
+                  .animate-shimmer {
+                    animation: shimmer 3s ease-in-out infinite;
+                  }
+                `}</style>
+              </motion.div>
+            ) : (
               <div
-                className="absolute inset-0 opacity-70"
-                style={{
-                  backgroundImage:
-                    "linear-gradient(rgba(56,189,248,0.14) 1px, transparent 1px), linear-gradient(90deg, rgba(56,189,248,0.14) 1px, transparent 1px)",
-                  backgroundSize: "34px 34px",
-                }}
+                className="relative h-48 overflow-hidden rounded-2xl border border-cyan-300/20 bg-white/70 shadow-2xl shadow-cyan-950/10 backdrop-blur dark:bg-[#0d1114]/80 dark:shadow-black/30"
+                suppressHydrationWarning
+                aria-hidden="true"
               />
-              <svg className="absolute inset-x-0 top-8 h-28 w-full text-cyan-400" viewBox="0 0 680 160" preserveAspectRatio="none">
-                <motion.path
-                  d="M0 116 C72 84 108 130 176 92 S304 52 380 76 S500 120 580 64 S652 42 680 32"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                  strokeLinecap="round"
-                  initial={{ pathLength: 0, opacity: 0.25 }}
-                  animate={{ pathLength: [0, 1, 1], opacity: [0.28, 1, 0.48] }}
-                  transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
-                />
-                <motion.path
-                  d="M0 116 C72 84 108 130 176 92 S304 52 380 76 S500 120 580 64 S652 42 680 32 L680 160 L0 160 Z"
-                  fill="url(#heroSignalFill)"
-                  initial={{ opacity: 0.08 }}
-                  animate={{ opacity: [0.08, 0.2, 0.1] }}
-                  transition={{ duration: 4, repeat: Infinity }}
-                />
-                <defs>
-                  <linearGradient id="heroSignalFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="currentColor" stopOpacity="0.35" />
-                    <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
-                  </linearGradient>
-                </defs>
-              </svg>
-              <div className="absolute bottom-5 left-6 right-6 flex items-end justify-between gap-3">
-                <div className="flex h-24 items-end gap-2">
-                  {bars.map((bar, i) => (
-                    <motion.div
-                      key={i}
-                      className="w-1.5 rounded-full bg-gradient-to-t from-cyan-500/10 via-cyan-300/80 to-white/60 shadow-[0_0_18px_rgba(56,189,248,0.45)]"
-                      initial={{ height: 10 }}
-                      animate={{
-                        height: [10, bar.height, 10],
-                      }}
-                      transition={{
-                        duration: bar.duration,
-                        repeat: Infinity,
-                        delay: bar.delay,
-                      }}
-                      style={{ width: '4px' }}
-                    />
-                  ))}
-                </div>
-                <div className="grid min-w-28 gap-2 text-right">
-                  {[
-                    ["BTC", "+2.14%"],
-                    ["ETH", "+0.86%"],
-                    ["SOL", "+4.31%"],
-                  ].map(([label, value]) => (
-                    <div key={label} className="rounded-lg border border-cyan-300/20 bg-black/35 px-3 py-1.5 text-xs text-cyan-50 shadow-lg backdrop-blur">
-                      <span className="mr-2 font-mono text-cyan-200">{label}</span>
-                      <span className="font-bold text-emerald-200">{value}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-cyan-300/15 to-transparent animate-shimmer" />
-              <style jsx>{`
-                @keyframes shimmer {
-                  0% { transform: translateX(-100%); }
-                  100% { transform: translateX(100%); }
-                }
-                .animate-shimmer {
-                  animation: shimmer 3s ease-in-out infinite;
-                }
-              `}</style>
-            </motion.div>
+            )}
 
             <motion.div
               initial={{ opacity: 0, y: 20 }}

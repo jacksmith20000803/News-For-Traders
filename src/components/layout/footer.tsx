@@ -13,6 +13,7 @@ export function Footer() {
               width={88}
               height={88}
               className="mb-5 h-[88px] w-[88px] object-contain object-left"
+              style={{ width: "88px", height: "88px" }}
             />
             <p className="text-[10px] font-medium uppercase tracking-[0.3em] text-muted-foreground mb-2">
               Trade. Invest. Grow.

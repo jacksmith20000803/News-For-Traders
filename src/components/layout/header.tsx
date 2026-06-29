@@ -89,10 +89,10 @@ export function Header() {
             <Image
               src="/tradx-logo.png"
               alt="TRADX"
-              width={220}
-              height={90}
-              style={{width: "220px", height: "90px"}}
-              className="object-contain object-left transition-transform duration-500 group-hover:scale-105"
+              width={64}
+              height={64}
+              className="h-16 w-16 object-contain object-left transition-transform duration-500 group-hover:scale-105"
+              style={{ width: "64px", height: "64px" }}
               priority
             />
             <style jsx>{`

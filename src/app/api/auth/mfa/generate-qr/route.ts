@@ -16,6 +16,7 @@ const MFA_QR_RATE_LIMIT_MAX = 3;
 const MFA_QR_RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
 
 interface MfaQrResponse {
+  qrDataUrl: string;
   qrCodeDataUrl: string;
   manualKey: string;
   issuer: typeof MFA_ISSUER;
@@ -88,7 +89,7 @@ export async function POST(request: NextRequest) {
 
     const qrCodeDataUrl = await QRCode.toDataURL(otpauthUri, {
       type: "image/png",
-      errorCorrectionLevel: "M",
+      errorCorrectionLevel: "H",
       margin: 2,
       scale: 6,
       color: {
@@ -100,6 +101,7 @@ export async function POST(request: NextRequest) {
     await logUserActivity(user.id, "MFA_QR_GENERATED", { ip });
 
     return apiSuccess<MfaQrResponse>({
+      qrDataUrl: qrCodeDataUrl,
       qrCodeDataUrl,
       manualKey: secret,
       issuer: MFA_ISSUER,

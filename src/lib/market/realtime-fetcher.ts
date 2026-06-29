@@ -29,7 +29,6 @@ const COINGECKO_IDS: Record<string, string> = {
   "BNB": "binancecoin",
   "AVAX": "avalanche-2",
   "LINK": "chainlink",
-  "MATIC": "matic-network",
   "UNI": "uniswap",
   "ATOM": "cosmos",
   "LTC": "litecoin",
@@ -99,7 +98,6 @@ export async function updateMarketQuotes() {
       try {
         // Skip if price is null or invalid
         if (priceData.price == null || isNaN(priceData.price) || priceData.price <= 0) {
-          console.warn(`Skipping ${priceData.symbol} - invalid price: ${priceData.price}`);
           continue;
         }
 

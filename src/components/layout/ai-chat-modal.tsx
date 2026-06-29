@@ -5,6 +5,7 @@ import Image from "next/image";
 import { Bot, X, Send, Loader2, Paperclip, FileText, Image as ImageIcon, Trash2 } from "lucide-react";
 import { useTheme } from "@/components/providers/theme-provider";
 import { useAuth } from "@/components/providers/auth-provider";
+import { MessageRenderer } from "@/components/chat/message-renderer";
 import { chatWithPuter, loadPuterChatHistory, type ChatAttachment } from "@/lib/puter/client";
 import { cn } from "@/lib/utils";
 
@@ -355,7 +356,7 @@ export function AIChatModal() {
                     : "bg-emerald-100 text-emerald-950 dark:bg-emerald-300/20 dark:text-emerald-50"
                 }`}
               >
-                <MessageContent content={msg.content} />
+                <MessageRenderer content={msg.content} />
                 {msg.attachments && msg.attachments.length > 0 && (
                   <AttachmentPreviewList attachments={msg.attachments} />
                 )}
@@ -483,41 +484,6 @@ export function AIChatModal() {
   );
 }
 
-function MessageContent({ content }: { content: string }) {
-  const images = extractDisplayImages(content);
-  const text = stripMarkdownImages(content).trim();
-
-  return (
-    <div className="space-y-2">
-      {text && <p className="whitespace-pre-wrap text-sm">{text}</p>}
-      {images.length > 0 && (
-        <div className="grid gap-2">
-          {images.map((image) => (
-            <a
-              key={image.url}
-              href={image.url}
-              target="_blank"
-              rel="noreferrer"
-              className="block overflow-hidden rounded-xl border border-white/20 bg-black/10"
-              title={image.alt || "Open image"}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={image.url}
-                alt={image.alt || ""}
-                className="block aspect-video w-full object-cover"
-              />
-              {image.alt && (
-                <span className="block px-2 py-1 text-[11px] opacity-80">{image.alt}</span>
-              )}
-            </a>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function AttachmentPreviewList({ attachments }: { attachments: ChatAttachment[] }) {
   return (
     <div className="mt-2 grid gap-2">
@@ -557,12 +523,11 @@ function AttachmentPreviewList({ attachments }: { attachments: ChatAttachment[] 
 function ModalLoader({ compact = false }: { compact?: boolean }) {
   const ringSize = compact ? "h-9 w-9" : "h-24 w-24";
   const innerRingSize = compact ? "h-7 w-7" : "h-20 w-20";
-  const logoWidth = compact ? 42 : 120;
-  const logoHeight = compact ? 14 : 36;
+  const logoSize = compact ? 28 : 72;
 
   return (
     <div className={cn("flex flex-col items-center justify-center", compact ? "gap-1" : "gap-4")}>
-      <div className={cn("relative flex items-center justify-center", compact ? "h-10 w-14" : "h-28 w-36")}>
+      <div className={cn("relative flex items-center justify-center", compact ? "h-10 w-10" : "h-28 w-28")}>
         <div className="absolute inset-0 flex items-center justify-center">
           <div
             className={cn("rounded-full border-2 border-emerald-500/20 animate-spin", ringSize)}
@@ -578,9 +543,10 @@ function ModalLoader({ compact = false }: { compact?: boolean }) {
           <Image
             src="/tradx-logo.png"
             alt="TRADX"
-            width={logoWidth}
-            height={logoHeight}
-            className="relative z-10 object-contain"
+            width={logoSize}
+            height={logoSize}
+            className={cn("relative z-10 object-contain", compact ? "h-7 w-7" : "h-[72px] w-[72px]")}
+            style={{ width: logoSize, height: logoSize }}
           />
         </div>
       </div>
@@ -660,39 +626,6 @@ function inferClientMimeType(fileName: string) {
   if (lower.endsWith(".md")) return "text/markdown";
   if (lower.endsWith(".txt")) return "text/plain";
   return "application/octet-stream";
-}
-
-function extractDisplayImages(content: string) {
-  const images = new Map<string, { url: string; alt: string }>();
-  const markdownImagePattern = /!\[([^\]]*)\]\(([^)]+)\)/g;
-  const bareImagePattern = /(https?:\/\/[^\s)]+?\.(?:png|jpe?g|gif|webp)(?:\?[^\s)]*)?|data:image\/[a-zA-Z+.-]+;base64,[A-Za-z0-9+/=]+|\/[^\s)]+?\.(?:png|jpe?g|gif|webp)(?:\?[^\s)]*)?)/g;
-
-  for (const match of content.matchAll(markdownImagePattern)) {
-    const url = match[2]?.trim();
-    if (url && isDisplayImageUrl(url)) images.set(url, { url, alt: match[1]?.trim() ?? "" });
-  }
-
-  for (const match of content.matchAll(bareImagePattern)) {
-    const url = match[1]?.trim();
-    if (url && isDisplayImageUrl(url) && !images.has(url)) images.set(url, { url, alt: "" });
-  }
-
-  return Array.from(images.values());
-}
-
-function stripMarkdownImages(content: string) {
-  return content
-    .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, "")
-    .replace(/(https?:\/\/[^\s)]+?\.(?:png|jpe?g|gif|webp)(?:\?[^\s)]*)?|data:image\/[a-zA-Z+.-]+;base64,[A-Za-z0-9+/=]+|\/[^\s)]+?\.(?:png|jpe?g|gif|webp)(?:\?[^\s)]*)?)/g, "")
-    .trim();
-}
-
-function isDisplayImageUrl(url: string) {
-  return (
-    url.startsWith("data:image/") ||
-    url.startsWith("/") ||
-    /^https?:\/\//i.test(url)
-  );
 }
 
 function formatBytes(bytes: number) {

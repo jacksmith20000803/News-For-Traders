@@ -41,6 +41,7 @@ function generateFallbackCandles(symbol: string, interval: MarketInterval, limit
     "4H": 14400,
     "1D": 86400,
     "1W": 604800,
+    "1Y": 31536000,
   };
   const bucketSeconds = intervalSeconds[interval] ?? 3600;
   const end = before ?? Math.floor(Date.now() / 1000);

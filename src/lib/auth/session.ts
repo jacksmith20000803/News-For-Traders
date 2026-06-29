@@ -16,6 +16,7 @@ export interface SessionPayload {
   sessionId: string;
   mfaVerified?: boolean;
   authTime?: number;
+  emailVerified?: boolean;
 }
 
 const secret = new TextEncoder().encode(config.security.sessionSecret);
@@ -132,7 +133,7 @@ export async function createUserSession(
   userId: string,
   ipAddress?: string,
   userAgent?: string,
-  auth?: Pick<SessionPayload, "mfaVerified" | "authTime">
+  auth?: Pick<SessionPayload, "mfaVerified" | "authTime" | "emailVerified">
 ) {
   const sessionToken = generateSessionToken();
   const expiresAt = new Date(Date.now() + config.security.sessionMaxAge * 1000);
@@ -152,6 +153,7 @@ export async function createUserSession(
     sessionId: session.id,
     mfaVerified: auth?.mfaVerified,
     authTime: auth?.authTime,
+    emailVerified: auth?.emailVerified,
   });
 
   await setSessionCookie(jwt);

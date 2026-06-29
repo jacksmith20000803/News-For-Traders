@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Clock, TrendingUp, ArrowRight } from "lucide-react";
 import { ButtonLink } from "@/components/ui/button";
@@ -71,7 +71,6 @@ export function NewsSection({ coinSymbols }: NewsSectionProps) {
   const cachedNews = landingNewsCache.get(cacheKey);
   const [news, setNews] = useState<NewsItem[]>(cachedNews ?? []);
   const [loading, setLoading] = useState(!cachedNews);
-  const sectionRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -133,7 +132,7 @@ export function NewsSection({ coinSymbols }: NewsSectionProps) {
 
   if (loading) {
     return (
-      <section ref={sectionRef} className="relative py-20 bg-[#0A0A0B]" suppressHydrationWarning>
+      <section className="relative py-20 bg-[#0A0A0B]" suppressHydrationWarning>
         <div className="relative z-10 mx-auto max-w-[1800px] px-4 sm:px-6" suppressHydrationWarning>
           <div className="text-center py-12" suppressHydrationWarning>
             <p className="text-gray-400" suppressHydrationWarning>Loading news...</p>
@@ -144,7 +143,7 @@ export function NewsSection({ coinSymbols }: NewsSectionProps) {
   }
 
   return (
-    <section ref={sectionRef} className="relative py-20 bg-gray-50 dark:bg-[#0a0c0c]" suppressHydrationWarning>
+    <section className="relative py-20 bg-gray-50 dark:bg-[#0a0c0c]" suppressHydrationWarning>
       <div className="absolute inset-0" suppressHydrationWarning>
         <div
           className="absolute inset-0"
@@ -202,7 +201,11 @@ export function NewsSection({ coinSymbols }: NewsSectionProps) {
               className="group"
               suppressHydrationWarning
             >
-              <div className="h-full p-6 rounded-2xl bg-white dark:bg-[#0a0c0c] border border-gray-200 dark:border-white/6 hover:border-gray-300 dark:hover:border-white/10 transition-colors" suppressHydrationWarning>
+              <article
+                data-news-card={item.id}
+                className="h-full p-6 rounded-2xl bg-white dark:bg-[#0a0c0c] border border-gray-200 dark:border-white/6 hover:border-gray-300 dark:hover:border-white/10 transition-colors"
+                suppressHydrationWarning
+              >
                 <div className="flex items-start justify-between mb-4" suppressHydrationWarning>
                   <span
                     className={`px-3 py-1 text-xs font-medium rounded-full border ${importanceColors[item.importance || 'LOW']}`}
@@ -245,7 +248,7 @@ export function NewsSection({ coinSymbols }: NewsSectionProps) {
                     </ButtonLink>
                   </div>
                 </div>
-              </div>
+              </article>
             </motion.div>
           ))}
         </div>

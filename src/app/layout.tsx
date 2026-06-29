@@ -1,15 +1,18 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { AuthProvider } from "@/components/providers/auth-provider";
 import { SSEProvider } from "@/components/realtime/sse-provider";
 import { RealtimeSyncProvider } from "@/components/realtime/realtime-sync";
+import { ActivityTracker } from "@/components/analytics/activity-tracker";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
 import { RouteMain } from "@/components/layout/route-main";
 import { SidebarGate } from "@/components/layout/sidebar-gate";
 import { PriceTicker } from "@/components/layout/price-ticker";
 import { PageLoader } from "@/components/loading/page-loader";
-import { AIChatModal } from "@/components/layout/ai-chat-modal";
+import { AIChatEntry } from "@/components/layout/ai-chat-entry";
+import { HydrationCleanup } from "@/components/layout/hydration-cleanup";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -30,6 +33,7 @@ export default async function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning className="dark h-full">
       <body className="min-h-full flex flex-col antialiased" suppressHydrationWarning>
+        <HydrationCleanup />
         <ThemeProvider>
           <AuthProvider initialUser={null}>
             <SSEProvider>
@@ -45,7 +49,10 @@ export default async function RootLayout({
                     </RouteMain>
                   </div>
                   <Footer />
-                  <AIChatModal />
+                  <AIChatEntry />
+                  <Suspense fallback={null}>
+                    <ActivityTracker />
+                  </Suspense>
                 </div>
               </RealtimeSyncProvider>
             </SSEProvider>

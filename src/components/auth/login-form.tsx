@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
@@ -21,10 +21,10 @@ interface LoginFormProps {
 
 export function LoginForm({ googleEnabled, githubEnabled }: LoginFormProps) {
   const { setAuthenticatedUser, user } = useAuth();
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
   const [requiresTwoFactor, setRequiresTwoFactor] = useState(false);
   const [challengeToken, setChallengeToken] = useState("");
   const [rememberDevice, setRememberDevice] = useState(false);
@@ -43,14 +43,14 @@ export function LoginForm({ googleEnabled, githubEnabled }: LoginFormProps) {
 
   useEffect(() => {
     if (user) {
-      router.replace(redirectTo);
-      router.refresh();
+      window.location.replace(redirectTo);
     }
-  }, [redirectTo, router, user]);
+  }, [redirectTo, user]);
 
   const onSubmit = async (data: LoginInput) => {
     setIsLoading(true);
     setError("");
+    let didRedirect = false;
 
     try {
       if (requiresTwoFactor && recoveryMode) {
@@ -125,12 +125,13 @@ export function LoginForm({ googleEnabled, githubEnabled }: LoginFormProps) {
 
       setAuthenticatedUser(json.data?.user ?? null);
       setCsrfToken(json.data?.csrfToken);
-      router.replace(redirectTo);
-      router.refresh();
+      didRedirect = true;
+      setRedirecting(true);
+      window.location.replace(redirectTo);
     } catch {
       setError("An unexpected error occurred");
     } finally {
-      setIsLoading(false);
+      if (!didRedirect) setIsLoading(false);
     }
   };
 
@@ -182,9 +183,20 @@ export function LoginForm({ googleEnabled, githubEnabled }: LoginFormProps) {
 
     setAuthenticatedUser(resetJson.data?.user ?? null);
     setCsrfToken(resetJson.data?.csrfToken);
-    router.replace(redirectTo);
-    router.refresh();
+    setRedirecting(true);
+    window.location.replace(redirectTo);
   };
+
+  if (redirecting || user) {
+    return (
+      <Card className="w-full max-w-md border-gray-200 bg-white dark:border-white/10 dark:bg-[#0a0c0c]">
+        <CardContent className="p-8 text-center">
+          <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent" />
+          <p className="mt-4 text-sm font-semibold text-muted-foreground">Opening your dashboard...</p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="w-full max-w-md bg-white dark:bg-[#0a0c0c] border-gray-200 dark:border-white/10">
@@ -192,9 +204,10 @@ export function LoginForm({ googleEnabled, githubEnabled }: LoginFormProps) {
         <Image
           src="/tradx-logo.png"
           alt="TRADX"
-          width={200}
-          height={190}
-          className="mx-auto mb-3 object-contain"
+          width={180}
+          height={180}
+          style={{width: "180px", height: "180px"}}
+          className="mx-auto mb-3 h-24 w-24 object-contain"
           priority
         />
         <CardTitle className="text-2xl text-gray-900 dark:text-white">Welcome back</CardTitle>

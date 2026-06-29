@@ -27,6 +27,23 @@ type PuterInstance = {
       mediaOrOptions?: string[] | PuterChatOptions,
       options?: PuterChatOptions
     ) => Promise<PuterChatResponse>;
+    txt2img?: (
+      promptOrOptions:
+        | string
+        | {
+            prompt: string;
+            model?: string;
+            width?: number;
+            height?: number;
+            response_format?: string;
+          },
+      options?: {
+        model?: string;
+        width?: number;
+        height?: number;
+        response_format?: string;
+      }
+    ) => Promise<unknown>;
   };
 };
 type PuterInit = (authToken?: string) => PuterInstance;
@@ -81,6 +98,7 @@ If the user asks something unrelated to trading or tradx, briefly steer them bac
 If the user greets you, respond exactly: "Hi, I'm AI Assistant of tradx. How can I help you?"
 If the user attaches screenshots, charts, images, or text files, analyze the supplied attachment context and mention any limitations only when the attachment content is insufficient.
 If a visual example would clarify your answer, you may include a direct Markdown image link using the form ![description](url) when the user supplied or requested a relevant image URL.
+If the user asks you to create, draw, or generate an image, do not just describe it. Instead, output {{IMAGE:detailed English image description}} and then continue with a brief confirmation. The system will render the image automatically.
 Do not add unnecessary remarks, disclaimers, jokes, or long introductions.
 When giving trading information, be clear, practical, and avoid claiming certainty. Do not present informational analysis as financial advice.
 `.trim();
@@ -152,6 +170,25 @@ function shouldExhaustToken(errorMessage: string): boolean {
   return /auth|token|expired|unauthorized|forbidden|quota|limit|insufficient|reauth|required/i.test(
     errorMessage
   );
+}
+
+function selectImageModel(models: string[]) {
+  return models.find((model) => /image|grok|gemini|banana|flux|dall|stable/i.test(model));
+}
+
+function normalizeImageUrl(result: unknown): string {
+  if (typeof result === "string") return result.trim();
+  if (result && typeof result === "object") {
+    const record = result as Record<string, unknown>;
+    if (typeof record.url === "string") return record.url.trim();
+    if (typeof record.src === "string") return record.src.trim();
+    if (typeof record.href === "string") return record.href.trim();
+    if (typeof record.toString === "function") {
+      const value = record.toString();
+      if (typeof value === "string" && value !== "[object Object]") return value.trim();
+    }
+  }
+  return "";
 }
 
 async function notifyAdminsMissingToken(message: string) {
@@ -274,4 +311,87 @@ export async function chatWithManagedPuterTokens(params: {
 
   await notifyAdminsMissingToken(`All active AI tokens failed. Last error: ${lastError}`);
   throw new ApiError(503, "AI is temporarily unavailable. Please try again later.", "AI_FAILED");
+}
+
+export async function generateImageWithManagedPuterTokens(prompt: string) {
+  const imagePrompt = prompt.trim();
+  if (!imagePrompt) {
+    throw new ApiError(422, "Image prompt is required.", "IMAGE_PROMPT_REQUIRED");
+  }
+
+  await ensurePuterTokenTable();
+
+  const tokens = await db.puterToken.findMany({
+    where: { isActive: true, isExhausted: false },
+    orderBy: [{ failureCount: "asc" }, { lastUsedAt: "asc" }, { createdAt: "asc" }],
+    take: 10,
+  });
+
+  if (tokens.length === 0) {
+    await notifyAdminsMissingToken("No active AI image-generation token is available.");
+    throw new ApiError(
+      503,
+      "Image generation is temporarily unavailable. An administrator must add an active AI token.",
+      "AI_TOKEN_REQUIRED"
+    );
+  }
+
+  let lastError = "No usable AI image token was found.";
+
+  for (const token of tokens) {
+    const selectedModel = selectImageModel(normalizeModels(token.selectedModels));
+
+    try {
+      const puter = init(token.token);
+      if (!puter.ai.txt2img) {
+        throw new Error("Installed AI provider does not expose image generation.");
+      }
+
+      const result = await puter.ai.txt2img({
+        prompt: imagePrompt,
+        ...(selectedModel ? { model: selectedModel } : {}),
+        width: 1024,
+        height: 1024,
+        response_format: "url",
+      });
+      const url = normalizeImageUrl(result);
+
+      if (!url) {
+        throw new Error("AI provider returned an empty image URL.");
+      }
+
+      const exhaustedByLimit = token.requestCount + 1 >= token.requestLimit;
+      await db.puterToken.update({
+        where: { id: token.id },
+        data: {
+          requestCount: { increment: 1 },
+          successCount: { increment: 1 },
+          isExhausted: exhaustedByLimit,
+          lastError: null,
+          lastUsedAt: new Date(),
+        },
+      });
+
+      return {
+        url,
+        model: selectedModel ?? "puter-image-default",
+        tokenDisplayName: token.displayName,
+      };
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error);
+      await db.puterToken.update({
+        where: { id: token.id },
+        data: {
+          requestCount: { increment: 1 },
+          failureCount: { increment: 1 },
+          isExhausted: shouldExhaustToken(lastError),
+          lastError: lastError.slice(0, 500),
+          lastUsedAt: new Date(),
+        },
+      });
+    }
+  }
+
+  await notifyAdminsMissingToken(`All active AI image tokens failed. Last error: ${lastError}`);
+  throw new ApiError(503, "Image generation is temporarily unavailable. Please try again later.", "AI_IMAGE_FAILED");
 }

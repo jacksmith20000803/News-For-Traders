@@ -49,7 +49,11 @@ export async function POST(request: NextRequest) {
       user.id,
       ip,
       request.headers.get("user-agent") ?? undefined,
-      { mfaVerified: false, authTime: Math.floor(Date.now() / 1000) }
+      {
+        mfaVerified: false,
+        authTime: Math.floor(Date.now() / 1000),
+        emailVerified: Boolean(user.emailVerified),
+      }
     );
 
     const csrfToken = createSignedCsrfToken();

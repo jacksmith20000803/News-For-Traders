@@ -23,7 +23,7 @@ export default async function AdminUsersPage() {
         <div className="min-w-0">
           <h1 className="text-2xl font-bold">User Management</h1>
           <p className="text-sm text-muted-foreground">
-            Delete users, reset passwords, block accounts, and monitor new registrations live.
+            Review registered users and visitors, then open detail pages for activity and account controls.
           </p>
         </div>
         <Link href="/admin" className="w-fit rounded-lg border border-border px-3 py-2 text-sm text-primary transition-colors hover:bg-muted">

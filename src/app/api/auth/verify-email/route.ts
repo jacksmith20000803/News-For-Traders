@@ -1,9 +1,25 @@
-import { apiSuccess, apiError, handleApiError } from "@/lib/api/response";
+import { z } from "zod";
+import { apiSuccess, apiError, handleApiError, parseJsonBody } from "@/lib/api/response";
 import { db } from "@/lib/db";
-import { generateToken } from "@/lib/security/csrf";
 import { hashToken } from "@/lib/security/tokens";
 import { checkRateLimit, getClientIp } from "@/lib/security/rate-limit";
 import { config } from "@/lib/config";
+import { requireAuth, validateCsrf } from "@/lib/auth/guards";
+import {
+  createSessionToken,
+  getCurrentSessionPayload,
+  setSessionCookie,
+} from "@/lib/auth/session";
+import { verifyCodeHash } from "@/lib/verification/code-generator";
+import { clearRateLimits } from "@/lib/verification/rate-limiter";
+import {
+  MAX_VERIFICATION_ATTEMPTS,
+  VERIFICATION_CODE_LENGTH,
+} from "@/lib/verification/constants";
+
+const verifyCodeSchema = z.object({
+  code: z.string().trim().regex(/^\d{6}$/, `Enter a ${VERIFICATION_CODE_LENGTH}-digit verification code`),
+});
 
 export async function GET(request: Request) {
   try {
@@ -48,7 +64,6 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const { requireAuth, validateCsrf } = await import("@/lib/auth/guards");
     await validateCsrf(request);
     const user = await requireAuth();
 
@@ -56,21 +71,63 @@ export async function POST(request: Request) {
       return apiSuccess({ message: "Email already verified" });
     }
 
-    const token = generateToken();
-    await db.emailVerificationToken.deleteMany({ where: { userId: user.id } });
-    await db.emailVerificationToken.create({
-      data: {
-        userId: user.id,
-        token: hashToken(token),
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-      },
+    const { code } = verifyCodeSchema.parse(await parseJsonBody(request));
+    const verification = await db.emailVerificationToken.findFirst({
+      where: { userId: user.id },
+      orderBy: { createdAt: "desc" },
     });
 
-    const verificationUrl = new URL(`/verify-email?token=${encodeURIComponent(token)}`, request.url).toString();
+    if (!verification) {
+      return apiError("No verification code is active. Request a new code.", 400, "VERIFICATION_CODE_MISSING");
+    }
+
+    if (verification.expiresAt <= new Date()) {
+      await db.emailVerificationToken.delete({ where: { id: verification.id } }).catch(() => {});
+      return apiError("Verification code expired. Request a new code.", 400, "VERIFICATION_CODE_EXPIRED");
+    }
+
+    if (verification.attempts >= MAX_VERIFICATION_ATTEMPTS) {
+      await db.emailVerificationToken.delete({ where: { id: verification.id } }).catch(() => {});
+      return apiError("Too many incorrect attempts. Request a new code.", 429, "VERIFICATION_ATTEMPTS_EXCEEDED");
+    }
+
+    const valid = await verifyCodeHash(code, verification.token);
+    if (!valid) {
+      const attempts = verification.attempts + 1;
+      if (attempts >= MAX_VERIFICATION_ATTEMPTS) {
+        await db.emailVerificationToken.delete({ where: { id: verification.id } });
+        return apiError("Too many incorrect attempts. Request a new code.", 429, "VERIFICATION_ATTEMPTS_EXCEEDED");
+      }
+
+      await db.emailVerificationToken.update({
+        where: { id: verification.id },
+        data: { attempts },
+      });
+
+      const attemptsRemaining = MAX_VERIFICATION_ATTEMPTS - attempts;
+      return apiError(
+        `Incorrect verification code. ${attemptsRemaining} attempts remaining.`,
+        400,
+        "VERIFICATION_CODE_INVALID"
+      );
+    }
+
+    await db.$transaction([
+      db.user.update({
+        where: { id: user.id },
+        data: { emailVerified: new Date() },
+      }),
+      db.emailVerificationToken.deleteMany({ where: { userId: user.id } }),
+    ]);
+
+    const payload = await getCurrentSessionPayload();
+    if (payload) {
+      await setSessionCookie(await createSessionToken({ ...payload, emailVerified: true }));
+    }
+    clearRateLimits(user.id);
 
     return apiSuccess({
-      message: "Verification link generated",
-      verificationUrl,
+      message: "Email verified successfully",
     });
   } catch (error) {
     return handleApiError(error);

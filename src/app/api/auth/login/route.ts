@@ -29,6 +29,7 @@ import {
   trustedDeviceExpiresAt,
   TOTP_VALID_WINDOW,
 } from "@/lib/security/mfa";
+import { isDatabaseConnectivityError } from "@/lib/db-errors";
 
 export async function POST(request: NextRequest) {
   try {
@@ -124,7 +125,11 @@ export async function POST(request: NextRequest) {
             user.id,
             ip,
             request.headers.get("user-agent") ?? undefined,
-            { mfaVerified: true, authTime: Math.floor(Date.now() / 1000) }
+            {
+              mfaVerified: true,
+              authTime: Math.floor(Date.now() / 1000),
+              emailVerified: Boolean(user.emailVerified),
+            }
           );
 
           const csrfToken = createSignedCsrfToken();
@@ -177,7 +182,11 @@ export async function POST(request: NextRequest) {
           user.id,
           ip,
           request.headers.get("user-agent") ?? undefined,
-          { mfaVerified: true, authTime: Math.floor(Date.now() / 1000) }
+          {
+            mfaVerified: true,
+            authTime: Math.floor(Date.now() / 1000),
+            emailVerified: Boolean(user.emailVerified),
+          }
         );
 
         const csrfToken = createSignedCsrfToken();
@@ -214,7 +223,11 @@ export async function POST(request: NextRequest) {
       user.id,
       ip,
       request.headers.get("user-agent") ?? undefined,
-      { mfaVerified: false, authTime: Math.floor(Date.now() / 1000) }
+      {
+        mfaVerified: false,
+        authTime: Math.floor(Date.now() / 1000),
+        emailVerified: Boolean(user.emailVerified),
+      }
     );
 
     const csrfToken = createSignedCsrfToken();
@@ -224,6 +237,14 @@ export async function POST(request: NextRequest) {
 
     return apiSuccess({ user: toSafeUser(user), csrfToken });
   } catch (error) {
+    if (isDatabaseConnectivityError(error)) {
+      return apiError(
+        "Sign in is temporarily unavailable because the database connection is offline. Please check the DATABASE_URL or database service status.",
+        503,
+        "DATABASE_UNAVAILABLE"
+      );
+    }
+
     return handleApiError(error);
   }
 }

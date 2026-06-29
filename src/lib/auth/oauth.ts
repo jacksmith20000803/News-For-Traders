@@ -94,7 +94,11 @@ async function linkOAuthUser(params: {
     update: { accessToken: params.accessToken },
   });
 
-  await createUserSession(user.id);
+  await createUserSession(user.id, undefined, undefined, {
+    mfaVerified: false,
+    authTime: Math.floor(Date.now() / 1000),
+    emailVerified: true,
+  });
   const csrf = createSignedCsrfToken();
   await setCsrfCookie(csrf);
 

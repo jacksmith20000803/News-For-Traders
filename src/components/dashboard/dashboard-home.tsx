@@ -26,7 +26,7 @@ export function DashboardHome() {
                   ))}
                 </div>
               </div>
-              <TradingChart initialSymbol="BTC/USD" favorites={[]} />
+              <TradingChart initialSymbol="BTC/USD" favorites={[]} variant="dashboard" />
             </div>
           </div>
 

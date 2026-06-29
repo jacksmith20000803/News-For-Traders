@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
 import { Star } from "lucide-react";
 import { secureFetch } from "@/lib/api/client";
 
-const INTERVALS = ["1s", "1m", "5m", "15m", "1H", "4H", "1D", "1W"] as const;
+const INTERVALS = ["1s", "1m", "5m", "15m", "1H", "4H", "1D", "1W", "1Y"] as const;
 const INDICATORS = ["SMA", "EMA", "RSI", "MACD"] as const;
 
 interface Candle {
@@ -39,6 +39,7 @@ const INTERVAL_SECONDS: Record<(typeof INTERVALS)[number], number> = {
   "4H": 14400,
   "1D": 86400,
   "1W": 604800,
+  "1Y": 31536000,
 };
 
 function toUnixTime(time: unknown): number | null {
@@ -106,9 +107,7 @@ export function TradingChart({
 
   const [symbol, setSymbol] = useState(initialSymbol);
   const [assetType, setAssetType] = useState(initialAssetType);
-  const [chartInterval, setChartInterval] = useState<(typeof INTERVALS)[number]>(
-    variant === "dashboard" ? "1H" : "1m"
-  );
+  const [chartInterval, setChartInterval] = useState<(typeof INTERVALS)[number]>("1s");
   const [indicators, setIndicators] = useState<Set<(typeof INDICATORS)[number]>>(new Set(["SMA"]));
   const [price, setPrice] = useState<number | null>(null);
   const [priceChange, setPriceChange] = useState<number>(0);
@@ -181,7 +180,12 @@ export function TradingChart({
   }, [chartInterval]);
 
   const fetchOlderCandles = useCallback(async () => {
-    if (olderFetchInFlightRef.current || chartInterval === "1D" || chartInterval === "1W") return;
+    if (
+      olderFetchInFlightRef.current ||
+      chartInterval === "1D" ||
+      chartInterval === "1W" ||
+      chartInterval === "1Y"
+    ) return;
 
     const firstCandle = candleDataRef.current[0];
     const firstTime = firstCandle ? toUnixTime(firstCandle.time) : null;
@@ -223,14 +227,16 @@ export function TradingChart({
   const loadChart = useCallback(async () => {
     setLoading(true);
     
-    // Use historical data API for longer time ranges (1D, 1W)
+    // Use historical data API for longer time ranges (1D, 1W, 1Y)
     // Fetch full historical data from past to current time
-    const useHistorical = chartInterval === "1D" || chartInterval === "1W";
+    const useHistorical = chartInterval === "1D" || chartInterval === "1W" || chartInterval === "1Y";
+    const historicalDays =
+      chartInterval === "1D" ? 365 : chartInterval === "1W" ? 730 : 3650;
 
     const responses = await Promise.all([
       useHistorical
         ? fetch(
-            `/api/market/historical?symbol=${encodeURIComponent(symbol.replace("/USD", ""))}&days=${chartInterval === "1D" ? 365 : 730}`,
+            `/api/market/historical?symbol=${encodeURIComponent(symbol.replace("/USD", ""))}&days=${historicalDays}`,
             { cache: "no-store" }
           )
         : fetch(
@@ -299,6 +305,8 @@ export function TradingChart({
         chartRef.current.remove();
         chartRef.current = null;
       }
+      candleRef.current = null;
+      areaRef.current = null;
     } catch {
       // Ignore errors during chart removal
     }
@@ -326,27 +334,42 @@ export function TradingChart({
         },
       },
       width: containerRef.current.clientWidth,
-      height: 420,
+      height: variant === "dashboard" ? 420 : 500,
     });
 
-    const candleSeries = chart.addSeries(CandlestickSeries, {
-      upColor: "#00d4aa",
-      downColor: "#ff4757",
-      borderVisible: true,
-      borderUpColor: "#00d4aa",
-      borderDownColor: "#ff4757",
-      wickUpColor: "#00d4aa",
-      wickDownColor: "#ff4757",
-    });
+    if (variant === "dashboard") {
+      const candleSeries = chart.addSeries(CandlestickSeries, {
+        upColor: "#00d4aa",
+        downColor: "#ff4757",
+        borderVisible: true,
+        borderUpColor: "#00d4aa",
+        borderDownColor: "#ff4757",
+        wickUpColor: "#00d4aa",
+        wickDownColor: "#ff4757",
+      });
 
-    candleSeries.setData(candles);
-    candleRef.current = candleSeries;
+      candleSeries.setData(candles);
+      candleRef.current = candleSeries;
+    } else {
+      const areaSeries = chart.addSeries(AreaSeries, {
+        lineColor: "#00a48d",
+        topColor: "rgba(0, 164, 141, 0.24)",
+        bottomColor: "rgba(0, 164, 141, 0.03)",
+        lineWidth: 2,
+        priceLineVisible: true,
+        lastValueVisible: true,
+      });
+
+      areaSeries.setData(candles.map((candle) => ({ time: candle.time, value: candle.close })));
+      areaRef.current = areaSeries;
+    }
+
     candleDataRef.current = candles;
     latestCandleRef.current = candles[candles.length - 1] ?? null;
 
     const closes = candles.map((c) => c.close);
 
-    if (indicators.has("SMA")) {
+    if (variant === "dashboard" && indicators.has("SMA")) {
       const sma = computeSMA(closes, 20);
       const smaSeries = chart.addSeries(LineSeries, { color: "#fbbf24", lineWidth: 2, title: "SMA 20" });
       smaSeries.setData(
@@ -356,7 +379,7 @@ export function TradingChart({
       );
     }
 
-    if (indicators.has("EMA")) {
+    if (variant === "dashboard" && indicators.has("EMA")) {
       const ema = computeEMA(closes, 12);
       const emaSeries = chart.addSeries(LineSeries, { color: "#00d4ff", lineWidth: 2, title: "EMA 12" });
       emaSeries.setData(
@@ -366,7 +389,7 @@ export function TradingChart({
       );
     }
 
-    if (indicators.has("RSI")) {
+    if (variant === "dashboard" && indicators.has("RSI")) {
       const rsi = computeRSI(closes);
       const rsiPane = chart.addSeries(LineSeries, { color: "#a78bfa", lineWidth: 2, title: "RSI" });
       rsiPane.setData(
@@ -376,7 +399,7 @@ export function TradingChart({
       );
     }
 
-    if (indicators.has("MACD")) {
+    if (variant === "dashboard" && indicators.has("MACD")) {
       const { macd } = computeMACD(closes);
       const macdSeries = chart.addSeries(HistogramSeries, { color: "#00ff88" });
       macdSeries.setData(
@@ -401,7 +424,7 @@ export function TradingChart({
       setPrice((current) => current ?? candles[candles.length - 1].close);
     }
     setLoading(false);
-  }, [symbol, assetType, chartInterval, indicators, fetchOlderCandles]);
+  }, [symbol, assetType, chartInterval, indicators, fetchOlderCandles, variant]);
 
   useEffect(() => {
     const timer = setTimeout(() => loadChart(), 0);
@@ -425,6 +448,7 @@ export function TradingChart({
       }
       chartRef.current = null;
       candleRef.current = null;
+      areaRef.current = null;
       candleDataRef.current = [];
       latestCandleRef.current = null;
     };
@@ -507,7 +531,7 @@ export function TradingChart({
         window.clearTimeout(timeout);
         pollInFlightRef.current = false;
       }
-    }, 100);
+    }, 1000);
 
     return () => {
       unsub();
@@ -629,25 +653,72 @@ export function TradingChart({
             {iv}
           </button>
         ))}
-        <span className="mx-1 text-border">|</span>
-        {INDICATORS.map((ind) => (
-          <button
-            key={ind}
-            type="button"
-            onClick={() => toggleIndicator(ind)}
-            className={cn(
-              "rounded px-2 py-1 text-xs font-medium",
-              indicators.has(ind) ? "bg-emerald-500/20 text-emerald-400" : "text-muted-foreground hover:bg-white/5"
-            )}
-          >
-            {ind}
-          </button>
-        ))}
+        {variant === "dashboard" && (
+          <>
+            <span className="mx-1 text-border">|</span>
+            {INDICATORS.map((ind) => (
+              <button
+                key={ind}
+                type="button"
+                onClick={() => toggleIndicator(ind)}
+                className={cn(
+                  "rounded px-2 py-1 text-xs font-medium",
+                  indicators.has(ind) ? "bg-emerald-500/20 text-emerald-400" : "text-muted-foreground hover:bg-white/5"
+                )}
+              >
+                {ind}
+              </button>
+            ))}
+          </>
+        )}
       </div>
+
+      {variant !== "dashboard" && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/60 bg-card/70 p-2">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="rounded-full bg-foreground px-4 py-2 text-sm font-semibold text-background"
+            >
+              Price
+            </button>
+            <button
+              type="button"
+              className="rounded-full bg-muted px-4 py-2 text-sm font-semibold text-muted-foreground hover:text-foreground"
+            >
+              Market cap
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              aria-label="Take chart snapshot"
+              className="rounded-lg border border-border bg-background/80 px-2.5 py-2 text-sm hover:border-primary/50"
+            >
+              &#9633;
+            </button>
+            <button
+              type="button"
+              aria-label="Embed chart code"
+              className="rounded-lg border border-border bg-background/80 px-2.5 py-2 text-sm hover:border-primary/50"
+            >
+              &lt;/&gt;
+            </button>
+            <button
+              type="button"
+              aria-label="Fit full chart"
+              onClick={() => chartRef.current?.timeScale().fitContent()}
+              className="rounded-lg border border-border bg-background/80 px-3 py-2 text-sm font-semibold hover:border-primary/50"
+            >
+              Full chart
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="dash-panel relative rounded-lg p-2">
         {loading && <div className="absolute inset-0 z-10 skeleton rounded-lg" />}
-        <div ref={containerRef} className="w-full" style={{ height: '400px' }} />
+        <div ref={containerRef} className="w-full" style={{ height: variant === "dashboard" ? "400px" : "500px" }} />
       </div>
     </div>
   );

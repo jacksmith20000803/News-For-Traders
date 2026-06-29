@@ -99,10 +99,10 @@ a[aria-label]:not([data-tooltip="false"]):focus-visible::after,
 a[title]:not([data-tooltip="false"]):hover::after,
 a[title]:not([data-tooltip="false"]):focus-visible::after {
   content: attr(aria-label);
-  position: absolute;
+  position: absolute !important;
   left: 50%;
   top: calc(100% + 0.5rem);
-  z-index: 99;
+  z-index: 99 !important;
   width: max-content;
   max-width: 14rem;
   transform: translateX(-50%);

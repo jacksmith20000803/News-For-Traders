@@ -23,7 +23,6 @@ const COINGECKO_IDS: Record<string, string> = {
   BNB: "binancecoin",
   AVAX: "avalanche-2",
   LINK: "chainlink",
-  MATIC: "matic-network",
   UNI: "uniswap",
   ATOM: "cosmos",
   LTC: "litecoin",
@@ -47,7 +46,7 @@ export async function GET(request: NextRequest) {
     const compactSymbol = rawSymbol.toUpperCase().replace("/USD", "");
     const dbSymbols = [rawSymbol.toUpperCase(), `${compactSymbol}/USD`, compactSymbol];
     const coinGeckoId = COINGECKO_IDS[compactSymbol] ?? rawSymbol.toLowerCase();
-    const days = parseInt(searchParams.get("days") || "730"); // 2 years default
+    const days = clampDays(parseInt(searchParams.get("days") || "730", 10)); // 2 years default
 
     // Check if we have recent data in the database
     const twoYearsAgo = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
@@ -151,7 +150,7 @@ export async function GET(request: NextRequest) {
     console.warn("[market/historical] Falling back after historical API error:", error);
     const { searchParams } = new URL(request.url);
     const rawSymbol = searchParams.get("symbol") || "BTC";
-    const days = parseInt(searchParams.get("days") || "730", 10);
+    const days = clampDays(parseInt(searchParams.get("days") || "730", 10));
     return apiSuccess({
       symbol: rawSymbol,
       data: generateFallbackHistoricalData(rawSymbol, days),
@@ -165,7 +164,7 @@ function generateFallbackHistoricalData(rawSymbol: string, days: number) {
   const slug = toAssetSlug(compactSymbol);
   const fallback = getFallbackQuotes().find((quote) => toAssetSlug(quote.symbol) === slug);
   const basePrice = fallback?.price ?? 100;
-  const totalDays = Math.max(1, Math.min(days, 730));
+  const totalDays = clampDays(days);
   const now = Date.now();
   let price = basePrice;
 
@@ -188,4 +187,9 @@ function generateFallbackHistoricalData(rawSymbol: string, days: number) {
       close,
     };
   });
+}
+
+function clampDays(days: number) {
+  if (!Number.isFinite(days)) return 730;
+  return Math.max(1, Math.min(Math.floor(days), 3650));
 }

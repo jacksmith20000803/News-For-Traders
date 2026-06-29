@@ -90,9 +90,10 @@ export function RegisterForm() {
         <Image
           src="/tradx-logo.png"
           alt="TRADX"
-          width={200}
-          height={190}
-          className="mx-auto mb-3 object-contain"
+          width={180}
+          height={180}
+          style={{width: "180px", height: "180px"}}
+          className="mx-auto mb-3 h-24 w-24 object-contain"
           priority
         />
         <CardTitle className="text-2xl text-gray-900 dark:text-white">Create your account</CardTitle>

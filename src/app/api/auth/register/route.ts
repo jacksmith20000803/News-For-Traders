@@ -10,13 +10,14 @@ import { registerSchema } from "@/lib/validations/auth";
 import { hashPassword } from "@/lib/security/password";
 import { db } from "@/lib/db";
 import { createUserSession, setCsrfCookie, toSafeUser } from "@/lib/auth/session";
-import { createSignedCsrfToken, generateToken } from "@/lib/security/csrf";
-import { hashToken } from "@/lib/security/tokens";
+import { createSignedCsrfToken } from "@/lib/security/csrf";
 import { checkRateLimit, getClientIp } from "@/lib/security/rate-limit";
 import { config } from "@/lib/config";
 import { logUserActivity } from "@/lib/audit";
 import { createNotification } from "@/lib/notifications";
 import { parseUserAgent, parseGeoFromHeaders } from "@/lib/security/user-agent";
+import { isDatabaseConnectivityError } from "@/lib/db-errors";
+import { createAndSendVerificationCode } from "@/lib/verification/email-verification";
 
 export async function POST(request: NextRequest) {
   try {
@@ -60,7 +61,8 @@ export async function POST(request: NextRequest) {
     await createUserSession(
       user.id,
       ip,
-      request.headers.get("user-agent") ?? undefined
+      request.headers.get("user-agent") ?? undefined,
+      { mfaVerified: false, authTime: Math.floor(Date.now() / 1000), emailVerified: false }
     );
 
     const csrfToken = createSignedCsrfToken();
@@ -86,12 +88,20 @@ export async function POST(request: NextRequest) {
       {
         user: toSafeUser(user),
         csrfToken,
-        message: "Account created successfully. Please verify your email.",
+        message: "Account created successfully. Please verify your email with the code we send.",
         redirectTo: "/dashboard",
       },
       201
     );
   } catch (error) {
+    if (isDatabaseConnectivityError(error)) {
+      return apiError(
+        "Registration is temporarily unavailable because the database connection is offline. Please check the DATABASE_URL or database service status.",
+        503,
+        "DATABASE_UNAVAILABLE"
+      );
+    }
+
     return handleApiError(error);
   }
 }
@@ -110,7 +120,7 @@ function schedulePostRegistrationTasks(params: {
 }) {
   setTimeout(() => {
     void runPostRegistrationTasks(params);
-  }, 60_000);
+  }, 0);
 }
 
 async function runPostRegistrationTasks(params: {
@@ -125,16 +135,8 @@ async function runPostRegistrationTasks(params: {
   os: string;
   userAgent: string;
 }) {
-  const verificationToken = generateToken();
-
   await Promise.allSettled([
-    db.emailVerificationToken.create({
-      data: {
-        userId: params.userId,
-        token: hashToken(verificationToken),
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-      },
-    }),
+    createAndSendVerificationCode(params.userId, params.email),
     logUserActivity(params.userId, "REGISTER"),
     db.registrationAudit.create({
       data: {
