@@ -107,11 +107,7 @@ export function MarketOverview() {
         {marketItems.map((item) => (
           <div
             key={item.symbol}
-            className={cn(
-              "grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 rounded-2xl border border-border/60 bg-background/45 px-3 py-3 transition-all hover:bg-muted/60",
-              item.direction === "up" && "price-flash-up",
-              item.direction === "down" && "price-flash-down"
-            )}
+            className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 rounded-2xl border border-border/60 bg-background/45 px-3 py-3 transition-all hover:bg-muted/60"
             suppressHydrationWarning
           >
             <div className="flex-1 min-w-0" suppressHydrationWarning>
@@ -120,7 +116,15 @@ export function MarketOverview() {
             </div>
             <Sparkline positive={item.changePositive} />
             <div className="text-right" suppressHydrationWarning>
-              <p className="font-mono text-xs font-semibold tabular-nums text-foreground">{item.value}</p>
+              <p
+                className={cn(
+                  "font-mono text-xs font-semibold tabular-nums text-foreground",
+                  item.direction === "up" && "nudge-up text-success",
+                  item.direction === "down" && "nudge-down text-error"
+                )}
+              >
+                {item.value}
+              </p>
               <p className={cn(
                 "font-mono text-xs font-bold tabular-nums",
                 item.changePositive ? "text-success" : "text-error"

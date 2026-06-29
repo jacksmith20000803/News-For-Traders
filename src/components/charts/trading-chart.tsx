@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   createChart,
   ColorType,
+  AreaSeries,
   CandlestickSeries,
   LineSeries,
   HistogramSeries,
@@ -18,7 +19,7 @@ import { cn } from "@/lib/utils";
 import { Star } from "lucide-react";
 import { secureFetch } from "@/lib/api/client";
 
-const INTERVALS = ["1m", "5m", "15m", "1H", "4H", "1D", "1W"] as const;
+const INTERVALS = ["1s", "1m", "5m", "15m", "1H", "4H", "1D", "1W"] as const;
 const INDICATORS = ["SMA", "EMA", "RSI", "MACD"] as const;
 
 interface Candle {
@@ -30,6 +31,7 @@ interface Candle {
 }
 
 const INTERVAL_SECONDS: Record<(typeof INTERVALS)[number], number> = {
+  "1s": 1,
   "1m": 60,
   "5m": 300,
   "15m": 900,
@@ -84,12 +86,19 @@ interface TradingChartProps {
   initialSymbol?: string;
   initialAssetType?: string;
   favorites?: string[];
+  variant?: "terminal" | "dashboard";
 }
 
-export function TradingChart({ initialSymbol = "BTC/USD", initialAssetType = "crypto", favorites = [] }: TradingChartProps) {
+export function TradingChart({
+  initialSymbol = "BTC/USD",
+  initialAssetType = "crypto",
+  favorites = [],
+  variant = "terminal",
+}: TradingChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
+  const areaRef = useRef<ISeriesApi<"Area"> | null>(null);
   const candleDataRef = useRef<Candle[]>([]);
   const latestCandleRef = useRef<Candle | null>(null);
   const pollInFlightRef = useRef(false);
@@ -97,7 +106,9 @@ export function TradingChart({ initialSymbol = "BTC/USD", initialAssetType = "cr
 
   const [symbol, setSymbol] = useState(initialSymbol);
   const [assetType, setAssetType] = useState(initialAssetType);
-  const [chartInterval, setChartInterval] = useState<(typeof INTERVALS)[number]>("1H");
+  const [chartInterval, setChartInterval] = useState<(typeof INTERVALS)[number]>(
+    variant === "dashboard" ? "1H" : "1m"
+  );
   const [indicators, setIndicators] = useState<Set<(typeof INDICATORS)[number]>>(new Set(["SMA"]));
   const [price, setPrice] = useState<number | null>(null);
   const [priceChange, setPriceChange] = useState<number>(0);
@@ -114,12 +125,13 @@ export function TradingChart({ initialSymbol = "BTC/USD", initialAssetType = "cr
   }, [price]);
 
   const updateLiveCandle = useCallback((newPrice: number, timestamp?: string | number) => {
-    const series = candleRef.current;
+    const candleSeries = candleRef.current;
+    const areaSeries = areaRef.current;
     const sourceTime = toUnixTime(timestamp) ?? Math.floor(Date.now() / 1000);
     const intervalSeconds = INTERVAL_SECONDS[chartInterval];
     const bucketTime = Math.floor(sourceTime / intervalSeconds) * intervalSeconds;
     const latest = latestCandleRef.current;
-    if (!series) return;
+    if (!candleSeries && !areaSeries) return;
 
     if (!latest) {
       const firstCandle: Candle = {
@@ -129,7 +141,8 @@ export function TradingChart({ initialSymbol = "BTC/USD", initialAssetType = "cr
         low: newPrice,
         close: newPrice,
       };
-      series.update(firstCandle);
+      candleSeries?.update(firstCandle);
+      areaSeries?.update({ time: firstCandle.time, value: firstCandle.close });
       candleDataRef.current = [firstCandle];
       latestCandleRef.current = firstCandle;
       return;
@@ -156,7 +169,8 @@ export function TradingChart({ initialSymbol = "BTC/USD", initialAssetType = "cr
             close: newPrice,
           };
 
-    series.update(nextCandle);
+    candleSeries?.update(nextCandle);
+    areaSeries?.update({ time: nextCandle.time, value: nextCandle.close });
     candleDataRef.current =
       nextTime > latestTime
         ? [...candleDataRef.current, nextCandle]
@@ -199,6 +213,7 @@ export function TradingChart({ initialSymbol = "BTC/USD", initialAssetType = "cr
       const merged = normalizeCandles([...olderCandles, ...candleDataRef.current]);
       candleDataRef.current = merged;
       candleRef.current?.setData(merged);
+      areaRef.current?.setData(merged.map((candle) => ({ time: candle.time, value: candle.close })));
       latestCandleRef.current = merged[merged.length - 1] ?? latestCandleRef.current;
     } finally {
       olderFetchInFlightRef.current = false;

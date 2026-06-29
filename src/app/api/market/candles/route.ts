@@ -33,6 +33,7 @@ function generateFallbackCandles(symbol: string, interval: MarketInterval, limit
   const fallback = getFallbackQuotes().find((quote) => toAssetSlug(quote.symbol) === slug);
   const basePrice = fallback?.price ?? 100;
   const intervalSeconds: Record<MarketInterval, number> = {
+    "1s": 1,
     "1m": 60,
     "5m": 300,
     "15m": 900,

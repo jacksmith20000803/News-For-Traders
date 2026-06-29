@@ -1,6 +1,7 @@
 "use client";
 
 let cachedCsrfToken: string | null = null;
+const CSRF_COOKIE = "nft_csrf";
 
 export async function readJsonResponse<T = unknown>(response: Response): Promise<T> {
   const contentType = response.headers.get("content-type") ?? "";
@@ -22,16 +23,42 @@ export async function readJsonResponse<T = unknown>(response: Response): Promise
   }
 }
 
+function readBrowserCookie(name: string): string {
+  if (typeof document === "undefined") return "";
+
+  const encodedName = `${encodeURIComponent(name)}=`;
+  const cookie = document.cookie
+    .split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(encodedName));
+
+  if (!cookie) return "";
+
+  try {
+    return decodeURIComponent(cookie.slice(encodedName.length));
+  } catch {
+    return cookie.slice(encodedName.length);
+  }
+}
+
 /** Fetch and cache the CSRF token for mutating API requests. */
 export async function getCsrfToken(): Promise<string> {
   if (cachedCsrfToken) return cachedCsrfToken;
 
-  const res = await fetch("/api/auth/me", {
-    cache: "no-store",
-    credentials: "same-origin",
-  });
-  const json = await readJsonResponse<{ data?: { csrfToken?: string } }>(res);
-  cachedCsrfToken = json.data?.csrfToken ?? "";
+  try {
+    const res = await fetch("/api/auth/me", {
+      cache: "no-store",
+      credentials: "same-origin",
+    });
+    if (res.ok) {
+      const json = await readJsonResponse<{ data?: { csrfToken?: string } }>(res);
+      cachedCsrfToken = json.data?.csrfToken ?? readBrowserCookie(CSRF_COOKIE);
+    }
+  } catch {
+    cachedCsrfToken = readBrowserCookie(CSRF_COOKIE);
+  }
+
+  cachedCsrfToken ??= readBrowserCookie(CSRF_COOKIE);
   return cachedCsrfToken ?? "";
 }
 
@@ -59,10 +86,10 @@ export async function secureFetch(
       },
     });
 
-  let response = await request(await getCsrfToken());
+  let response = await request(await getCsrfToken().catch(() => readBrowserCookie(CSRF_COOKIE)));
   if (response.status === 403) {
     clearCsrfCache();
-    response = await request(await getCsrfToken());
+    response = await request(await getCsrfToken().catch(() => readBrowserCookie(CSRF_COOKIE)));
   }
 
   return response;
@@ -71,7 +98,10 @@ export async function secureFetch(
 /** Log out the current user and redirect to home. */
 export async function logout(): Promise<void> {
   clearCsrfCache();
-  await secureFetch("/api/auth/logout", { method: "POST" });
-  clearCsrfCache();
-  window.location.href = "/";
+  try {
+    await secureFetch("/api/auth/logout", { method: "POST" });
+  } finally {
+    clearCsrfCache();
+    window.location.href = "/";
+  }
 }

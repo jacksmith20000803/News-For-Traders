@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { eventBus } from "@/lib/events/broadcaster";
 
-export type MarketInterval = "1m" | "5m" | "15m" | "1H" | "4H" | "1D" | "1W";
+export type MarketInterval = "1s" | "1m" | "5m" | "15m" | "1H" | "4H" | "1D" | "1W";
 
 export interface MarketTick {
   symbol: string;
@@ -54,6 +54,7 @@ function generateSyntheticCandles(
 
   const basePrice = seedPrice || basePrices[symbol] || 100;
   const msMap: Record<MarketInterval, number> = {
+    "1s": 1000,
     "1m": 60000,
     "5m": 300000,
     "15m": 900000,
@@ -111,6 +112,7 @@ export async function getCandles(
   }
 
   const msMap: Record<MarketInterval, number> = {
+    "1s": 1000,
     "1m": 60000,
     "5m": 300000,
     "15m": 900000,
