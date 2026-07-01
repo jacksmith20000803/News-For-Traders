@@ -13,6 +13,14 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npx prisma generate
 ENV NEXT_TELEMETRY_DISABLED=1
+ARG DATABASE_URL="postgresql://build:build@localhost:5432/build"
+ARG SESSION_SECRET="build-session-secret-change-me-32-bytes"
+ARG CSRF_SECRET="build-csrf-secret-change-me-32-bytes"
+ARG AUTH_SECRET="build-auth-secret-change-me-32-bytes"
+ENV DATABASE_URL=$DATABASE_URL
+ENV SESSION_SECRET=$SESSION_SECRET
+ENV CSRF_SECRET=$CSRF_SECRET
+ENV AUTH_SECRET=$AUTH_SECRET
 RUN npm run build
 
 FROM base AS runner
