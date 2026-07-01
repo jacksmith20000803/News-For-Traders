@@ -4,18 +4,17 @@ import Image from "next/image";
 export function Footer() {
   return (
     <footer className="relative isolate mt-auto overflow-hidden border-t border-gray-200 bg-white/95 text-gray-900 transition-colors dark:border-white/10 dark:bg-[#0b0f12]/95 dark:text-white pb-24 lg:pb-10" suppressHydrationWarning>
-      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6" suppressHydrationWarning>
-        <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[1.45fr_1fr_1fr_1fr]" suppressHydrationWarning>
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-10" suppressHydrationWarning>
+        <div className="grid gap-8 sm:grid-cols-2 sm:gap-10 lg:grid-cols-[1.45fr_1fr_1fr_1fr]" suppressHydrationWarning>
           <div className="max-w-sm" suppressHydrationWarning>
             <Image
               src="/tradx-logo.png"
               alt="TRADX"
               width={88}
               height={88}
-              className="mb-5 h-[88px] w-[88px] object-contain object-left"
-              style={{ width: "88px", height: "88px" }}
+              className="mb-4 h-[72px] w-[72px] object-contain object-left sm:mb-5 sm:h-[88px] sm:w-[88px]"
             />
-            <p className="text-[10px] font-medium uppercase tracking-[0.3em] text-muted-foreground mb-2">
+            <p className="mb-2 max-w-full text-[9px] font-medium uppercase tracking-[0.2em] text-muted-foreground sm:text-[10px] sm:tracking-[0.3em]">
               Trade. Invest. Grow.
             </p>
             <p className="max-w-xs text-sm leading-6 text-muted-foreground">
@@ -49,7 +48,7 @@ export function Footer() {
             </ul>
           </div>
         </div>
-        <div className="mt-10 border-t border-gray-200 pt-6 text-center text-xs text-muted-foreground transition-colors dark:border-white/10 lg:pr-44" suppressHydrationWarning style={{ paddingRight: "0px" }}>
+        <div className="mt-8 border-t border-gray-200 pt-5 text-center text-[11px] leading-5 text-muted-foreground transition-colors dark:border-white/10 sm:mt-10 sm:pt-6 sm:text-xs" suppressHydrationWarning>
           &copy; {new Date().getFullYear()} TRADX. All rights reserved.
         </div>
       </div>

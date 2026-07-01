@@ -48,11 +48,19 @@
 }
 
 
-* { border-color: var(--border); }
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  border-color: var(--border);
+}
 
 html {
   font-size: 16px;
   text-rendering: geometricPrecision;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: clip;
 }
 
 body {
@@ -66,9 +74,31 @@ body {
   line-height: 1.55;
   letter-spacing: 0;
   font-feature-settings: "kern", "liga", "cv02", "cv03", "cv04";
+  width: 100%;
+  max-width: 100%;
   min-height: 100vh;
+  overflow-x: clip;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+main,
+section,
+article,
+aside,
+header,
+footer,
+nav,
+div {
+  min-width: 0;
+}
+
+img,
+picture,
+video,
+canvas,
+svg {
+  max-width: 100%;
 }
 
 button,
@@ -76,6 +106,20 @@ input,
 select,
 textarea {
   font: inherit;
+}
+
+button,
+a[role="button"],
+a[data-track-kind],
+.button-pressable {
+  touch-action: manipulation;
+}
+
+button:active,
+a[role="button"]:active,
+a[data-track-kind]:active,
+.button-pressable:active {
+  transform: translateY(1px) scale(0.97);
 }
 
 .font-semibold { font-weight: 550; }
@@ -132,6 +176,9 @@ a[title]:not([aria-label]):not([data-tooltip="false"]):focus-visible::after {
   --page-line: color-mix(in srgb, var(--border) 45%, transparent);
   isolation: isolate;
   position: relative;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   background:
     linear-gradient(180deg, var(--page-wash) 0%, var(--background) 24rem),
     linear-gradient(90deg, transparent 0%, color-mix(in srgb, var(--page-line) 28%, transparent) 50%, transparent 100%);
@@ -158,6 +205,57 @@ a[title]:not([aria-label]):not([data-tooltip="false"]):focus-visible::after {
 .route-community-bg { --page-wash: color-mix(in srgb, var(--background) 92%, #8b5cf6 8%); }
 .route-auth-bg { --page-wash: color-mix(in srgb, var(--background) 90%, #059669 10%); }
 .route-support-bg { --page-wash: color-mix(in srgb, var(--background) 91%, #0ea5e9 9%); }
+
+@media (max-width: 640px) {
+  html {
+    font-size: 15px;
+  }
+
+  .app-main::before {
+    background-size: 42px 42px;
+  }
+}
+
+@media (max-width: 360px) {
+  html {
+    font-size: 14.5px;
+  }
+}
+
+.landing-section-surface {
+  background: #ffffff;
+}
+
+.dark .landing-section-surface {
+  background:
+    radial-gradient(circle at 18% 10%, rgba(0, 212, 170, 0.16) 0%, transparent 28rem),
+    radial-gradient(circle at 86% 42%, rgba(139, 92, 246, 0.16) 0%, transparent 24rem),
+    linear-gradient(180deg, #030507 0%, #07100e 52%, #030507 100%);
+}
+
+.landing-promo-orb-layer {
+  background: #ffffff;
+}
+
+.dark .landing-promo-orb-layer {
+  background:
+    radial-gradient(circle at 16% 24%, rgba(139, 92, 246, 0.24), transparent 28%),
+    radial-gradient(circle at 84% 34%, rgba(0, 212, 170, 0.2), transparent 24%),
+    linear-gradient(180deg, #030507, #07100e 54%, #030507);
+}
+
+.landing-promo-star-layer {
+  opacity: 0.55;
+  background-image:
+    linear-gradient(rgba(2, 6, 23, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(2, 6, 23, 0.045) 1px, transparent 1px);
+  background-size: 60px 60px;
+}
+
+.dark .landing-promo-star-layer {
+  opacity: 0.7;
+  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.36) 1px, transparent 1.4px);
+}
 
 .dashboard-shell {
   position: relative;
@@ -203,7 +301,78 @@ a.inline-flex {
 
 button:not(:disabled):active,
 a.inline-flex:active {
-  transform: scale(0.96);
+  transform: translateY(1px) scale(0.96);
+}
+
+select,
+input[type="date"],
+input[type="month"] {
+  color-scheme: light;
+  background-color: color-mix(in srgb, var(--card) 88%, var(--background) 12%);
+  color: var(--foreground);
+}
+
+.dark select,
+.dark input[type="date"],
+.dark input[type="month"] {
+  color-scheme: dark;
+}
+
+select option {
+  background-color: var(--card);
+  color: var(--foreground);
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="month"]::-webkit-calendar-picker-indicator {
+  opacity: 0.78;
+}
+
+.dark input[type="date"]::-webkit-calendar-picker-indicator,
+.dark input[type="month"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) brightness(1.35);
+  opacity: 0.95;
+}
+
+.select-polished {
+  border: 1px solid color-mix(in srgb, var(--border) 72%, var(--primary) 28%);
+  border-radius: 1rem;
+  appearance: none;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--card) 96%, var(--primary) 4%), var(--card)),
+    linear-gradient(45deg, transparent 50%, var(--foreground) 50%),
+    linear-gradient(135deg, var(--foreground) 50%, transparent 50%);
+  background-position:
+    0 0,
+    calc(100% - 1.05rem) 50%,
+    calc(100% - 0.75rem) 50%;
+  background-repeat: no-repeat;
+  background-size:
+    100% 100%,
+    0.34rem 0.34rem,
+    0.34rem 0.34rem;
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 10%, transparent),
+    0 10px 24px rgba(0, 0, 0, 0.08);
+  color: var(--foreground);
+  color-scheme: light;
+  outline: none;
+  padding-right: 2.25rem;
+}
+
+.dark .select-polished {
+  color-scheme: dark;
+}
+
+.select-polished:hover {
+  border-color: color-mix(in srgb, var(--primary) 62%, var(--border) 38%);
+}
+
+.select-polished:focus {
+  border-color: var(--primary);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent),
+    0 10px 24px rgba(0, 0, 0, 0.08);
 }
 
 .profile-date-picker select,

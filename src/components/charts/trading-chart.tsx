@@ -18,9 +18,100 @@ import { subscribeRealtimeSync } from "@/components/realtime/realtime-sync";
 import { cn } from "@/lib/utils";
 import { Star } from "lucide-react";
 import { secureFetch } from "@/lib/api/client";
+import Image from "next/image";
+import { useTheme } from "@/components/providers/theme-provider";
 
 const INTERVALS = ["1s", "1m", "5m", "15m", "1H", "4H", "1D", "1W", "1Y"] as const;
 const INDICATORS = ["SMA", "EMA", "RSI", "MACD"] as const;
+type TrendDirection = "up" | "down";
+
+const TREND_STYLE: Record<
+  TrendDirection,
+  {
+    label: string;
+    image: string;
+    imageAlt: string;
+    lineColor: string;
+    topColor: string;
+    bottomColor: string;
+    badgeClass: string;
+  }
+> = {
+  up: {
+    label: "Bull trend",
+    image: "/chart-bull-placeholder.png",
+    imageAlt: "Bull placeholder for rising price",
+    lineColor: "#00d4aa",
+    topColor: "rgba(0, 212, 170, 0.28)",
+    bottomColor: "rgba(0, 212, 170, 0.04)",
+    badgeClass: "border-emerald-300/35 bg-emerald-500/15 text-emerald-100 shadow-emerald-500/20",
+  },
+  down: {
+    label: "Bear trend",
+    image: "/chart-bear-placeholder.png",
+    imageAlt: "Bear placeholder for falling price",
+    lineColor: "#ff4757",
+    topColor: "rgba(255, 71, 87, 0.25)",
+    bottomColor: "rgba(255, 71, 87, 0.035)",
+    badgeClass: "border-rose-300/35 bg-rose-500/15 text-rose-100 shadow-rose-500/20",
+  },
+};
+
+function getAreaSeriesOptions(direction: TrendDirection) {
+  const style = TREND_STYLE[direction];
+  return {
+    lineColor: style.lineColor,
+    topColor: style.topColor,
+    bottomColor: style.bottomColor,
+    lineWidth: 2,
+    priceLineVisible: true,
+    lastValueVisible: true,
+    priceLineColor: style.lineColor,
+  } as const;
+}
+
+function getChartThemeOptions(mode: "light" | "dark") {
+  const isDark = mode === "dark";
+  return {
+    layout: {
+      background: { type: ColorType.Solid, color: "transparent" },
+      textColor: isDark ? "#e8e8e8" : "#1f2937",
+      fontSize: 11,
+    },
+    grid: {
+      vertLines: { color: isDark ? "rgba(255,255,255,0.08)" : "rgba(15,23,42,0.08)" },
+      horzLines: { color: isDark ? "rgba(255,255,255,0.08)" : "rgba(15,23,42,0.08)" },
+    },
+    crosshair: {
+      mode: 1,
+      vertLine: {
+        color: isDark ? "rgba(0, 212, 170, 0.55)" : "rgba(5, 150, 105, 0.5)",
+        width: 1,
+        style: 2,
+      },
+      horzLine: {
+        color: isDark ? "rgba(0, 212, 170, 0.55)" : "rgba(5, 150, 105, 0.5)",
+        width: 1,
+        style: 2,
+      },
+    },
+    rightPriceScale: {
+      borderColor: isDark ? "rgba(255,255,255,0.12)" : "rgba(15,23,42,0.14)",
+      scaleMargins: { top: 0.12, bottom: 0.16 },
+    },
+    timeScale: {
+      borderColor: isDark ? "rgba(255,255,255,0.12)" : "rgba(15,23,42,0.14)",
+      timeVisible: true,
+      secondsVisible: true,
+    },
+  } as const;
+}
+
+function getResponsiveChartHeight(width: number, variant: TradingChartProps["variant"]) {
+  if (width <= 360) return variant === "dashboard" ? 280 : 320;
+  if (width <= 480) return variant === "dashboard" ? 320 : 360;
+  return variant === "dashboard" ? 400 : 500;
+}
 
 interface Candle {
   time: Time;
@@ -96,6 +187,8 @@ export function TradingChart({
   favorites = [],
   variant = "terminal",
 }: TradingChartProps) {
+  const { theme, resolvedTheme } = useTheme();
+  const currentTheme = theme === "system" ? resolvedTheme : theme;
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
@@ -104,6 +197,7 @@ export function TradingChart({
   const latestCandleRef = useRef<Candle | null>(null);
   const pollInFlightRef = useRef(false);
   const olderFetchInFlightRef = useRef(false);
+  const flashTimerRef = useRef<number | null>(null);
 
   const [symbol, setSymbol] = useState(initialSymbol);
   const [assetType, setAssetType] = useState(initialAssetType);
@@ -117,11 +211,22 @@ export function TradingChart({
   const [loading, setLoading] = useState(true);
   const [favs, setFavs] = useState<Set<string>>(new Set(favorites));
   const [priceDirection, setPriceDirection] = useState<"up" | "down" | null>(null);
+  const [trendDirection, setTrendDirection] = useState<TrendDirection>("up");
   const priceRef = useRef<number | null>(null);
+  const trendDirectionRef = useRef<TrendDirection>("up");
 
   useEffect(() => {
     priceRef.current = price;
   }, [price]);
+
+  useEffect(() => {
+    trendDirectionRef.current = trendDirection;
+    areaRef.current?.applyOptions(getAreaSeriesOptions(trendDirection));
+  }, [trendDirection]);
+
+  useEffect(() => {
+    chartRef.current?.applyOptions(getChartThemeOptions(currentTheme));
+  }, [currentTheme]);
 
   const updateLiveCandle = useCallback((newPrice: number, timestamp?: string | number) => {
     const candleSeries = candleRef.current;
@@ -289,6 +394,8 @@ export function TradingChart({
 
     candles = normalizeCandles(candles);
 
+    let nextTrendDirection: TrendDirection | null = null;
+
     if (quoteJson.success && quoteJson.data?.quote) {
       const quote = quoteJson.data.quote;
       setPrice(quote.price);
@@ -296,6 +403,21 @@ export function TradingChart({
       setVolume(quote.volume || 0);
       setHigh24h(quote.high24h || 0);
       setLow24h(quote.low24h || 0);
+      if (typeof quote.changePercent === "number" && quote.changePercent !== 0) {
+        nextTrendDirection = quote.changePercent > 0 ? "up" : "down";
+      }
+    }
+
+    if (!nextTrendDirection && candles.length > 1) {
+      const firstClose = candles[0].close;
+      const lastClose = candles[candles.length - 1].close;
+      if (lastClose !== firstClose) {
+        nextTrendDirection = lastClose > firstClose ? "up" : "down";
+      }
+    }
+
+    if (nextTrendDirection) {
+      setTrendDirection(nextTrendDirection);
     }
 
     if (!containerRef.current) return;
@@ -312,29 +434,9 @@ export function TradingChart({
     }
 
     const chart = createChart(containerRef.current, {
-      layout: {
-        background: { type: ColorType.Solid, color: "transparent" },
-        textColor: "#e8e8e8",
-      },
-      grid: {
-        vertLines: { color: "rgba(255,255,255,0.08)" },
-        horzLines: { color: "rgba(255,255,255,0.08)" },
-      },
-      crosshair: {
-        mode: 1,
-        vertLine: {
-          color: "rgba(0, 212, 170, 0.5)",
-          width: 1,
-          style: 2,
-        },
-        horzLine: {
-          color: "rgba(0, 212, 170, 0.5)",
-          width: 1,
-          style: 2,
-        },
-      },
+      ...getChartThemeOptions(currentTheme),
       width: containerRef.current.clientWidth,
-      height: variant === "dashboard" ? 420 : 500,
+      height: getResponsiveChartHeight(containerRef.current.clientWidth, variant),
     });
 
     if (variant === "dashboard") {
@@ -351,14 +453,7 @@ export function TradingChart({
       candleSeries.setData(candles);
       candleRef.current = candleSeries;
     } else {
-      const areaSeries = chart.addSeries(AreaSeries, {
-        lineColor: "#00a48d",
-        topColor: "rgba(0, 164, 141, 0.24)",
-        bottomColor: "rgba(0, 164, 141, 0.03)",
-        lineWidth: 2,
-        priceLineVisible: true,
-        lastValueVisible: true,
-      });
+      const areaSeries = chart.addSeries(AreaSeries, getAreaSeriesOptions(nextTrendDirection ?? trendDirectionRef.current));
 
       areaSeries.setData(candles.map((candle) => ({ time: candle.time, value: candle.close })));
       areaRef.current = areaSeries;
@@ -424,23 +519,37 @@ export function TradingChart({
       setPrice((current) => current ?? candles[candles.length - 1].close);
     }
     setLoading(false);
-  }, [symbol, assetType, chartInterval, indicators, fetchOlderCandles, variant]);
+  }, [symbol, assetType, chartInterval, indicators, fetchOlderCandles, variant, currentTheme]);
 
   useEffect(() => {
     const timer = setTimeout(() => loadChart(), 0);
+    let resizeObserver: ResizeObserver | null = null;
     const onResize = () => {
       if (chartRef.current && containerRef.current) {
         try {
-          chartRef.current.applyOptions({ width: containerRef.current.clientWidth });
+          const width = containerRef.current.clientWidth;
+          chartRef.current.applyOptions({
+            width,
+            height: getResponsiveChartHeight(width, variant),
+          });
         } catch {
           // Ignore errors during resize
         }
       }
     };
     window.addEventListener("resize", onResize);
+    if (typeof ResizeObserver !== "undefined" && containerRef.current) {
+      resizeObserver = new ResizeObserver(onResize);
+      resizeObserver.observe(containerRef.current);
+    }
     return () => {
       clearTimeout(timer);
       window.removeEventListener("resize", onResize);
+      resizeObserver?.disconnect();
+      if (flashTimerRef.current) {
+        window.clearTimeout(flashTimerRef.current);
+        flashTimerRef.current = null;
+      }
       try {
         chartRef.current?.remove();
       } catch {
@@ -452,7 +561,7 @@ export function TradingChart({
       candleDataRef.current = [];
       latestCandleRef.current = null;
     };
-  }, [loadChart]);
+  }, [loadChart, variant]);
 
   // Real-time price updates via SSE with polling fallback
   useEffect(() => {
@@ -476,9 +585,21 @@ export function TradingChart({
       if (typeof tick.high24h === "number") setHigh24h(tick.high24h);
       if (typeof tick.low24h === "number") setLow24h(tick.low24h);
 
+      let direction: TrendDirection | null = null;
       if (prevPrice !== null && tick.price !== prevPrice) {
-        setPriceDirection(tick.price > prevPrice ? "up" : "down");
-        setTimeout(() => setPriceDirection(null), 200);
+        direction = tick.price > prevPrice ? "up" : "down";
+      } else if (prevPrice === null && tick.changePercent !== undefined && tick.changePercent !== null && tick.changePercent !== 0) {
+        direction = tick.changePercent > 0 ? "up" : "down";
+      }
+
+      if (direction) {
+        setTrendDirection(direction);
+        setPriceDirection(direction);
+        if (flashTimerRef.current) window.clearTimeout(flashTimerRef.current);
+        flashTimerRef.current = window.setTimeout(() => {
+          setPriceDirection(null);
+          flashTimerRef.current = null;
+        }, 240);
       }
 
       updateLiveCandle(tick.price, tick.updatedAt);
@@ -577,6 +698,7 @@ export function TradingChart({
     { symbol: "AAPL", assetType: "stock", label: "AAPL" },
     { symbol: "NVDA", assetType: "stock", label: "NVDA" },
   ];
+  const trendStyle = TREND_STYLE[trendDirection];
 
   return (
     <div className="space-y-4">
@@ -609,18 +731,18 @@ export function TradingChart({
         </button>
       </div>
 
-      <div className="flex flex-wrap items-baseline gap-4">
-        <div className="flex items-baseline gap-3">
+      <div className="flex flex-wrap items-baseline gap-3 sm:gap-4">
+        <div className="flex min-w-0 flex-wrap items-baseline gap-2 sm:gap-3">
           <span className={cn(
-            "font-mono text-4xl font-bold tabular-nums px-2 py-1 rounded transition-all",
+            "rounded px-1.5 py-1 font-mono text-2xl font-bold tabular-nums transition-all sm:px-2 sm:text-4xl",
             priceDirection === "up" && "price-flash-up",
             priceDirection === "down" && "price-flash-down"
           )}>
             {price?.toFixed(2) ?? "—"}
           </span>
-          <span className="font-mono text-base text-muted-foreground">{symbol}</span>
+          <span className="font-mono text-xs text-muted-foreground sm:text-base">{symbol}</span>
         </div>
-        <div className="flex items-center gap-4 text-sm">
+        <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs sm:gap-4 sm:text-sm">
           <div className={cn(
             "flex items-center gap-1 px-3 py-1.5 rounded-lg transition-all",
             priceChange >= 0 ? 'bg-success/20 text-success' : 'bg-error/20 text-error',
@@ -634,8 +756,8 @@ export function TradingChart({
             )}
             <span className="font-mono font-bold">{priceChange >= 0 ? '+' : ''}{priceChange.toFixed(2)}%</span>
           </div>
-          <span className="text-muted-foreground">Vol: {volume.toLocaleString()}</span>
-          <span className="text-muted-foreground">24H: {low24h.toFixed(2)} - {high24h.toFixed(2)}</span>
+          <span className="text-muted-foreground max-[380px]:hidden">Vol: {volume.toLocaleString()}</span>
+          <span className="text-muted-foreground max-[420px]:w-full">24H: {low24h.toFixed(2)} - {high24h.toFixed(2)}</span>
         </div>
       </div>
 
@@ -674,17 +796,17 @@ export function TradingChart({
       </div>
 
       {variant !== "dashboard" && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/60 bg-card/70 p-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-border/60 bg-card/70 p-2 sm:gap-3">
           <div className="flex items-center gap-2">
             <button
               type="button"
-              className="rounded-full bg-foreground px-4 py-2 text-sm font-semibold text-background"
+              className="rounded-full bg-foreground px-3 py-1.5 text-xs font-semibold text-background sm:px-4 sm:py-2 sm:text-sm"
             >
               Price
             </button>
             <button
               type="button"
-              className="rounded-full bg-muted px-4 py-2 text-sm font-semibold text-muted-foreground hover:text-foreground"
+              className="rounded-full bg-muted px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground sm:px-4 sm:py-2 sm:text-sm"
             >
               Market cap
             </button>
@@ -716,9 +838,41 @@ export function TradingChart({
         </div>
       )}
 
-      <div className="dash-panel relative rounded-lg p-2">
+      <div className="flex justify-end">
+        <div
+          className={cn(
+            "flex items-center gap-2 rounded-2xl border px-3 py-2 shadow-sm backdrop-blur-xl transition-all duration-300",
+            trendStyle.badgeClass
+          )}
+          aria-label={trendStyle.label}
+        >
+          <Image
+            src={trendStyle.image}
+            alt={trendStyle.imageAlt}
+            width={48}
+            height={48}
+            className="h-9 w-9 drop-shadow-[0_10px_24px_rgba(0,0,0,0.32)] sm:h-12 sm:w-12"
+          />
+          <span className="text-xs font-bold uppercase tracking-[0.16em]">
+            {trendStyle.label}
+          </span>
+        </div>
+      </div>
+
+      <div
+        className={cn(
+          "dash-panel relative overflow-hidden rounded-lg p-2 transition-shadow duration-300",
+          trendDirection === "up"
+            ? "shadow-[0_0_42px_rgba(0,212,170,0.12)]"
+            : "shadow-[0_0_42px_rgba(255,71,87,0.12)]"
+        )}
+      >
         {loading && <div className="absolute inset-0 z-10 skeleton rounded-lg" />}
-        <div ref={containerRef} className="w-full" style={{ height: variant === "dashboard" ? "400px" : "500px" }} />
+        <div
+          ref={containerRef}
+          className="w-full"
+          style={{ height: variant === "dashboard" ? "clamp(280px, 66vw, 400px)" : "clamp(320px, 74vw, 500px)" }}
+        />
       </div>
     </div>
   );

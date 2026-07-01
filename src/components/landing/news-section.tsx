@@ -65,6 +65,7 @@ const fallbackNews: NewsItem[] = [
 ];
 
 const landingNewsCache = new Map<string, NewsItem[]>();
+const NEWS_REFRESH_MS = 60_000;
 
 export function NewsSection({ coinSymbols }: NewsSectionProps) {
   const cacheKey = coinSymbols?.length ? coinSymbols.map((symbol) => symbol.toUpperCase()).sort().join(",") : "all";
@@ -122,8 +123,7 @@ export function NewsSection({ coinSymbols }: NewsSectionProps) {
 
     fetchNews();
     
-    // Refresh news every 5 minutes
-    const interval = setInterval(fetchNews, 300000);
+    const interval = setInterval(fetchNews, NEWS_REFRESH_MS);
     return () => {
       cancelled = true;
       clearInterval(interval);
@@ -132,7 +132,7 @@ export function NewsSection({ coinSymbols }: NewsSectionProps) {
 
   if (loading) {
     return (
-      <section className="relative py-20 bg-[#0A0A0B]" suppressHydrationWarning>
+      <section className="relative py-20 landing-section-surface" suppressHydrationWarning>
         <div className="relative z-10 mx-auto max-w-[1800px] px-4 sm:px-6" suppressHydrationWarning>
           <div className="text-center py-12" suppressHydrationWarning>
             <p className="text-gray-400" suppressHydrationWarning>Loading news...</p>
@@ -143,7 +143,7 @@ export function NewsSection({ coinSymbols }: NewsSectionProps) {
   }
 
   return (
-    <section className="relative py-20 bg-gray-50 dark:bg-[#0a0c0c]" suppressHydrationWarning>
+    <section className="relative py-20 landing-section-surface" suppressHydrationWarning>
       <div className="absolute inset-0" suppressHydrationWarning>
         <div
           className="absolute inset-0"

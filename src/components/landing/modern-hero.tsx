@@ -60,7 +60,7 @@ export function ModernHero() {
     Bearish: currentTheme === "dark" ? "text-red-400" : "text-red-600",
   }[perspective.sentiment];
 
-  const bgColor = currentTheme === "dark" ? "bg-[#0a0c0c]" : "bg-gray-50";
+  const bgColor = "landing-section-surface";
   const textColor = currentTheme === "dark" ? "text-white" : "text-gray-900";
   const secondaryTextColor = currentTheme === "dark" ? "text-gray-400" : "text-gray-600";
   const gridColor = currentTheme === "dark" ? "rgba(255,255,255,0.02)" : "rgba(0,0,0,0.05)";

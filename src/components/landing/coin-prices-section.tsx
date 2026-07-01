@@ -41,7 +41,7 @@ const FEATURED_COIN_META: CoinCardMeta[] = [
   { symbol: "DOGE", name: "Dogecoin" },
   { symbol: "DOT", name: "Polkadot" },
   { symbol: "ETH", name: "Ethereum" },
-  { symbol: "EUR", name: "Euro / US Dollar"},
+  { symbol: "EUR", name: "Euro / US Dollar" },
   { symbol: "LINK", name: "Chainlink" },
   { symbol: "LTC", name: "Litecoin" },
   { symbol: "SOL", name: "Solana" },
@@ -123,9 +123,8 @@ const CoinLiveChangeBadge = memo(function CoinLiveChangeBadge({
 
   return (
     <div
-      className={`flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 backdrop-blur-sm ${
-        positive ? "bg-emerald-400/18 text-emerald-200" : "bg-red-400/18 text-red-200"
-      }`}
+      className={`flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 backdrop-blur-sm ${positive ? "bg-emerald-400/18 text-emerald-200" : "bg-red-400/18 text-red-200"
+        }`}
       suppressHydrationWarning
     >
       {positive ? (
@@ -203,9 +202,9 @@ const CoinPriceCard = memo(function CoinPriceCard({
           backgroundPosition: "center",
         }}
       >
-        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/68 to-black/25" />
-        <div className="absolute inset-0 bg-cyan-950/10 opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
-        <div className="relative z-10 flex h-full flex-col justify-between">
+        <div className="absolute inset-0" style={{background: "#59585845 !important"}} />
+        <div className="absolute inset-0 bg-cyan-950/10 opacity-0 transition-opacity duration-200 group-hover:opacity-100"/>
+        <div className="relative z-10 flex h-full flex-col justify-between rounded-xl p-3">
           <div className="flex items-start justify-between gap-3" suppressHydrationWarning>
             <div className="min-w-0" suppressHydrationWarning>
               <h3 className="text-xl font-bold text-white drop-shadow-lg" suppressHydrationWarning>{coin.symbol}</h3>
@@ -299,7 +298,7 @@ export function CoinPricesSection() {
   }, [applyQuotes]);
 
   return (
-    <section className="relative py-20 bg-gray-50 dark:bg-[#0a0c0c]" suppressHydrationWarning>
+    <section className="relative py-20 landing-section-surface" suppressHydrationWarning>
       <div className="absolute inset-0" suppressHydrationWarning>
         <div
           className="absolute inset-0"

@@ -1,4 +1,6 @@
 import { db } from "@/lib/db";
+import { isDatabaseConnectivityError } from "@/lib/db-errors";
+import { getFallbackQuotes } from "@/lib/fallback-data";
 import { broadcastMarketTick } from "./stream";
 
 interface CryptoPrice {
@@ -18,6 +20,16 @@ interface CoinGeckoCoin {
   price_change_percentage_24h: number | null;
 }
 
+interface MarketQuotePayload {
+  symbol: string;
+  assetType: string;
+  name: string;
+  price: number;
+  change: number;
+  changePercent: number;
+  providerName: string;
+}
+
 const COINGECKO_IDS: Record<string, string> = {
   "BTC": "bitcoin",
   "ETH": "ethereum",
@@ -35,9 +47,10 @@ const COINGECKO_IDS: Record<string, string> = {
   "ETC": "ethereum-classic",
 };
 
-const FOREX_FALLBACK_QUOTES = [
-  { symbol: "EUR/USD", assetType: "forex", name: "Euro / US Dollar", basePrice: 1.08 },
-];
+const CONNECTIVITY_WARNING_INTERVAL_MS = 60_000;
+const marketQuoteMemory = new Map<string, number>();
+let lastCoinGeckoWarningAt = 0;
+let lastDatabaseWarningAt = 0;
 
 /**
  * Fetch real-time crypto prices from CoinGecko API (free, no API key required)
@@ -51,11 +64,12 @@ export async function fetchCryptoPrices(): Promise<CryptoPrice[]> {
         headers: {
           'User-Agent': 'TRADX/1.0',
         },
+        signal: AbortSignal.timeout(10_000),
       }
     );
 
     if (!response.ok) {
-      console.error("CoinGecko API error:", response.status);
+      warnCoinGeckoOnce(`CoinGecko returned ${response.status}; serving local fallback quotes.`);
       return [];
     }
 
@@ -77,7 +91,7 @@ export async function fetchCryptoPrices(): Promise<CryptoPrice[]> {
 
     return prices;
   } catch (error) {
-    console.error("Error fetching crypto prices:", error);
+    warnCoinGeckoOnce("CoinGecko request failed; serving local fallback quotes.", error);
     return [];
   }
 }
@@ -88,132 +102,173 @@ export async function fetchCryptoPrices(): Promise<CryptoPrice[]> {
 export async function updateMarketQuotes() {
   try {
     const prices = await fetchCryptoPrices();
-    let updated = 0;
+    const quotes = prices.length > 0 ? normalizeCryptoPrices(prices) : buildSyntheticFallbackQuotes();
+    const validQuotes: MarketQuotePayload[] = [];
+    let broadcasted = 0;
+    let persisted = 0;
 
-    if (prices.length === 0) {
-      console.warn("No crypto prices fetched; continuing with available fallback quotes.");
+    for (const quote of quotes) {
+      if (!isValidPrice(quote.price)) continue;
+
+      broadcastMarketQuote(quote);
+      rememberMarketQuote(quote);
+      validQuotes.push(quote);
+      broadcasted++;
     }
 
-    for (const priceData of prices) {
+    for (const quote of validQuotes) {
       try {
-        // Skip if price is null or invalid
-        if (priceData.price == null || isNaN(priceData.price) || priceData.price <= 0) {
-          continue;
+        await persistMarketQuote(quote);
+        persisted++;
+      } catch (error) {
+        if (isDatabaseConnectivityError(error)) {
+          warnDatabaseOnce(
+            "Market database is temporarily unreachable; live quote broadcasts are continuing without persistence.",
+            error
+          );
+          break;
         }
 
-        // Try to find existing record first
-        const existing = await db.marketQuote.findFirst({
-          where: {
-            symbol: priceData.symbol,
-            assetType: "crypto",
-          },
-        });
-        
-        if (existing) {
-          // Update existing
-          await db.marketQuote.update({
-            where: { id: existing.id },
-            data: {
-              name: priceData.name,
-              price: priceData.price,
-              change: priceData.change24h,
-              changePercent: priceData.changePercent24h,
-            },
-          });
-        } else {
-          // Create new
-          await db.marketQuote.create({
-            data: {
-              symbol: priceData.symbol,
-              assetType: "crypto",
-              name: priceData.name,
-              price: priceData.price,
-              change: priceData.change24h,
-              changePercent: priceData.changePercent24h,
-              providerName: "coingecko",
-            },
-          });
-        }
-        
-        // Add to price history
-        await db.priceHistory.create({
-          data: {
-            symbol: priceData.symbol,
-            assetType: "crypto",
-            price: priceData.price,
-            timestamp: new Date(),
-          },
-        });
-        
-        // Broadcast to SSE clients
-        broadcastMarketTick({
-          symbol: priceData.symbol,
-          assetType: "crypto",
-          price: priceData.price,
-          change: priceData.change24h,
-          changePercent: priceData.changePercent24h,
-          updatedAt: new Date().toISOString(),
-        });
-        
-        updated++;
-      } catch (error) {
-        console.error(`Error updating ${priceData.symbol}:`, error);
-      }
-    }
-
-    for (const fallback of FOREX_FALLBACK_QUOTES) {
-      try {
-        const existing = await db.marketQuote.findFirst({
-          where: { symbol: fallback.symbol, assetType: fallback.assetType },
-        });
-        const previousPrice = existing?.price ?? fallback.basePrice;
-        const drift = (Math.random() - 0.5) * fallback.basePrice * 0.001;
-        const price = Math.max(0.0001, previousPrice + drift);
-        const change = price - previousPrice;
-        const changePercent = previousPrice > 0 ? (change / previousPrice) * 100 : 0;
-
-        await db.marketQuote.upsert({
-          where: { symbol_assetType: { symbol: fallback.symbol, assetType: fallback.assetType } },
-          create: {
-            symbol: fallback.symbol,
-            assetType: fallback.assetType,
-            name: fallback.name,
-            price,
-            change,
-            changePercent,
-            providerName: "fallback",
-          },
-          update: {
-            name: fallback.name,
-            price,
-            change,
-            changePercent,
-            providerName: "fallback",
-          },
-        });
-
-        broadcastMarketTick({
-          symbol: fallback.symbol,
-          assetType: fallback.assetType,
-          price,
-          change,
-          changePercent,
-          updatedAt: new Date().toISOString(),
-        });
-
-        updated++;
-      } catch (error) {
-        console.error(`Error updating ${fallback.symbol}:`, error);
+        console.warn(`[market] Could not persist ${quote.symbol}; continuing broadcasts.`, error);
       }
     }
     
-    return updated > 0
-      ? { success: true, updated }
+    return broadcasted > 0
+      ? { success: true, updated: broadcasted, persisted, degraded: persisted < broadcasted }
       : { success: false, error: "No prices fetched" };
   } catch (error) {
-    console.error("Error updating market quotes:", error);
+    if (isDatabaseConnectivityError(error)) {
+      warnDatabaseOnce("Market quote refresh skipped persistence because the database is unreachable.", error);
+    } else {
+      console.error("Error updating market quotes:", error);
+    }
     return { success: false, error: String(error) };
   }
+}
+
+function normalizeCryptoPrices(prices: CryptoPrice[]): MarketQuotePayload[] {
+  const cryptoQuotes = prices.map((price) => ({
+    symbol: price.symbol,
+    assetType: "crypto",
+    name: price.name,
+    price: price.price,
+    change: price.change24h,
+    changePercent: price.changePercent24h,
+    providerName: "coingecko",
+  }));
+
+  const forexFallbacks = buildSyntheticFallbackQuotes().filter((quote) => quote.assetType === "forex");
+  return [...cryptoQuotes, ...forexFallbacks];
+}
+
+function buildSyntheticFallbackQuotes(): MarketQuotePayload[] {
+  return getFallbackQuotes().map((quote) => {
+    const key = quoteKey(quote.symbol, quote.assetType);
+    const previous = marketQuoteMemory.get(key) ?? quote.price;
+    const volatility = quote.assetType === "forex" ? quote.price * 0.00035 : quote.price * 0.0015;
+    const drift = (Math.random() - 0.48) * volatility;
+    const price = Math.max(quote.price * 0.05, previous + drift);
+    const change = price - quote.price;
+    const changePercent = quote.price > 0 ? (change / quote.price) * 100 : 0;
+
+    return {
+      symbol: quote.symbol,
+      assetType: quote.assetType,
+      name: quote.name,
+      price,
+      change,
+      changePercent,
+      providerName: "fallback",
+    };
+  });
+}
+
+async function persistMarketQuote(quote: MarketQuotePayload) {
+  await db.marketQuote.upsert({
+    where: { symbol_assetType: { symbol: quote.symbol, assetType: quote.assetType } },
+    create: {
+      symbol: quote.symbol,
+      assetType: quote.assetType,
+      name: quote.name,
+      price: quote.price,
+      change: quote.change,
+      changePercent: quote.changePercent,
+      providerName: quote.providerName,
+    },
+    update: {
+      name: quote.name,
+      price: quote.price,
+      change: quote.change,
+      changePercent: quote.changePercent,
+      providerName: quote.providerName,
+    },
+  });
+
+  await db.priceHistory.create({
+    data: {
+      symbol: quote.symbol,
+      assetType: quote.assetType,
+      price: quote.price,
+      timestamp: new Date(),
+    },
+  });
+}
+
+function broadcastMarketQuote(quote: MarketQuotePayload) {
+  broadcastMarketTick({
+    symbol: quote.symbol,
+    assetType: quote.assetType,
+    price: quote.price,
+    change: quote.change,
+    changePercent: quote.changePercent,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+function rememberMarketQuote(quote: MarketQuotePayload) {
+  marketQuoteMemory.set(quoteKey(quote.symbol, quote.assetType), quote.price);
+}
+
+function quoteKey(symbol: string, assetType: string) {
+  return `${symbol.toUpperCase()}:${assetType.toLowerCase()}`;
+}
+
+function isValidPrice(price: number) {
+  return price != null && Number.isFinite(price) && price > 0;
+}
+
+function warnCoinGeckoOnce(message: string, error?: unknown) {
+  const now = Date.now();
+  if (now - lastCoinGeckoWarningAt < CONNECTIVITY_WARNING_INTERVAL_MS) return;
+  lastCoinGeckoWarningAt = now;
+  if (error) {
+    console.warn(`[market] ${message}`, compactError(error));
+    return;
+  }
+  console.warn(`[market] ${message}`);
+}
+
+function warnDatabaseOnce(message: string, error?: unknown) {
+  const now = Date.now();
+  if (now - lastDatabaseWarningAt < CONNECTIVITY_WARNING_INTERVAL_MS) return;
+  lastDatabaseWarningAt = now;
+  if (error) {
+    console.warn(`[market] ${message}`, compactError(error));
+    return;
+  }
+  console.warn(`[market] ${message}`);
+}
+
+function compactError(error: unknown) {
+  if (error instanceof Error) {
+    return { name: error.name, message: error.message };
+  }
+
+  if (error && typeof error === "object" && "code" in error) {
+    return { code: String((error as { code?: unknown }).code) };
+  }
+
+  return String(error);
 }
 
 let pendingMarketRefresh: Promise<unknown> | null = null;

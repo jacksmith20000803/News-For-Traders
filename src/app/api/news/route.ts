@@ -8,6 +8,15 @@ import { ImportanceLevel, Prisma } from "@prisma/client";
 import { z } from "zod";
 import { isDatabaseConnectivityError } from "@/lib/db-errors";
 import { getFallbackNews } from "@/lib/fallback-data";
+import { ingestNewsFromProviders } from "@/lib/providers/news/ingest";
+
+const NEWS_STALE_AFTER_MS = 10 * 60 * 1000;
+const NEWS_REFRESH_COOLDOWN_MS = 60 * 1000;
+let lastNewsRefreshAttempt = 0;
+let newsRefreshInFlight: Promise<unknown> | null = null;
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 const newsQuerySchema = paginationSchema.extend({
   importance: z.nativeEnum(ImportanceLevel).optional(),
@@ -59,6 +68,8 @@ export async function GET(request: NextRequest) {
       ];
     }
 
+    await refreshNewsIfStale();
+
     if (lite) {
       const news = await db.news.findMany({
         where,
@@ -78,7 +89,7 @@ export async function GET(request: NextRequest) {
         take: params.limit,
       });
 
-      return apiSuccess({
+      const response = apiSuccess({
         news,
         personalized: null,
         favoriteNewsIds: [],
@@ -89,16 +100,20 @@ export async function GET(request: NextRequest) {
           totalPages: news.length < params.limit ? params.page : params.page + 1,
         },
       });
+      response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate");
+      return response;
     }
 
     const user = await getCurrentUser();
     if (favoriteOnly && !user) {
-      return apiSuccess({
+      const response = apiSuccess({
         news: [],
         personalized: null,
         favoriteNewsIds: [],
         pagination: { page: params.page, limit: params.limit, total: 0, totalPages: 0 },
       });
+      response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate");
+      return response;
     }
 
     if (favoriteOnly && user) {
@@ -175,7 +190,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    return apiSuccess({
+    const response = apiSuccess({
       news,
       personalized,
       favoriteNewsIds,
@@ -190,6 +205,8 @@ export async function GET(request: NextRequest) {
           : Math.ceil((total ?? 0) / params.limit),
       },
     });
+    response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate");
+    return response;
   } catch (error) {
     if (isDatabaseConnectivityError(error)) {
       const { searchParams } = new URL(request.url);
@@ -198,7 +215,7 @@ export async function GET(request: NextRequest) {
       const favoriteOnly = searchParams.get("favorites") === "true";
       const news = favoriteOnly ? [] : getFallbackNews(limit);
 
-      return apiSuccess({
+      const response = apiSuccess({
         news,
         personalized: null,
         favoriteNewsIds: [],
@@ -210,7 +227,50 @@ export async function GET(request: NextRequest) {
           totalPages: news.length ? 1 : 0,
         },
       });
+      response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate");
+      return response;
     }
     return handleApiError(error);
+  }
+}
+
+async function refreshNewsIfStale() {
+  const now = Date.now();
+  if (newsRefreshInFlight) {
+    await withTimeout(newsRefreshInFlight, 4000);
+    return;
+  }
+  if (now - lastNewsRefreshAttempt < NEWS_REFRESH_COOLDOWN_MS) return;
+
+  const latest = await db.news.findFirst({
+    orderBy: { publishedAt: "desc" },
+    select: { publishedAt: true },
+  });
+
+  if (latest && now - latest.publishedAt.getTime() < NEWS_STALE_AFTER_MS) return;
+
+  lastNewsRefreshAttempt = now;
+  newsRefreshInFlight = ingestNewsFromProviders()
+    .catch((error) => {
+      console.warn("[news] Live news refresh failed:", error);
+    })
+    .finally(() => {
+      newsRefreshInFlight = null;
+    });
+
+  await withTimeout(newsRefreshInFlight, 4000);
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number) {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      promise,
+      new Promise<void>((resolve) => {
+        timeoutId = setTimeout(resolve, timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
   }
 }

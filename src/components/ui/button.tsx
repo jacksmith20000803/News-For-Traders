@@ -5,11 +5,11 @@ import { forwardRef, type ButtonHTMLAttributes } from "react";
 const variants = {
   default: "bg-primary text-primary-foreground hover:bg-primary/90",
   secondary: "bg-muted text-foreground hover:bg-muted/80",
-  outline: "border border-border bg-transparent hover:bg-muted",
-  ghost: "hover:bg-muted",
-  destructive: "bg-destructive text-white hover:bg-destructive/90",
+  outline: "border border-border bg-background/90 text-foreground shadow-sm hover:bg-muted",
+  ghost: "bg-background/60 text-foreground hover:bg-muted",
+  destructive: "bg-red-600 text-white shadow-red-600/20 hover:bg-red-500",
   accent: "bg-accent text-accent-foreground hover:bg-accent/90",
-  success: "bg-success text-white hover:bg-success/90",
+  success: "bg-emerald-600 text-white shadow-emerald-600/20 hover:bg-emerald-500",
 } as const;
 
 const sizes = {
@@ -34,7 +34,7 @@ function buttonStyles({
   return cn(
     "inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-all duration-300",
     "hover:shadow-lg hover:-translate-y-0.5 hover:scale-[1.02]",
-    "active:scale-95 active:translate-y-0",
+    "active:scale-95 active:translate-y-0.5",
     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
     variants[variant],
     sizes[size],

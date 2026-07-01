@@ -30,8 +30,9 @@ export function LoginForm({ googleEnabled, githubEnabled }: LoginFormProps) {
   const [rememberDevice, setRememberDevice] = useState(false);
   const [recoveryMode, setRecoveryMode] = useState(false);
   const [recoveryCode, setRecoveryCode] = useState("");
+  const [twoFactorInvalid, setTwoFactorInvalid] = useState(false);
   const redirectTo = getSafeRedirect(searchParams.get("redirect"));
-  const twoFactorWarning = error.toLowerCase().includes("two-factor");
+  const twoFactorWarning = twoFactorInvalid;
 
   const {
     register,
@@ -50,6 +51,7 @@ export function LoginForm({ googleEnabled, githubEnabled }: LoginFormProps) {
   const onSubmit = async (data: LoginInput) => {
     setIsLoading(true);
     setError("");
+    setTwoFactorInvalid(false);
     let didRedirect = false;
 
     try {
@@ -70,7 +72,7 @@ export function LoginForm({ googleEnabled, githubEnabled }: LoginFormProps) {
                 challengeToken,
                 token: data.twoFactorCode ?? "",
                 rememberDevice,
-                deviceName: navigator.userAgent,
+                deviceName: navigator.userAgent.slice(0, 255),
               }
             : data
         ),
@@ -92,6 +94,7 @@ export function LoginForm({ googleEnabled, githubEnabled }: LoginFormProps) {
       if (!json.success) {
         if (json.code === "TWO_FACTOR_REQUIRED") {
           setRequiresTwoFactor(true);
+          setTwoFactorInvalid(false);
           setError("Enter your authenticator code to finish signing in.");
           return;
         }
@@ -108,6 +111,7 @@ export function LoginForm({ googleEnabled, githubEnabled }: LoginFormProps) {
           json.code === "INVALID_TWO_FACTOR_CODE" ||
           json.code === "INVALID_TOKEN"
         ) {
+          setTwoFactorInvalid(true);
           setError("Warning: incorrect two-factor authentication code.");
           return;
         }
@@ -119,6 +123,7 @@ export function LoginForm({ googleEnabled, githubEnabled }: LoginFormProps) {
         setRequiresTwoFactor(true);
         setChallengeToken(json.data.challengeToken ?? "");
         setRecoveryMode(false);
+        setTwoFactorInvalid(false);
         setError(json.data.message ?? "Enter your authenticator code to finish signing in.");
         return;
       }

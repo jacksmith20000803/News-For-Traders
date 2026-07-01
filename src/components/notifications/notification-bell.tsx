@@ -135,7 +135,10 @@ export function NotificationBell() {
           const nextOpen = !open;
           setOpen(nextOpen);
           if (nextOpen) {
-            void load();
+            void (async () => {
+              await load();
+              await markAllRead();
+            })();
           }
         }}
         className={`relative flex h-10 w-10 items-center justify-center rounded-[14px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70 ${
@@ -154,7 +157,7 @@ export function NotificationBell() {
       </button>
 
       {open && (
-        <div className={`absolute right-0 top-full z-50 mt-2 w-80 rounded-lg border ${borderColor} ${modalBg} backdrop-blur-xl shadow-xl`}>
+        <div className={`fixed left-2 right-2 top-16 z-[99] max-h-[calc(100vh-5rem)] overflow-hidden rounded-2xl border ${borderColor} ${modalBg} backdrop-blur-xl shadow-xl sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80`}>
           <div className={`flex items-center justify-between border-b ${borderColor} px-4 py-3 ${modalBg}`}>
             <span className={`text-sm font-semibold ${textColor}`}>Notifications</span>
             {unreadCount > 0 && (
@@ -167,7 +170,7 @@ export function NotificationBell() {
               </button>
             )}
           </div>
-          <div className={`max-h-80 overflow-y-auto ${modalBg}`}>
+          <div className={`max-h-[min(20rem,calc(100vh-10rem))] overflow-y-auto ${modalBg}`}>
             {notifications.length === 0 ? (
               <p className="px-4 py-6 text-center text-sm text-muted-foreground">
                 No notifications yet

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { TrendingUp, TrendingDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { subscribeRealtimeSync } from "@/components/realtime/realtime-sync";
+import { useMounted } from "@/lib/hooks/use-mounted";
 
 interface TickerItem {
   symbol: string;
@@ -13,6 +14,7 @@ interface TickerItem {
 }
 
 export function PriceTicker() {
+  const mounted = useMounted();
   const initialTickers = useMemo<TickerItem[]>(() => [
     { symbol: "ADA/USD", price: 0.45, change: 0, changePercent: 0 },
     { symbol: "ATOM/USD", price: 6.2, change: 0, changePercent: 0 },
@@ -49,6 +51,15 @@ export function PriceTicker() {
       }));
     });
   }, []);
+
+  if (!mounted) {
+    return (
+      <div
+        className="h-9 w-full border-b border-gray-300 bg-gray-100 dark:border-white/5 dark:bg-[#0a0c0c]"
+        suppressHydrationWarning
+      />
+    );
+  }
 
   return (
     <div className="w-full border-b border-gray-300 bg-gray-100 overflow-hidden relative dark:border-white/5 dark:bg-[#0a0c0c]" suppressHydrationWarning>

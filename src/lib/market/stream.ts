@@ -1,5 +1,8 @@
 import { db } from "@/lib/db";
+import { toAssetSlug } from "@/lib/assets/symbols";
+import { isDatabaseConnectivityError } from "@/lib/db-errors";
 import { eventBus } from "@/lib/events/broadcaster";
+import { getFallbackQuotes } from "@/lib/fallback-data";
 
 export type MarketInterval = "1s" | "1m" | "5m" | "15m" | "1H" | "4H" | "1D" | "1W" | "1Y";
 
@@ -19,7 +22,22 @@ export function broadcastMarketTick(tick: MarketTick) {
 
 /** Fetch latest quotes and broadcast — called from cron/sync */
 export async function syncAndBroadcastMarket(): Promise<number> {
-  const quotes = await db.marketQuote.findMany({ orderBy: { updatedAt: "desc" }, take: 50 });
+  let quotes: Array<{
+    symbol: string;
+    assetType: string;
+    price: number;
+    change: number | null;
+    changePercent: number | null;
+    updatedAt: Date | string;
+  }>;
+
+  try {
+    quotes = await db.marketQuote.findMany({ orderBy: { updatedAt: "desc" }, take: 50 });
+  } catch (error) {
+    if (!isDatabaseConnectivityError(error)) throw error;
+    quotes = getFallbackQuotes();
+  }
+
   for (const q of quotes) {
     broadcastMarketTick({
       symbol: q.symbol,
@@ -27,7 +45,7 @@ export async function syncAndBroadcastMarket(): Promise<number> {
       price: q.price,
       change: q.change,
       changePercent: q.changePercent,
-      updatedAt: q.updatedAt.toISOString(),
+      updatedAt: q.updatedAt instanceof Date ? q.updatedAt.toISOString() : q.updatedAt,
     });
   }
   return quotes.length;
@@ -94,69 +112,91 @@ export async function getCandles(
   limit = 200,
   beforeUnixSeconds?: number
 ) {
-  const historyRows = await db.priceHistory.findMany({
-    where: {
-      symbol,
-      assetType,
-      ...(beforeUnixSeconds
-        ? { timestamp: { lt: new Date(beforeUnixSeconds * 1000) } }
-        : {}),
-    },
-    orderBy: { timestamp: "desc" },
-    take: limit * 4,
-  });
-  const history = historyRows.reverse();
+  try {
+    const historyRows = await db.priceHistory.findMany({
+      where: {
+        symbol,
+        assetType,
+        ...(beforeUnixSeconds
+          ? { timestamp: { lt: new Date(beforeUnixSeconds * 1000) } }
+          : {}),
+      },
+      orderBy: { timestamp: "desc" },
+      take: limit * 4,
+    });
+    const history = historyRows.reverse();
 
-  if (history.length === 0) {
-    const quote = await db.marketQuote.findFirst({ where: { symbol, assetType } });
-    return generateSyntheticCandles(symbol, interval, limit, quote?.price, beforeUnixSeconds);
-  }
-
-  const msMap: Record<MarketInterval, number> = {
-    "1s": 1000,
-    "1m": 60000,
-    "5m": 300000,
-    "15m": 900000,
-    "1H": 3600000,
-    "4H": 14400000,
-    "1D": 86400000,
-    "1W": 604800000,
-    "1Y": 31536000000,
-  };
-
-  const bucketMs = msMap[interval];
-  const buckets = new Map<number, { open: number; high: number; low: number; close: number }>();
-
-  for (const h of history) {
-    const ts = Math.floor(h.timestamp.getTime() / bucketMs) * bucketMs;
-    const existing = buckets.get(ts);
-    if (!existing) {
-      buckets.set(ts, { open: h.price, high: h.price, low: h.price, close: h.price });
-    } else {
-      existing.high = Math.max(existing.high, h.price);
-      existing.low = Math.min(existing.low, h.price);
-      existing.close = h.price;
+    if (history.length === 0) {
+      const quote = await db.marketQuote.findFirst({ where: { symbol, assetType } });
+      return generateSyntheticCandles(
+        symbol,
+        interval,
+        limit,
+        quote?.price ?? getFallbackPrice(symbol),
+        beforeUnixSeconds
+      );
     }
+
+    const msMap: Record<MarketInterval, number> = {
+      "1s": 1000,
+      "1m": 60000,
+      "5m": 300000,
+      "15m": 900000,
+      "1H": 3600000,
+      "4H": 14400000,
+      "1D": 86400000,
+      "1W": 604800000,
+      "1Y": 31536000000,
+    };
+
+    const bucketMs = msMap[interval];
+    const buckets = new Map<number, { open: number; high: number; low: number; close: number }>();
+
+    for (const h of history) {
+      const ts = Math.floor(h.timestamp.getTime() / bucketMs) * bucketMs;
+      const existing = buckets.get(ts);
+      if (!existing) {
+        buckets.set(ts, { open: h.price, high: h.price, low: h.price, close: h.price });
+      } else {
+        existing.high = Math.max(existing.high, h.price);
+        existing.low = Math.min(existing.low, h.price);
+        existing.close = h.price;
+      }
+    }
+
+    const candles = Array.from(buckets.entries())
+      .sort(([a], [b]) => a - b)
+      .slice(-limit)
+      .map(([ts, c]) => ({
+        time: Math.floor(ts / 1000),
+        open: c.open,
+        high: c.high,
+        low: c.low,
+        close: c.close,
+      }));
+
+    // If we have very few candles, supplement with synthetic data
+    if (candles.length < 10) {
+      const quote = await db.marketQuote.findFirst({ where: { symbol, assetType } });
+      return generateSyntheticCandles(
+        symbol,
+        interval,
+        limit,
+        quote?.price ?? getFallbackPrice(symbol),
+        beforeUnixSeconds
+      );
+    }
+
+    return candles;
+  } catch (error) {
+    if (!isDatabaseConnectivityError(error)) throw error;
+    return generateSyntheticCandles(symbol, interval, limit, getFallbackPrice(symbol), beforeUnixSeconds);
   }
+}
 
-  const candles = Array.from(buckets.entries())
-    .sort(([a], [b]) => a - b)
-    .slice(-limit)
-    .map(([ts, c]) => ({
-      time: Math.floor(ts / 1000),
-      open: c.open,
-      high: c.high,
-      low: c.low,
-      close: c.close,
-    }));
-
-  // If we have very few candles, supplement with synthetic data
-  if (candles.length < 10) {
-    const quote = await db.marketQuote.findFirst({ where: { symbol, assetType } });
-    return generateSyntheticCandles(symbol, interval, limit, quote?.price, beforeUnixSeconds);
-  }
-
-  return candles;
+function getFallbackPrice(symbol: string) {
+  const slug = toAssetSlug(symbol);
+  return getFallbackQuotes().find((quote) => toAssetSlug(quote.symbol) === slug)?.price;
 }
 
 export function computeSMA(closes: number[], period: number): (number | null)[] {

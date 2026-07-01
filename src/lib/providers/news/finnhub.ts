@@ -18,7 +18,7 @@ export class FinnhubProvider implements NewsProvider {
     for (const category of categories) {
       const res = await fetch(
         `https://finnhub.io/api/v1/news?category=${category}&token=${FINNHUB_KEY}`,
-        { next: { revalidate: 0 } }
+        { cache: "no-store" }
       );
       if (!res.ok) continue;
 

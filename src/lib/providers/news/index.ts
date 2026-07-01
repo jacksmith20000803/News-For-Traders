@@ -8,11 +8,11 @@ import type { NewsProvider, ProviderStatus } from "./types";
 export type { NewsProvider, NewsItem, MarketQuoteData, ProviderStatus } from "./types";
 
 const providers: NewsProvider[] = [
-  new SyntheticNewsProvider(),
   new FinnhubProvider(),
   new AlphaVantageProvider(),
   new PolygonProvider(),
   new TwelveDataProvider(),
+  new SyntheticNewsProvider(),
 ];
 
 export function getNewsProviders(): NewsProvider[] {
@@ -20,21 +20,13 @@ export function getNewsProviders(): NewsProvider[] {
 }
 
 export function getConfiguredProviders(): NewsProvider[] {
-  // Always include synthetic provider as fallback
   const synthetic = providers.find(p => p.name === "Synthetic");
-  const configured = providers.filter((p) => p.isConfigured());
+  const liveProviders = providers.filter((p) => p.name !== "Synthetic" && p.isConfigured());
 
-  // If only synthetic is configured, return it
-  if (configured.length === 1 && configured[0].name === "Synthetic") {
-    return configured;
+  if (liveProviders.length > 0) {
+    return liveProviders;
   }
 
-  // If other providers are configured, include them
-  if (configured.length > 0) {
-    return configured;
-  }
-
-  // Fallback to synthetic
   return synthetic ? [synthetic] : [];
 }
 

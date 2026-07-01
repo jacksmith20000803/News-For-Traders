@@ -210,7 +210,7 @@ export function AdminUserDetail({ id, kind }: { id: string; kind: DetailKind }) 
       if (document.visibilityState !== "hidden" && !activityLoading) {
         void loadDetail(1, "replace");
       }
-    }, 15_000);
+    }, 60_000);
     return () => window.clearInterval(timer);
   }, [activityLoading, date, loadDetail]);
 
@@ -292,7 +292,7 @@ export function AdminUserDetail({ id, kind }: { id: string; kind: DetailKind }) 
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6 text-base">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Link href="/admin/users" className="text-sm text-primary hover:underline">
           Back to people
@@ -304,17 +304,17 @@ export function AdminUserDetail({ id, kind }: { id: string; kind: DetailKind }) 
       </div>
 
       {message ? (
-        <div className="rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm text-muted-foreground break-all">
+        <div className="rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 text-base text-muted-foreground break-all">
           {message}
         </div>
       ) : null}
 
       <section className="grid gap-5 xl:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)]">
-        <div className="overflow-hidden rounded-3xl border border-border bg-card shadow-sm">
-          <div className="relative min-h-56 overflow-hidden bg-[radial-gradient(circle_at_20%_20%,rgba(16,185,129,0.32),transparent_35%),linear-gradient(135deg,rgba(15,23,42,0.95),rgba(5,150,105,0.55))] p-6 text-white">
+        <div className="overflow-hidden rounded-3xl border border-border bg-card shadow-[0_22px_70px_rgba(0,0,0,0.12)]">
+          <div className="relative flex min-h-[18rem] items-center overflow-hidden bg-[radial-gradient(circle_at_20%_20%,rgba(16,185,129,0.32),transparent_35%),linear-gradient(135deg,rgba(15,23,42,0.95),rgba(5,150,105,0.55))] p-7 text-white">
             <div className="absolute inset-0 opacity-20 [background-image:linear-gradient(90deg,rgba(255,255,255,.12)_1px,transparent_1px),linear-gradient(rgba(255,255,255,.12)_1px,transparent_1px)] [background-size:36px_36px]" />
-            <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex min-w-0 items-center gap-4">
+            <div className="relative flex w-full flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 items-center gap-5">
                 <ProfileAvatar name={data.profile.name} src={data.profile.avatar} />
                 <div className="min-w-0">
                   <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -325,13 +325,13 @@ export function AdminUserDetail({ id, kind }: { id: string; kind: DetailKind }) 
                       {String(data.profile.role)}
                     </Badge>
                   </div>
-                  <h1 className="truncate text-3xl font-semibold tracking-tight">{data.profile.name}</h1>
-                  <p className="truncate text-sm text-white/78">
+                  <h1 className="truncate text-4xl font-bold tracking-tight">{data.profile.name}</h1>
+                  <p className="mt-1 truncate text-base text-white/82">
                     {data.profile.username ? `@${data.profile.username}` : data.profile.visitorId ?? "No username"}
                   </p>
                 </div>
               </div>
-              <div className="grid gap-2 text-sm text-white/82">
+              <div className="grid gap-3 rounded-2xl border border-white/12 bg-white/8 p-4 text-base text-white/86 backdrop-blur">
                 <span className="flex items-center gap-2">
                   <Mail className="h-4 w-4" />
                   {data.profile.email ?? "No email"}
@@ -348,7 +348,7 @@ export function AdminUserDetail({ id, kind }: { id: string; kind: DetailKind }) 
             </div>
           </div>
 
-          <div className="grid gap-4 p-5 md:grid-cols-2">
+          <div className="grid gap-4 bg-card/95 p-5 md:grid-cols-2">
             <InfoCard title="Password">
               <div className="flex items-start justify-between gap-3">
                 <p className="text-sm text-muted-foreground">
@@ -359,7 +359,7 @@ export function AdminUserDetail({ id, kind }: { id: string; kind: DetailKind }) 
                 <button
                   type="button"
                   onClick={() => setShowPassword((value) => !value)}
-                  className="rounded-xl border border-border p-2 text-muted-foreground transition-colors hover:text-primary"
+                  className="rounded-xl border border-border bg-background/80 p-2 text-muted-foreground shadow-sm transition-colors hover:bg-primary/10 hover:text-primary"
                   aria-label={showPassword ? "Hide password status" : "Show password status"}
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -384,9 +384,9 @@ export function AdminUserDetail({ id, kind }: { id: string; kind: DetailKind }) 
         </div>
 
         <aside className="space-y-5">
-          <div className="rounded-3xl border border-border bg-card p-5 shadow-sm">
-            <h2 className="mb-4 text-lg font-semibold">Detailed Information</h2>
-            <div className="grid gap-3 text-sm">
+          <div className="rounded-3xl border border-border bg-card/95 p-5 shadow-[0_18px_54px_rgba(0,0,0,0.10)]">
+            <h2 className="mb-4 text-2xl font-bold text-primary">Detailed Information</h2>
+            <div className="grid gap-3 text-base">
               <DetailLine label="Date of birth" value={data.details.dateOfBirth ? formatDateTime(data.details.dateOfBirth) : "Not provided"} />
               <DetailLine label="Bio" value={data.details.bio ?? "No bio provided"} />
               <DetailLine label="Interests" value={data.details.interests.length ? data.details.interests.join(", ") : "No interests"} />
@@ -395,12 +395,12 @@ export function AdminUserDetail({ id, kind }: { id: string; kind: DetailKind }) 
             </div>
           </div>
 
-          <div className="rounded-3xl border border-border bg-card p-5 shadow-sm">
-            <h2 className="mb-4 text-lg font-semibold">Feedback</h2>
+          <div className="rounded-3xl border border-border bg-card/95 p-5 shadow-[0_18px_54px_rgba(0,0,0,0.10)]">
+            <h2 className="mb-4 text-2xl font-bold text-primary">Feedback</h2>
             <div className="max-h-64 space-y-3 overflow-y-auto pr-1">
               {data.details.feedback.length ? (
                 data.details.feedback.map((feedback) => (
-                  <div key={feedback.id} className="rounded-2xl border border-border bg-background/70 p-3">
+                  <div key={feedback.id} className="rounded-2xl border border-border bg-background/85 p-4 shadow-inner">
                     <div className="mb-1 flex items-center justify-between gap-2">
                       <p className="font-medium">{feedback.subject}</p>
                       <Badge variant="outline">{feedback.status}</Badge>
@@ -417,17 +417,17 @@ export function AdminUserDetail({ id, kind }: { id: string; kind: DetailKind }) 
       </section>
 
       {canManageUser ? (
-        <section className="rounded-3xl border border-border bg-card p-5 shadow-sm">
+      <section className="rounded-3xl border border-border bg-card/95 p-5 shadow-[0_18px_54px_rgba(0,0,0,0.10)]">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="text-lg font-semibold">Account Controls</h2>
+              <h2 className="text-2xl font-bold text-primary">Account Controls</h2>
               <p className="text-sm text-muted-foreground">Manage access, roles, sessions, and password recovery.</p>
             </div>
             <div className="flex flex-wrap gap-2">
               <select
                 value={selectedRole}
                 onChange={(event) => setSelectedRole(event.target.value as Role)}
-                className="h-10 rounded-2xl border border-border bg-background px-3 text-sm outline-none focus:border-primary"
+                className="select-polished h-10 min-w-40 px-3 text-sm font-semibold"
               >
                 <option value="USER">Common user</option>
                 <option value="MODERATOR">Moderator</option>
@@ -441,13 +441,17 @@ export function AdminUserDetail({ id, kind }: { id: string; kind: DetailKind }) 
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="outline" onClick={() => runAdminAction({ action: "reset_password", userId: id })}>
+            <Button
+              size="sm"
+              onClick={() => runAdminAction({ action: "reset_password", userId: id })}
+              className="bg-emerald-600 text-white shadow-[0_12px_30px_rgba(16,185,129,0.22)] hover:bg-emerald-500"
+            >
               <KeyRound className="h-4 w-4" />
               Reset password
             </Button>
             <Button
               size="sm"
-              variant="outline"
+              variant="destructive"
               onClick={() =>
                 runAdminAction({
                   action: "update_user",
@@ -455,6 +459,7 @@ export function AdminUserDetail({ id, kind }: { id: string; kind: DetailKind }) 
                   isSuspended: !data.profile.isSuspended,
                 })
               }
+              className="bg-red-600 text-white shadow-[0_12px_30px_rgba(239,68,68,0.22)] hover:bg-red-500"
             >
               <Ban className="h-4 w-4" />
               {data.profile.isSuspended ? "Remove suspension" : "Disable account"}
@@ -465,20 +470,21 @@ export function AdminUserDetail({ id, kind }: { id: string; kind: DetailKind }) 
               onClick={() => {
                 if (confirm("Delete this account?")) void runAdminAction({ action: "delete_user", userId: id }, "User deleted");
               }}
+              className="bg-red-700 text-white shadow-[0_12px_30px_rgba(185,28,28,0.25)] hover:bg-red-600"
             >
               <Trash2 className="h-4 w-4" />
               Delete account
             </Button>
           </div>
 
-          <div className="mt-5 rounded-2xl border border-border bg-background/70 p-4">
-            <h3 className="mb-3 text-sm font-semibold">Connected Sessions</h3>
+          <div className="mt-5 rounded-2xl border border-border bg-background/80 p-4 shadow-inner">
+            <h3 className="mb-3 text-base font-bold text-foreground">Connected Sessions</h3>
             <div className="max-h-48 space-y-2 overflow-y-auto pr-1">
               {data.details.sessions.length ? (
                 data.details.sessions.map((session) => (
-                  <div key={session.id} className="rounded-xl border border-border bg-card/70 px-3 py-2 text-xs">
+                  <div key={session.id} className="rounded-xl border border-border bg-card/85 px-3 py-2 text-sm">
                     <p className="font-medium">{formatDateTime(session.createdAt, data.details.location.timezone)}</p>
-                    <p className="truncate text-muted-foreground">{session.ipAddress ?? "No IP"} - {session.userAgent ?? "No user agent"}</p>
+                    <p className="truncate text-xs text-muted-foreground">{session.ipAddress ?? "No IP"} - {session.userAgent ?? "No user agent"}</p>
                   </div>
                 ))
               ) : (
@@ -489,20 +495,20 @@ export function AdminUserDetail({ id, kind }: { id: string; kind: DetailKind }) 
         </section>
       ) : null}
 
-      <section className="rounded-3xl border border-border bg-card p-5 shadow-sm">
+        <section className="rounded-3xl border border-border bg-card/95 p-5 shadow-[0_18px_54px_rgba(0,0,0,0.10)]">
         <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <h2 className="text-lg font-semibold">User Activity</h2>
+            <h2 className="text-2xl font-bold text-primary">User Activity</h2>
             <p className="text-sm text-muted-foreground">
               Select a date to inspect page visits and button clicks in chronological order.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="outline" onClick={deleteLogs}>
+            <Button size="sm" variant="destructive" onClick={deleteLogs}>
               <Trash2 className="h-4 w-4" />
               Delete logs
             </Button>
-            <Button size="sm" variant="outline" onClick={() => exportActivity(activityItems)}>
+            <Button size="sm" onClick={() => exportActivity(activityItems)}>
               <Download className="h-4 w-4" />
               Export visible
             </Button>
@@ -525,13 +531,13 @@ export function AdminUserDetail({ id, kind }: { id: string; kind: DetailKind }) 
               <p className="text-sm text-muted-foreground">
                 {data.activity.pagination.total} events on {date}
               </p>
-              <div className="flex rounded-2xl border border-border bg-background p-1">
+              <div className="flex rounded-2xl border border-border bg-card/95 p-1 shadow-inner">
                 <button
                   type="button"
                   onClick={() => setActivityView("list")}
                   className={cn(
-                    "rounded-xl px-3 py-2 transition-colors",
-                    activityView === "list" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+                    "rounded-xl bg-background/70 px-3 py-2 transition-all hover:bg-primary/10 hover:text-primary",
+                    activityView === "list" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground"
                   )}
                   aria-label="Activity list view"
                 >
@@ -541,8 +547,8 @@ export function AdminUserDetail({ id, kind }: { id: string; kind: DetailKind }) 
                   type="button"
                   onClick={() => setActivityView("grid")}
                   className={cn(
-                    "rounded-xl px-3 py-2 transition-colors",
-                    activityView === "grid" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+                    "rounded-xl bg-background/70 px-3 py-2 transition-all hover:bg-primary/10 hover:text-primary",
+                    activityView === "grid" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground"
                   )}
                   aria-label="Activity card view"
                 >
@@ -583,11 +589,11 @@ function ProfileAvatar({ name, src }: { name: string; src: string | null }) {
   if (src) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
-      <img src={src} alt={name} className="h-24 w-24 shrink-0 rounded-3xl object-cover ring-2 ring-white/30" />
+      <img src={src} alt={name} className="h-28 w-28 shrink-0 rounded-3xl object-cover ring-2 ring-white/30" />
     );
   }
   return (
-    <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-3xl bg-white/14 text-2xl font-semibold ring-2 ring-white/25">
+    <div className="flex h-28 w-28 shrink-0 items-center justify-center rounded-3xl bg-white/14 text-3xl font-semibold ring-2 ring-white/25">
       {initials(name)}
     </div>
   );
@@ -595,18 +601,18 @@ function ProfileAvatar({ name, src }: { name: string; src: string | null }) {
 
 function InfoCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-2xl border border-border bg-background/70 p-4">
-      <p className="mb-2 text-xs uppercase tracking-[0.18em] text-muted-foreground">{title}</p>
-      <div className="text-sm text-foreground">{children}</div>
+    <div className="rounded-2xl border border-border bg-background/90 p-4 shadow-inner">
+      <p className="mb-2 text-sm font-bold uppercase tracking-[0.14em] text-primary">{title}</p>
+      <div className="text-base leading-7 text-foreground">{children}</div>
     </div>
   );
 }
 
 function DetailLine({ label, value }: { label: string; value: string }) {
   return (
-    <div className="grid gap-1 rounded-2xl border border-border bg-background/70 p-3 sm:grid-cols-[130px_minmax(0,1fr)]">
-      <span className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{label}</span>
-      <span className="min-w-0 break-words text-foreground">{value}</span>
+    <div className="grid gap-2 rounded-2xl border border-border bg-background/90 p-4 shadow-inner sm:grid-cols-[160px_minmax(0,1fr)]">
+      <span className="text-xs font-bold uppercase tracking-[0.14em] text-primary">{label}</span>
+      <span className="min-w-0 break-words text-base leading-7 text-foreground">{value}</span>
     </div>
   );
 }
@@ -625,12 +631,12 @@ function ActivityDatePicker({
   const days = useMemo(() => buildMonthDays(month), [month]);
 
   return (
-    <div className="rounded-3xl border border-border bg-background/70 p-4">
+    <div className="rounded-3xl border border-border bg-card/95 p-4 shadow-[0_18px_54px_rgba(0,0,0,0.10)]">
       <div className="mb-4 flex items-center justify-between gap-2">
         <button
           type="button"
           onClick={() => setMonth(shiftMonth(month, -1))}
-          className="rounded-xl border border-border p-2 text-muted-foreground hover:text-primary"
+          className="rounded-xl border border-border bg-background/80 p-2 text-muted-foreground shadow-sm hover:text-primary"
           aria-label="Previous month"
         >
           <ChevronLeft className="h-4 w-4" />
@@ -639,12 +645,12 @@ function ActivityDatePicker({
           type="month"
           value={month}
           onChange={(event) => setMonth(event.target.value)}
-          className="rounded-xl border border-border bg-card px-3 py-2 text-center text-sm font-medium outline-none focus:border-primary"
+          className="select-polished px-3 py-2 text-center text-sm font-semibold"
         />
         <button
           type="button"
           onClick={() => setMonth(shiftMonth(month, 1))}
-          className="rounded-xl border border-border p-2 text-muted-foreground hover:text-primary"
+          className="rounded-xl border border-border bg-background/80 p-2 text-muted-foreground shadow-sm hover:text-primary"
           aria-label="Next month"
         >
           <ChevronRight className="h-4 w-4" />
@@ -666,7 +672,7 @@ function ActivityDatePicker({
               type="button"
               onClick={() => onSelect(day)}
               className={cn(
-                "aspect-square rounded-full text-xs font-medium transition-all",
+                "aspect-square rounded-full text-xs font-semibold transition-all",
                 hasActivity ? "bg-emerald-500/18 text-emerald-600 dark:text-emerald-300" : "bg-red-500/10 text-red-500",
                 selected && "ring-2 ring-primary ring-offset-2 ring-offset-background",
                 "hover:scale-105 hover:bg-primary hover:text-primary-foreground"
@@ -708,7 +714,7 @@ function ActivityRow({ activity, view }: { activity: ActivityItem; view: Activit
   return (
     <article
       className={cn(
-        "rounded-2xl border border-border bg-background/70 p-4 text-sm shadow-sm",
+        "rounded-2xl border border-border bg-background/85 p-4 text-[15px] shadow-sm",
         view === "list" && "grid gap-3 lg:grid-cols-[170px_1fr_240px]"
       )}
     >

@@ -3,6 +3,7 @@ import { apiSuccess } from "@/lib/api/response";
 import { getCandles, type MarketInterval } from "@/lib/market/stream";
 import { getFallbackQuotes } from "@/lib/fallback-data";
 import { toAssetSlug } from "@/lib/assets/symbols";
+import { isDatabaseConnectivityError } from "@/lib/db-errors";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -17,7 +18,9 @@ export async function GET(request: NextRequest) {
     const candles = await getCandles(symbol, assetType, interval, limit, before);
     return apiSuccess({ candles, symbol, assetType, interval });
   } catch (error) {
-    console.warn("[market/candles] Falling back after candle API error:", error);
+    if (!isDatabaseConnectivityError(error)) {
+      console.warn("[market/candles] Falling back after candle API error:", error);
+    }
     return apiSuccess({
       candles: generateFallbackCandles(symbol, interval, limit, before),
       symbol,

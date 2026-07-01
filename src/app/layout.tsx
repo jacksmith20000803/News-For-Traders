@@ -39,10 +39,10 @@ export default async function RootLayout({
             <SSEProvider>
               <RealtimeSyncProvider>
                 <PageLoader />
-                <div className="flex flex-col min-h-full" suppressHydrationWarning>
+                <div className="flex min-h-full min-w-0 flex-col" suppressHydrationWarning>
                   <Header />
                   <PriceTicker />
-                  <div className="flex flex-1" suppressHydrationWarning>
+                  <div className="flex min-w-0 flex-1" suppressHydrationWarning>
                     <SidebarGate />
                     <RouteMain>
                       {children}

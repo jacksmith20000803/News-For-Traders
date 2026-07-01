@@ -97,16 +97,14 @@ export class SyntheticNewsProvider {
   async fetchNews(): Promise<NewsItem[]> {
     const items: NewsItem[] = [];
     const now = new Date();
-    const twoYearsAgo = new Date(now.getTime() - 2 * 365 * 24 * 60 * 60 * 1000);
+    const baseTime = now.getTime();
     
-    // Generate 100 news items over the past 2 years
     for (let i = 0; i < 100; i++) {
       const template = randomChoice(NEWS_TEMPLATES);
-      const daysAgo = Math.floor(Math.random() * 730); // 0 to 730 days
-      const publishedAt = new Date(twoYearsAgo.getTime() + daysAgo * 24 * 60 * 60 * 1000);
+      const publishedAt = new Date(baseTime - i * 12 * 60 * 1000);
       
       items.push({
-        externalId: `synthetic-${i}-${Date.now()}`,
+        externalId: `synthetic-${i}`,
         headline: fillTemplate(template.headline),
         summary: template.summary,
         content: template.summary + " This development has significant implications for the broader market. Analysts are closely watching the situation as it unfolds.",

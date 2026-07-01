@@ -13,7 +13,8 @@ export class PolygonProvider implements NewsProvider {
     if (!this.isConfigured()) return [];
 
     const res = await fetch(
-      `https://api.polygon.io/v2/reference/news?limit=50&apiKey=${API_KEY}`
+      `https://api.polygon.io/v2/reference/news?limit=50&apiKey=${API_KEY}`,
+      { cache: "no-store" }
     );
     if (!res.ok) return [];
 

@@ -17,7 +17,7 @@ export function RouteMain({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   return (
-    <main className={cn("app-main flex-1 overflow-auto", getRouteBackground(pathname))} suppressHydrationWarning>
+    <main className={cn("app-main min-w-0 flex-1 overflow-auto", getRouteBackground(pathname))} suppressHydrationWarning>
       {children}
     </main>
   );

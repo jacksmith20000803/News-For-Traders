@@ -80,6 +80,24 @@ function elementLabel(element: Element) {
   return (aria || title || text || href || element.tagName).slice(0, 220);
 }
 
+function clickMetadata(element: Element) {
+  const anchor = element instanceof HTMLAnchorElement ? element : element.closest("a");
+  const dataset = element instanceof HTMLElement ? element.dataset : {};
+
+  return {
+    clientClickedAt: new Date().toISOString(),
+    elementType: element.tagName.toLowerCase(),
+    trackEvent: dataset.trackEvent,
+    trackLabel: dataset.trackLabel,
+    trackComponent: dataset.trackComponent,
+    trackKind: dataset.trackKind,
+    trackHref: dataset.trackHref,
+    href: anchor?.href,
+    download: anchor?.hasAttribute("download") || undefined,
+    viewport: typeof window !== "undefined" ? `${window.innerWidth}x${window.innerHeight}` : undefined,
+  };
+}
+
 export function ActivityTracker() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -118,9 +136,15 @@ export function ActivityTracker() {
 
       postActivity({
         visitorId: visitorIdRef.current || getVisitorId(),
-        action: clickable instanceof HTMLAnchorElement ? "link_click" : "button_click",
+        action:
+          clickable instanceof HTMLElement && clickable.dataset.trackEvent
+            ? clickable.dataset.trackEvent
+            : clickable instanceof HTMLAnchorElement
+              ? "link_click"
+              : "button_click",
         path: window.location.pathname + window.location.search,
         target: elementLabel(clickable),
+        metadata: clickMetadata(clickable),
         client: detectClient(),
       });
     }
@@ -137,11 +161,18 @@ function postActivity(payload: {
   action: string;
   path?: string;
   target?: string;
+  metadata?: Record<string, unknown>;
   client?: Record<string, unknown>;
 }) {
   const body = JSON.stringify(payload);
+  const endpoint = "/api/activity/track";
 
-  void fetch("/api/activity/track", {
+  if (typeof navigator !== "undefined" && "sendBeacon" in navigator && body.length < 60_000) {
+    const sent = navigator.sendBeacon(endpoint, new Blob([body], { type: "application/json" }));
+    if (sent) return;
+  }
+
+  void fetch(endpoint, {
     method: "POST",
     credentials: "same-origin",
     cache: "no-store",

@@ -34,6 +34,7 @@ interface NewsGridClientProps {
 }
 
 const PAGE_SIZE = 20;
+const NEWS_REFRESH_MS = 60_000;
 
 type NewsPageResponse = {
   news: NewsItem[];
@@ -61,7 +62,6 @@ export function NewsGridClient({
   const [hasMore, setHasMore] = useState(initialNews.length >= 20);
   const observerTarget = useRef<HTMLDivElement>(null);
   const coinMenuRef = useRef<HTMLDivElement>(null);
-  const didRunInitialFilterRefresh = useRef(false);
   const searchPending = searchText.trim() !== searchQuery;
   const coinOptions = useMemo(
     () =>
@@ -75,7 +75,7 @@ export function NewsGridClient({
     [allCoins]
   );
 
-  const fetchNewsPage = useCallback(async (targetPage: number) => {
+  const fetchNewsPage = useCallback(async (targetPage: number, options?: { force?: boolean }) => {
     const params = new URLSearchParams({
       page: String(targetPage),
       limit: String(PAGE_SIZE),
@@ -86,7 +86,7 @@ export function NewsGridClient({
     params.set("fast", "true");
 
     const cacheKey = params.toString();
-    const cached = newsPageCache.get(cacheKey);
+    const cached = options?.force ? null : newsPageCache.get(cacheKey);
     if (cached) return cached;
 
     const request = fetch(`/api/news?${cacheKey}`, { cache: "no-store" })
@@ -106,7 +106,9 @@ export function NewsGridClient({
         throw error;
       });
 
-    newsPageCache.set(cacheKey, request);
+    if (!options?.force) {
+      newsPageCache.set(cacheKey, request);
+    }
     return request;
   }, [coinFilter, favoriteOnly, searchQuery]);
 
@@ -173,20 +175,11 @@ export function NewsGridClient({
   }, [coinMenuOpen]);
 
   useEffect(() => {
-    const isFirstDefaultLoad =
-      !didRunInitialFilterRefresh.current &&
-      !searchQuery.trim() &&
-      !coinFilter &&
-      !favoriteOnly;
-
-    didRunInitialFilterRefresh.current = true;
-    if (isFirstDefaultLoad) return;
-
     let cancelled = false;
     const timer = window.setTimeout(async () => {
       setLoading(true);
       try {
-        const data = await fetchNewsPage(1);
+        const data = await fetchNewsPage(1, { force: true });
         if (cancelled) return;
         setAllNews(data.news);
         setFavoriteIds(new Set(data.favoriteNewsIds ?? []));
@@ -204,6 +197,36 @@ export function NewsGridClient({
       window.clearTimeout(timer);
     };
   }, [coinFilter, favoriteOnly, fetchNewsPage, searchQuery]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const refreshLatestNews = async () => {
+      if (document.visibilityState === "hidden") return;
+      try {
+        const data = await fetchNewsPage(1, { force: true });
+        if (cancelled) return;
+        setAllNews((prev) => {
+          const incomingIds = new Set(data.news.map((item) => item.id));
+          const olderItems = prev.filter((item) => !incomingIds.has(item.id));
+          return [...data.news, ...olderItems].sort(
+            (a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
+          );
+        });
+        if (data.favoriteNewsIds) {
+          setFavoriteIds((prev) => new Set([...prev, ...data.favoriteNewsIds!]));
+        }
+        setHasMore((current) => data.pagination.page < data.pagination.totalPages || current);
+      } catch (error) {
+        console.error("Failed to update live news:", error);
+      }
+    };
+
+    const interval = window.setInterval(refreshLatestNews, NEWS_REFRESH_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [fetchNewsPage]);
 
   const updateCoinFilter = (value: string) => {
     setLoading(true);

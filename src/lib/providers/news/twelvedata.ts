@@ -14,7 +14,8 @@ export class TwelveDataProvider implements NewsProvider {
     if (!this.isConfigured()) return [];
 
     const res = await fetch(
-      `https://api.twelvedata.com/news?apikey=${API_KEY}`
+      `https://api.twelvedata.com/news?apikey=${API_KEY}`,
+      { cache: "no-store" }
     );
     if (!res.ok) return [];
 

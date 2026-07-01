@@ -15,7 +15,21 @@ async function upsertNewsItem(item: NewsItem, providerName: string, sourceId: st
   const existing = await db.news.findFirst({
     where: { providerName, externalId: item.externalId },
   });
-  if (existing) return { created: false, id: existing.id };
+  if (existing) {
+    const news = await db.news.update({
+      where: { id: existing.id },
+      data: {
+        headline: item.headline,
+        summary: item.summary,
+        content: item.content,
+        sourceId,
+        sourceUrl: item.sourceUrl,
+        imageUrl: item.imageUrl,
+        publishedAt: item.publishedAt,
+      },
+    });
+    return { created: false, id: news.id };
+  }
 
   const news = await db.news.create({
     data: {

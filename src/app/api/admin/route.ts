@@ -95,7 +95,8 @@ export async function POST(request: NextRequest) {
     await validateCsrf(request);
     const admin = await requireAdmin();
     const body = await parseJsonBody(request);
-    const { action, ...data } = adminActionSchema.parse(body);
+    const { action } = adminActionSchema.parse(body);
+    const data = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
 
     switch (action) {
       case "create_news": {

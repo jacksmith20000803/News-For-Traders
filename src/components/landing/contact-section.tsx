@@ -10,7 +10,7 @@ export function ContactSection() {
   const { theme, resolvedTheme } = useTheme();
   const currentTheme = theme === "system" ? (resolvedTheme ?? "dark") : (theme ?? "dark");
 
-  const bgColor = currentTheme === "dark" ? "bg-[#0a0c0c]" : "bg-gray-50";
+  const bgColor = "landing-section-surface";
   const cardBg = currentTheme === "dark" ? "bg-[#0a0c0c]" : "bg-white";
   const textColor = currentTheme === "dark" ? "text-white" : "text-gray-900";
   const secondaryTextColor = currentTheme === "dark" ? "text-gray-400" : "text-gray-600";

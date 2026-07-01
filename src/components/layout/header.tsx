@@ -83,7 +83,7 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-50 backdrop-blur-xl bg-white/90 dark:bg-[#0a0c0c]/90 border-b border-gray-200 dark:border-white/5 transition-all duration-300" suppressHydrationWarning>
-      <div className="mx-auto flex h-16 max-w-[1800px] items-center gap-4 px-4 sm:px-6" suppressHydrationWarning>
+      <div className="mx-auto flex h-16 max-w-[1800px] items-center gap-2 px-2 min-[380px]:gap-3 min-[380px]:px-3 sm:gap-4 sm:px-6" suppressHydrationWarning>
         <Link href="/" className="flex shrink-0 items-center group">
           <div className="relative">
             <Image
@@ -91,8 +91,7 @@ export function Header() {
               alt="TRADX"
               width={64}
               height={64}
-              className="h-16 w-16 object-contain object-left transition-transform duration-500 group-hover:scale-105"
-              style={{ width: "64px", height: "64px" }}
+              className="h-12 w-12 object-contain object-left transition-transform duration-500 group-hover:scale-105 min-[420px]:h-16 min-[420px]:w-16"
               priority
             />
             <style jsx>{`
@@ -271,13 +270,13 @@ export function Header() {
             <>
               <Link
                 href="/login"
-                className="inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 hover:scale-[1.02] active:scale-95 active:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 hover:bg-gray-100 dark:hover:bg-white/5 px-3 h-9 text-sm text-gray-700 dark:text-white"
+                className="hidden items-center justify-center gap-2 rounded-lg font-medium transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 hover:scale-[1.02] active:scale-95 active:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 hover:bg-gray-100 dark:hover:bg-white/5 px-3 h-9 text-sm text-gray-700 dark:text-white min-[420px]:inline-flex"
               >
                 Sign in
               </Link>
               <Link
                 href="/register"
-                className="inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 hover:scale-[1.02] active:scale-95 active:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-emerald-500 text-white hover:bg-emerald-600 px-3 h-9 text-sm"
+                className="hidden items-center justify-center gap-2 rounded-lg bg-emerald-500 px-3 text-sm font-medium text-white transition-all duration-300 hover:-translate-y-0.5 hover:scale-[1.02] hover:bg-emerald-600 hover:shadow-lg active:translate-y-0 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 min-[360px]:inline-flex h-9"
               >
                 Get started
               </Link>
@@ -299,6 +298,24 @@ export function Header() {
         <nav className="border-t border-gray-200 dark:border-white/5 px-4 py-4 lg:hidden bg-white dark:bg-[#0a0c0c]" suppressHydrationWarning>
           <GlobalSearchBar className="mb-4 md:hidden" />
           <div className="space-y-1" suppressHydrationWarning>
+            {!user && (
+              <div className="grid grid-cols-2 gap-2 pb-3">
+                <Link
+                  href="/login"
+                  onClick={() => setMobileOpen(false)}
+                  className="inline-flex h-10 items-center justify-center rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-900 dark:border-white/10 dark:bg-white/5 dark:text-white"
+                >
+                  Sign in
+                </Link>
+                <Link
+                  href="/register"
+                  onClick={() => setMobileOpen(false)}
+                  className="inline-flex h-10 items-center justify-center rounded-xl bg-emerald-500 text-sm font-semibold text-white"
+                >
+                  Get started
+                </Link>
+              </div>
+            )}
             {navItems.map(({ href, label, icon: Icon }) => (
               <Link
                 key={href}

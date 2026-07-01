@@ -13,7 +13,8 @@ export class AlphaVantageProvider implements NewsProvider {
     if (!this.isConfigured()) return [];
 
     const res = await fetch(
-      `https://www.alphavantage.co/query?function=NEWS_SENTIMENT&sort=LATEST&limit=50&apikey=${API_KEY}`
+      `https://www.alphavantage.co/query?function=NEWS_SENTIMENT&sort=LATEST&limit=50&apikey=${API_KEY}`,
+      { cache: "no-store" }
     );
     if (!res.ok) return [];
 

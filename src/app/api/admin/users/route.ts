@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
-import { apiSuccess, handleApiError } from "@/lib/api/response";
-import { requireAdmin } from "@/lib/auth/guards";
+import { apiError, apiSuccess, handleApiError, parseJsonBody } from "@/lib/api/response";
+import { requireAdmin, validateCsrf } from "@/lib/auth/guards";
 import { db } from "@/lib/db";
+import { logAuditEvent } from "@/lib/audit";
 
 export async function GET(request: NextRequest) {
   try {
@@ -153,6 +154,7 @@ export async function GET(request: NextRequest) {
 
     return apiSuccess({
       kind,
+      visitors: [],
       users: users.map(({ passwordHash, ...user }) => ({
         ...user,
         passwordSet: Boolean(passwordHash),
@@ -173,6 +175,64 @@ export async function GET(request: NextRequest) {
         totalPages: Math.max(1, Math.ceil(total / limit)),
       },
     });
+  } catch (error) {
+    return handleApiError(error);
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    await validateCsrf(request);
+    const admin = await requireAdmin();
+    const body = await parseJsonBody(request);
+    const kind = body && typeof body === "object" && "kind" in body && body.kind === "visitors" ? "visitors" : "users";
+    const ids =
+      body && typeof body === "object" && "ids" in body && Array.isArray(body.ids)
+        ? body.ids.filter((id): id is string => typeof id === "string" && id.length > 0)
+        : [];
+
+    if (ids.length === 0) {
+      return apiError("At least one record must be selected.", 422, "NO_RECORDS_SELECTED");
+    }
+
+    const uniqueIds = Array.from(new Set(ids)).slice(0, 100);
+
+    if (kind === "visitors") {
+      const result = await db.visitorActivity.deleteMany({
+        where: { visitorId: { in: uniqueIds } },
+      });
+      await logAuditEvent({
+        adminId: admin.id,
+        action: "SETTINGS_UPDATE",
+        targetType: "visitor",
+        targetId: uniqueIds.join(","),
+        metadata: { action: "bulk_delete_visitors", count: result.count },
+        ipAddress: request.headers.get("x-forwarded-for") ?? undefined,
+      });
+      return apiSuccess({ deleted: result.count, message: `Deleted ${result.count} visitor activity records.` });
+    }
+
+    const deletableIds = uniqueIds.filter((id) => id !== admin.id);
+    if (deletableIds.length === 0) {
+      return apiError("You cannot delete your own admin account.", 403, "CANNOT_DELETE_SELF");
+    }
+
+    const result = await db.user.updateMany({
+      where: { id: { in: deletableIds }, deletedAt: null },
+      data: { deletedAt: new Date(), isBanned: true },
+    });
+
+    await db.session.deleteMany({ where: { userId: { in: deletableIds } } });
+    await logAuditEvent({
+      adminId: admin.id,
+      action: "USER_BAN",
+      targetType: "user",
+      targetId: deletableIds.join(","),
+      metadata: { deleted: true, bulk: true, count: result.count },
+      ipAddress: request.headers.get("x-forwarded-for") ?? undefined,
+    });
+
+    return apiSuccess({ deleted: result.count, message: `Deleted ${result.count} account${result.count === 1 ? "" : "s"}.` });
   } catch (error) {
     return handleApiError(error);
   }

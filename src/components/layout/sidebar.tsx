@@ -24,6 +24,7 @@ import {
   Flame,
   Search,
   Calendar,
+  Download,
   Loader2,
   Wifi,
   WifiOff,
@@ -39,6 +40,7 @@ const navItems = [
   { icon: Flame, label: "Heatmap", href: "/heatmap" },
   { icon: Search, label: "Research", href: "/research" },
   { icon: Calendar, label: "Calendar", href: "/calendar" },
+  { icon: Download, label: "Download", href: "/dashboard/download" },
   { icon: Wallet, label: "Portfolio Data", href: "/dashboard/portfolio" },
   { icon: Settings, label: "Settings", href: "/dashboard/settings" },
 ];
