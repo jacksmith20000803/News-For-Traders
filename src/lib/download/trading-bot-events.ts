@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 import type { Prisma } from "@prisma/client";
+import { createHash, randomUUID } from "node:crypto";
 import { getCurrentUser } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
@@ -22,7 +23,7 @@ export async function recordTradingBotEvent(request: NextRequest, kind: BotEvent
   const userAgent = request.headers.get("user-agent") ?? "";
   const device = parseUserAgent(userAgent);
   const geo = readGeo(request);
-  const visitorId = request.cookies.get(VISITOR_COOKIE)?.value ?? request.nextUrl.searchParams.get("visitorId");
+  const visitorId = resolveTradingBotVisitorId(request, ip, userAgent);
   const user = await resolveEventUser(visitorId, ip, userAgent);
   const action = kind === "downloaded" ? "trading_bot_app_downloaded" : "trading_bot_app_installed";
 
@@ -46,7 +47,7 @@ export async function recordTradingBotEvent(request: NextRequest, kind: BotEvent
   await db.$transaction([
     db.visitorActivity.create({
       data: {
-        visitorId: visitorId || `server-${crypto.randomUUID()}`,
+        visitorId,
         userId: user?.id ?? null,
         action,
         path: request.nextUrl.pathname,
@@ -96,6 +97,20 @@ export async function recordTradingBotEvent(request: NextRequest, kind: BotEvent
     device,
     ip,
   });
+}
+
+function deterministicVisitorId(ip: string, userAgent: string) {
+  const source = `${ip}|${userAgent || "unknown"}|trading-bot`;
+  const hash = createHash("sha256").update(source).digest("hex").slice(0, 20);
+  return hash ? `server-${hash}` : `server-${randomUUID()}`;
+}
+
+export function resolveTradingBotVisitorId(request: NextRequest, ip: string, userAgent: string) {
+  return (
+    request.cookies.get(VISITOR_COOKIE)?.value ??
+    request.nextUrl.searchParams.get("visitorId") ??
+    deterministicVisitorId(ip, userAgent)
+  );
 }
 
 async function resolveEventUser(visitorId: string | null, ip: string, userAgent: string) {

@@ -34,7 +34,7 @@ type TokenListData = {
   pagination: { page: number; totalPages: number };
 };
 
-const fallbackModels = ["gpt-5-nano", "gpt-5-mini", "gpt-4.1-mini", "claude-sonnet-4"];
+const fallbackModels = ["gpt-5-nano", "gpt-5-mini", "gpt-4.1-mini", "claude-sonnet-4", "gpt-image-1"];
 
 export function PuterTokenManager() {
   const [tokens, setTokens] = useState<PuterTokenRow[]>([]);

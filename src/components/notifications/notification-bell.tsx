@@ -79,6 +79,7 @@ export function NotificationBell() {
         notificationIdsRef.current.add(n.id);
         if (!knownNotification && !n.read) {
           setUnreadCount((count) => count + 1);
+          showSystemNotificationWhenAway(n);
         }
         setNotifications((prev) => {
           const existing = prev.find((item) => item.id === n.id);
@@ -140,6 +141,7 @@ export function NotificationBell() {
           const nextOpen = !open;
           setOpen(nextOpen);
           if (nextOpen) {
+            void requestSystemNotificationPermission();
             void (async () => {
               await load();
               await markAllRead();
@@ -218,6 +220,31 @@ export function NotificationBell() {
       )}
     </div>
   );
+}
+
+async function requestSystemNotificationPermission() {
+  if (typeof window === "undefined" || !("Notification" in window)) return;
+  if (window.Notification.permission === "default") {
+    await window.Notification.requestPermission().catch(() => "denied");
+  }
+}
+
+function showSystemNotificationWhenAway(notification: Notification) {
+  if (typeof window === "undefined" || !("Notification" in window)) return;
+  if (document.visibilityState === "visible" && document.hasFocus()) return;
+  if (window.Notification.permission !== "granted") return;
+
+  const systemNotification = new window.Notification(notification.title || "TradX notification", {
+    body: notification.message,
+    icon: notification.metadata?.actorAvatar || "/favicon.ico",
+    tag: notification.id,
+    silent: false,
+  });
+
+  systemNotification.onclick = () => {
+    window.focus();
+    systemNotification.close();
+  };
 }
 
 function NotificationAvatar({ notification }: { notification: Notification }) {

@@ -7,6 +7,7 @@ import {
   isGoogleOAuthConfigured,
   isMicrosoftOAuthConfigured,
 } from "@/lib/auth/oauth";
+import { config as appConfig } from "@/lib/config";
 
 const providers = ["google", "github", "microsoft", "apple"] as const;
 
@@ -36,6 +37,10 @@ function requestBaseUrl(request: NextRequest) {
   const forwardedHost = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
   if (forwardedHost) {
     return `${forwardedProto || request.nextUrl.protocol.replace(":", "")}://${forwardedHost}`;
+  }
+
+  if (["0.0.0.0", "localhost", "127.0.0.1"].includes(request.nextUrl.hostname)) {
+    return appConfig.app.url;
   }
 
   return request.nextUrl.origin;

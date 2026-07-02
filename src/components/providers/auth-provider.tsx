@@ -62,8 +62,13 @@ export function AuthProvider({
         cache: "no-store",
         credentials: "same-origin",
       });
-      const json = await readJsonResponse<{ success: boolean; data?: { user?: SafeUser | null } }>(res);
+      const json = await readJsonResponse<{ success: boolean; data?: { user?: SafeUser | null; reason?: string | null } }>(res);
       if (authVersionRef.current === requestVersion) {
+        if (user && !json.data?.user && json.data?.reason === "account_deleted") {
+          window.alert("Administrator deleted your account. Please contact them!");
+          window.location.href = "/login?error=account_deleted";
+          return;
+        }
         applyAuthenticatedUser(json.success ? json.data?.user ?? null : null);
       }
     } catch {
@@ -75,7 +80,7 @@ export function AuthProvider({
         setIsLoading(false);
       }
     }
-  }, [applyAuthenticatedUser]);
+  }, [applyAuthenticatedUser, user]);
 
   useEffect(() => {
     if (initialUserRef.current !== initialUser) {
@@ -91,6 +96,14 @@ export function AuthProvider({
     didInitialRefreshRef.current = true;
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    if (!user) return;
+    const timer = window.setInterval(() => {
+      if (document.visibilityState !== "hidden") void refresh();
+    }, 15_000);
+    return () => window.clearInterval(timer);
+  }, [refresh, user]);
 
   return (
     <AuthContext.Provider value={{ user, isLoading, refresh, setAuthenticatedUser, updateAuthenticatedUser }}>

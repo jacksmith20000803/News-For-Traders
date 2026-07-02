@@ -14,8 +14,11 @@ import {
   isMicrosoftOAuthConfigured,
 } from "@/lib/auth/oauth";
 import { generateToken } from "@/lib/security/csrf";
+import { db } from "@/lib/db";
+import { config as appConfig } from "@/lib/config";
 
 export type OAuthProvider = "google" | "github" | "microsoft" | "apple";
+const VISITOR_COOKIE = "tradx_visitor_id";
 
 const providers: Record<
   OAuthProvider,
@@ -58,7 +61,7 @@ export function startOAuth(request: NextRequest, provider: OAuthProvider) {
 
   if (!providerConfig.configured()) {
     const fallback = `${authPage}?error=oauth_not_configured&provider=${encodeURIComponent(provider)}`;
-    return NextResponse.redirect(new URL(fallback, request.url));
+    return NextResponse.redirect(new URL(fallback, requestBaseUrl(request)));
   }
 
   const state = generateToken();
@@ -141,7 +144,7 @@ async function finishOAuthCallback({
 }) {
   const loginError = (message: string) =>
     NextResponse.redirect(
-      new URL(`${authPage}?error=${encodeURIComponent(message)}&provider=${encodeURIComponent(provider)}`, request.url)
+      new URL(`${authPage}?error=${encodeURIComponent(message)}&provider=${encodeURIComponent(provider)}`, requestBaseUrl(request))
     );
 
   if (!code || !state || state !== storedState) {
@@ -154,9 +157,10 @@ async function finishOAuthCallback({
       return loginError("OAuth provider not configured");
     }
 
-    await providerConfig.callback(code, appleUserJson, requestBaseUrl(request));
+    const user = await providerConfig.callback(code, appleUserJson, requestBaseUrl(request));
+    await linkVisitorActivityToUser(request.cookies.get(VISITOR_COOKIE)?.value, readUserId(user));
 
-    const response = NextResponse.redirect(new URL(returnTo || "/dashboard", request.url));
+    const response = NextResponse.redirect(new URL(returnTo || "/dashboard", requestBaseUrl(request)));
     response.cookies.delete(`oauth_state_${provider}`);
     response.cookies.delete(`oauth_return_to_${provider}`);
     response.cookies.delete(`oauth_auth_page_${provider}`);
@@ -180,11 +184,29 @@ function readFormValue(value: FormDataEntryValue | null) {
   return typeof value === "string" ? value : null;
 }
 
+function readUserId(value: unknown) {
+  return value && typeof value === "object" && "id" in value && typeof value.id === "string"
+    ? value.id
+    : null;
+}
+
+async function linkVisitorActivityToUser(visitorId: string | undefined, userId: string | null) {
+  if (!visitorId || !userId) return;
+  await db.visitorActivity.updateMany({
+    where: { visitorId, userId: null },
+    data: { userId },
+  });
+}
+
 function requestBaseUrl(request: NextRequest) {
   const forwardedProto = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
   const forwardedHost = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
   if (forwardedHost) {
     return `${forwardedProto || request.nextUrl.protocol.replace(":", "")}://${forwardedHost}`;
+  }
+
+  if (["0.0.0.0", "localhost", "127.0.0.1"].includes(request.nextUrl.hostname)) {
+    return appConfig.app.url;
   }
 
   return request.nextUrl.origin;

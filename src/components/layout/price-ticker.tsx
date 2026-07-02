@@ -20,7 +20,7 @@ export function PriceTicker() {
     { symbol: "ATOM/USD", price: 6.2, change: 0, changePercent: 0 },
     { symbol: "AVAX/USD", price: 28, change: 0, changePercent: 0 },
     { symbol: "BNB/USD", price: 620, change: 0, changePercent: 0 },
-    { symbol: "BTC/USD", price: 95000, change: 0, changePercent: 0 },
+    { symbol: "BTC/USD", price: 60000, change: 0, changePercent: 0 },
     { symbol: "DOGE/USD", price: 0.12, change: 0, changePercent: 0 },
     { symbol: "DOT/USD", price: 4.8, change: 0, changePercent: 0 },
     { symbol: "ETH/USD", price: 3500, change: 0, changePercent: 0 },

@@ -110,21 +110,26 @@ function firstPublicIp(candidates: string[]) {
  * Set TRUST_PROXY=false to ignore forwarded headers in private deployments.
  */
 export function getClientIp(request: Request): string {
-  const trustProxy = process.env.TRUST_PROXY !== "false";
+  const trustProxy = process.env.NODE_ENV === "production"
+    ? process.env.DISABLE_TRUST_PROXY !== "true"
+    : process.env.TRUST_PROXY !== "false";
 
   if (trustProxy) {
+    const candidates: string[] = [];
     const directHeaders = ["cf-connecting-ip", "true-client-ip", "x-client-ip", "x-real-ip", "fastly-client-ip"];
     for (const header of directHeaders) {
       const ip = normalizeIp(request.headers.get(header));
-      if (ip) return ip;
+      if (ip) candidates.push(ip);
     }
 
-    const forwardedCandidates = [
+    candidates.push(
       ...parseForwardedFor(request.headers.get("x-forwarded-for")),
+      ...parseForwardedFor(request.headers.get("x-render-forwarded-for")),
       ...parseForwardedFor(request.headers.get("x-vercel-forwarded-for")),
-      ...parseForwardedHeader(request.headers.get("forwarded")),
-    ];
-    const ip = firstPublicIp(forwardedCandidates);
+      ...parseForwardedHeader(request.headers.get("forwarded"))
+    );
+
+    const ip = firstPublicIp(candidates);
     if (ip) return ip;
   }
 

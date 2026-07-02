@@ -168,8 +168,8 @@ function buildSyntheticFallbackQuotes(): MarketQuotePayload[] {
     const volatility = quote.assetType === "forex" ? quote.price * 0.00035 : quote.price * 0.0015;
     const drift = (Math.random() - 0.48) * volatility;
     const price = Math.max(quote.price * 0.05, previous + drift);
-    const change = price - quote.price;
-    const changePercent = quote.price > 0 ? (change / quote.price) * 100 : 0;
+    const change = price - previous;
+    const changePercent = previous > 0 ? (change / previous) * 100 : 0;
 
     return {
       symbol: quote.symbol,

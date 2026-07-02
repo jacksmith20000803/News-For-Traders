@@ -518,13 +518,13 @@ input[type="month"]::-webkit-calendar-picker-indicator {
 
 /* Institutional Trading Terminal Animations */
 @keyframes price-flash-green {
-  0% { background-color: rgba(16, 185, 129, 0.3); }
-  100% { background-color: transparent; }
+  0% { color: rgb(16, 185, 129); text-shadow: 0 0 18px rgba(16, 185, 129, 0.38); }
+  100% { color: inherit; text-shadow: none; }
 }
 
 @keyframes price-flash-red {
-  0% { background-color: rgba(239, 68, 68, 0.3); }
-  100% { background-color: transparent; }
+  0% { color: rgb(239, 68, 68); text-shadow: 0 0 18px rgba(239, 68, 68, 0.34); }
+  100% { color: inherit; text-shadow: none; }
 }
 
 @keyframes glow-pulse {
@@ -836,14 +836,17 @@ input[type="month"]::-webkit-calendar-picker-indicator {
 
 .ai-thinking-edge {
   isolation: isolate;
+  border: 1px solid transparent;
 }
 
 .ai-thinking-edge::before {
   content: "";
   position: absolute;
-  inset: -65%;
+  inset: 0;
   z-index: 0;
   pointer-events: none;
+  border-radius: inherit;
+  padding: 1px;
   background: conic-gradient(
     from 0deg,
     transparent 0 20%,
@@ -852,16 +855,24 @@ input[type="month"]::-webkit-calendar-picker-indicator {
     rgba(16, 185, 129, 0.82) 41%,
     transparent 48% 100%
   );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
   animation: ai-thinking-orbit 2.4s linear infinite;
 }
 
 .ai-thinking-edge::after {
   content: "";
   position: absolute;
-  inset: 1px;
+  inset: 0;
   z-index: 0;
   border-radius: inherit;
-  background: inherit;
+  box-shadow: 0 0 16px rgba(34, 211, 238, 0.16), inset 0 0 12px rgba(16, 185, 129, 0.12);
   pointer-events: none;
 }
 

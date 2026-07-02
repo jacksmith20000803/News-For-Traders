@@ -157,7 +157,7 @@ export async function ingestMarketQuotes(): Promise<number> {
   // If no providers configured or all failed, generate synthetic quotes
   if (updated === 0) {
     const syntheticQuotes = [
-      { symbol: "BTC/USD", assetType: "crypto", name: "Bitcoin", price: 95000 + Math.random() * 1000 },
+      { symbol: "BTC/USD", assetType: "crypto", name: "Bitcoin", price: 60000 + Math.random() * 400 },
       { symbol: "ETH/USD", assetType: "crypto", name: "Ethereum", price: 3500 + Math.random() * 100 },
       { symbol: "EUR/USD", assetType: "forex", name: "Euro/US Dollar", price: 1.08 + Math.random() * 0.01 },
       { symbol: "XAU/USD", assetType: "commodity", name: "Gold", price: 2650 + Math.random() * 20 },

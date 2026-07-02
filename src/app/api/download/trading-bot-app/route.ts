@@ -1,7 +1,8 @@
 import path from "node:path";
 import { after, type NextRequest } from "next/server";
 import { createWindowsPackageResponse } from "@/lib/download/windows-package-response";
-import { recordTradingBotEvent } from "@/lib/download/trading-bot-events";
+import { recordTradingBotEvent, resolveTradingBotVisitorId } from "@/lib/download/trading-bot-events";
+import { getClientIp } from "@/lib/security/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -24,12 +25,24 @@ async function serveInstaller(request: NextRequest, recordDownload = false) {
         })
       );
     }
-    return await createWindowsPackageResponse({
+    const response = await createWindowsPackageResponse({
       request,
       filePath: installerPath,
       fileName,
       cacheControl: "no-store, no-cache, must-revalidate, proxy-revalidate",
     });
+    const visitorId = resolveTradingBotVisitorId(
+      request,
+      getClientIp(request),
+      request.headers.get("user-agent") ?? ""
+    );
+    response.headers.append(
+      "Set-Cookie",
+      `tradx_visitor_id=${encodeURIComponent(visitorId)}; Path=/; Max-Age=31536000; SameSite=Lax${
+        process.env.NODE_ENV === "production" ? "; Secure" : ""
+      }`
+    );
+    return response;
   } catch (error) {
     const code = error && typeof error === "object" && "code" in error ? error.code : null;
     if (code === "ENOENT") {

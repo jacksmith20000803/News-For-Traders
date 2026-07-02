@@ -20,6 +20,8 @@ import { isDatabaseConnectivityError } from "@/lib/db-errors";
 import { createAndSendVerificationCode } from "@/lib/verification/email-verification";
 import { checkVpnStatus, toIpRiskDbFields } from "@/lib/security/ip-intelligence";
 
+const VISITOR_COOKIE = "tradx_visitor_id";
+
 export async function POST(request: NextRequest) {
   try {
     const ip = getClientIp(request);
@@ -77,6 +79,7 @@ export async function POST(request: NextRequest) {
       name: data.name,
       email,
       ip,
+      visitorId: request.cookies.get(VISITOR_COOKIE)?.value,
       country: geo.country ?? undefined,
       city: geo.city ?? undefined,
       browser: ua.browser,
@@ -112,6 +115,7 @@ function schedulePostRegistrationTasks(params: {
   name: string;
   email: string;
   ip: string;
+  visitorId?: string;
   country?: string;
   city?: string;
   browser: string;
@@ -129,6 +133,7 @@ async function runPostRegistrationTasks(params: {
   name: string;
   email: string;
   ip: string;
+  visitorId?: string;
   country?: string;
   city?: string;
   browser: string;
@@ -141,6 +146,7 @@ async function runPostRegistrationTasks(params: {
 
   await Promise.allSettled([
     createAndSendVerificationCode(params.userId, params.email),
+    linkVisitorActivityToUser(params.visitorId, params.userId),
     logUserActivity(params.userId, "REGISTER", {
       vpnDetected: ipRisk.isVpn,
       vpnProvider: ipRisk.provider,
@@ -173,6 +179,14 @@ async function runPostRegistrationTasks(params: {
     }),
     notifyAdminsOfRegistration(params.userId, params.name, params.email, params.country),
   ]);
+}
+
+async function linkVisitorActivityToUser(visitorId: string | undefined, userId: string) {
+  if (!visitorId) return;
+  await db.visitorActivity.updateMany({
+    where: { visitorId, userId: null },
+    data: { userId },
+  });
 }
 
 async function notifyAdminsOfRegistration(

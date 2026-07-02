@@ -60,7 +60,7 @@ function generateSyntheticCandles(
   endUnixSeconds?: number
 ): Array<{ time: number; open: number; high: number; low: number; close: number }> {
   const basePrices: Record<string, number> = {
-    "BTC/USD": 95000,
+    "BTC/USD": 60000,
     "ETH/USD": 3500,
     "EUR/USD": 1.08,
     "XAU/USD": 2650,

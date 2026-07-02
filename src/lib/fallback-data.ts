@@ -5,7 +5,7 @@ export const FALLBACK_MARKET_QUOTES = [
   { symbol: "ATOM/USD", assetType: "crypto", name: "Cosmos", price: 6.2, change: 0, changePercent: 0 },
   { symbol: "AVAX/USD", assetType: "crypto", name: "Avalanche", price: 28, change: 0, changePercent: 0 },
   { symbol: "BNB/USD", assetType: "crypto", name: "BNB", price: 620, change: 0, changePercent: 0 },
-  { symbol: "BTC/USD", assetType: "crypto", name: "Bitcoin", price: 95000, change: 0, changePercent: 0 },
+  { symbol: "BTC/USD", assetType: "crypto", name: "Bitcoin", price: 60000, change: 0, changePercent: 0 },
   { symbol: "DOGE/USD", assetType: "crypto", name: "Dogecoin", price: 0.12, change: 0, changePercent: 0 },
   { symbol: "DOT/USD", assetType: "crypto", name: "Polkadot", price: 4.8, change: 0, changePercent: 0 },
   { symbol: "ETH/USD", assetType: "crypto", name: "Ethereum", price: 3500, change: 0, changePercent: 0 },

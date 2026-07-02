@@ -10,7 +10,7 @@ import { checkVpnStatus, toIpRiskDbFields } from "@/lib/security/ip-intelligence
 const VISITOR_COOKIE = "tradx_visitor_id";
 
 const activitySchema = z.object({
-  visitorId: z.string().min(8).max(80),
+  visitorId: z.string().min(8).max(80).optional(),
   action: z.string().min(2).max(80),
   path: z.string().max(500).optional(),
   target: z.string().max(240).optional(),
@@ -96,7 +96,10 @@ export async function POST(request: NextRequest) {
     const body = activitySchema.parse(await parseJsonBody(request));
     const userAgent = request.headers.get("user-agent") ?? "";
     const parsedAgent = parseUserAgent(userAgent);
-    const visitorId = body.visitorId || request.cookies.get(VISITOR_COOKIE)?.value || crypto.randomUUID();
+    const visitorId =
+      body.visitorId ||
+      request.cookies.get(VISITOR_COOKIE)?.value ||
+      deterministicVisitorId(ip, userAgent);
     const country =
       pickHeader(request, ["x-vercel-ip-country", "cf-ipcountry", "x-country"]) ??
       null;
@@ -167,4 +170,13 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     return handleApiError(error);
   }
+}
+
+function deterministicVisitorId(ip: string, userAgent: string) {
+  const source = `${ip}|${userAgent || "unknown"}`;
+  let hash = 0;
+  for (let index = 0; index < source.length; index += 1) {
+    hash = (hash * 31 + source.charCodeAt(index)) >>> 0;
+  }
+  return `server-${hash.toString(36).padStart(8, "0")}`;
 }

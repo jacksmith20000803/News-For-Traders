@@ -107,6 +107,7 @@ const init: PuterInit = (authToken) => {
 
 const GREETING_RESPONSE = "Hi, I'm AI Assistant of tradx. How can I help you?";
 const MISSING_TOKEN_TITLE = "AI token required";
+const DEFAULT_IMAGE_MODEL = process.env.PUTER_IMAGE_MODEL || "gpt-image-1";
 const TRADING_ASSISTANT_SYSTEM_PROMPT = `
 You are AI Assistant of tradx, a concise trading support assistant.
 Primary scope: trading, investing, market news, crypto/forex/stocks/commodities, charts, risk management, portfolio questions, and how to use tradx trading tools.
@@ -203,7 +204,7 @@ function shouldExhaustToken(errorMessage: string): boolean {
 }
 
 function selectImageModel(models: string[]) {
-  return models.find((model) => /image|grok|gemini|banana|flux|dall|stable/i.test(model));
+  return models.find((model) => /image|grok|gemini|banana|flux|dall|stable/i.test(model)) ?? DEFAULT_IMAGE_MODEL;
 }
 
 function normalizeImageUrl(result: unknown): string {
@@ -261,12 +262,13 @@ function normalizeErrorMessage(error: unknown): string {
 }
 
 async function generatePuterImage(puter: PuterInstance, prompt: string, model?: string) {
+  const imageModel = model || DEFAULT_IMAGE_MODEL;
   if (puter.images?.generate) {
     try {
       return await puter.images.generate({
         prompt,
         size: "1024x1024",
-        ...(model ? { model } : {}),
+        model: imageModel,
       });
     } catch (error) {
       if (!puter.ai.txt2img) throw error;
@@ -278,15 +280,15 @@ async function generatePuterImage(puter: PuterInstance, prompt: string, model?: 
       () =>
         puter.ai.txt2img!({
           prompt,
-          ...(model ? { model } : {}),
+          model: imageModel,
           ratio: { w: 1024, h: 1024 },
         }),
       () =>
         puter.ai.txt2img!(
           prompt,
-          model ? { model, ratio: { w: 1024, h: 1024 } } : { ratio: { w: 1024, h: 1024 } }
+          { model: imageModel, ratio: { w: 1024, h: 1024 } }
         ),
-      () => puter.ai.txt2img!(prompt),
+      () => puter.ai.txt2img!(prompt, { model: imageModel }),
     ];
 
     let lastError: unknown;
