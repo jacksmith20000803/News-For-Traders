@@ -38,7 +38,7 @@ attempt=1
 max_attempts=6
 while [ "$attempt" -le "$max_attempts" ]; do
   echo "Prisma migrate deploy attempt $attempt/$max_attempts..."
-  if DATABASE_URL="$MIGRATE_DATABASE_URL" ./node_modules/.bin/prisma migrate deploy; then
+  if PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK=1 DATABASE_URL="$MIGRATE_DATABASE_URL" ./node_modules/.bin/prisma migrate deploy; then
     echo "Prisma migrations completed."
     break
   fi
