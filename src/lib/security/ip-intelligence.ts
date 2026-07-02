@@ -23,6 +23,8 @@ const DEFAULT_TIMEOUT_MS = 1_200;
 const CACHE_TTL_MS = 60 * 60 * 1000;
 const MAX_CACHE_SIZE = 2_000;
 const riskCache = new Map<string, { expiresAt: number; value: IpRiskInfo }>();
+type MutableJsonValue = string | number | boolean | null | MutableJsonValue[] | { [key: string]: MutableJsonValue };
+type MutableJsonObject = { [key: string]: MutableJsonValue };
 
 export async function checkVpnStatus(ipAddress: string): Promise<IpRiskInfo> {
   const normalized = normalizeIpAddress(ipAddress);
@@ -68,7 +70,7 @@ export function toIpRiskDbFields(risk: IpRiskInfo): {
   ipCompany: string | null;
   ipRiskSource: string | null;
   ipRiskCheckedAt: Date | null;
-  ipRisk: Prisma.InputJsonObject | null;
+  ipRisk: Prisma.InputJsonObject;
 } {
   return {
     vpnDetected: risk.isVpn,
@@ -213,7 +215,7 @@ function readObject(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
 }
 
-function readBoolean(value: unknown) {
+function readBoolean(value: unknown): boolean {
   if (typeof value === "boolean") return value;
   if (typeof value === "number") return value === 1;
   if (typeof value === "string") return ["true", "1", "yes"].includes(value.toLowerCase());
@@ -231,7 +233,7 @@ function readString(value: unknown) {
 }
 
 function compactJson(value: Record<string, unknown>): Prisma.InputJsonObject {
-  const compact: Record<string, Prisma.InputJsonValue> = {};
+  const compact: MutableJsonObject = {};
   for (const [key, item] of Object.entries(value).slice(0, 40)) {
     if (item === null) compact[key] = null;
     else if (typeof item === "string") compact[key] = item.slice(0, 500);
@@ -239,11 +241,11 @@ function compactJson(value: Record<string, unknown>): Prisma.InputJsonObject {
     else if (Array.isArray(item)) compact[key] = item.slice(0, 10).filter(isJsonPrimitive);
     else if (typeof item === "object") compact[key] = compactNestedObject(item as Record<string, unknown>);
   }
-  return compact;
+  return compact as Prisma.InputJsonObject;
 }
 
-function compactNestedObject(value: Record<string, unknown>): Prisma.InputJsonObject {
-  const compact: Record<string, Prisma.InputJsonValue> = {};
+function compactNestedObject(value: Record<string, unknown>): MutableJsonObject {
+  const compact: MutableJsonObject = {};
   for (const [key, item] of Object.entries(value).slice(0, 20)) {
     if (item === null) compact[key] = null;
     else if (typeof item === "string") compact[key] = item.slice(0, 300);

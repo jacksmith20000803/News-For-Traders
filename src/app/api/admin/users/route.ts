@@ -133,6 +133,14 @@ export async function GET(request: NextRequest) {
               userAgent: latest?.userAgent ?? null,
             },
             ipAddress: latest?.ipAddress ?? null,
+            ipRisk: {
+              vpnDetected: latest?.vpnDetected ?? false,
+              vpnProvider: latest?.vpnProvider ?? null,
+              ipAsn: latest?.ipAsn ?? null,
+              ipCompany: latest?.ipCompany ?? null,
+              ipRiskSource: latest?.ipRiskSource ?? null,
+              ipRiskCheckedAt: latest?.ipRiskCheckedAt?.toISOString() ?? null,
+            },
             firstSeenAt: group._min.createdAt?.toISOString() ?? latest?.createdAt.toISOString() ?? null,
             lastSeenAt: latest?.createdAt.toISOString() ?? null,
             activityCount: group._count._all,
@@ -197,6 +205,12 @@ export async function GET(request: NextRequest) {
               country: true,
               city: true,
               registeredAt: true,
+              vpnDetected: true,
+              vpnProvider: true,
+              ipAsn: true,
+              ipCompany: true,
+              ipRiskSource: true,
+              ipRiskCheckedAt: true,
             },
           },
           sessions: {
@@ -218,6 +232,12 @@ export async function GET(request: NextRequest) {
               os: true,
               userAgent: true,
               createdAt: true,
+              vpnDetected: true,
+              vpnProvider: true,
+              ipAsn: true,
+              ipCompany: true,
+              ipRiskSource: true,
+              ipRiskCheckedAt: true,
             },
           },
         },
@@ -250,8 +270,20 @@ export async function GET(request: NextRequest) {
           ? {
               ...user.visitorActivities[0],
               createdAt: user.visitorActivities[0].createdAt.toISOString(),
+              ipRiskCheckedAt: user.visitorActivities[0].ipRiskCheckedAt?.toISOString() ?? null,
             }
           : null,
+        ipRisk: {
+          vpnDetected: user.visitorActivities[0]?.vpnDetected ?? user.registrationAudit?.vpnDetected ?? false,
+          vpnProvider: user.visitorActivities[0]?.vpnProvider ?? user.registrationAudit?.vpnProvider ?? null,
+          ipAsn: user.visitorActivities[0]?.ipAsn ?? user.registrationAudit?.ipAsn ?? null,
+          ipCompany: user.visitorActivities[0]?.ipCompany ?? user.registrationAudit?.ipCompany ?? null,
+          ipRiskSource: user.visitorActivities[0]?.ipRiskSource ?? user.registrationAudit?.ipRiskSource ?? null,
+          ipRiskCheckedAt:
+            user.visitorActivities[0]?.ipRiskCheckedAt?.toISOString() ??
+            user.registrationAudit?.ipRiskCheckedAt?.toISOString() ??
+            null,
+        },
         hasDownloaded: downloadedUserIds.has(user.id),
         visitorActivities: undefined,
         sessions: undefined,
@@ -259,6 +291,7 @@ export async function GET(request: NextRequest) {
           ? {
               ...user.registrationAudit,
               registeredAt: user.registrationAudit.registeredAt.toISOString(),
+              ipRiskCheckedAt: user.registrationAudit.ipRiskCheckedAt?.toISOString() ?? null,
             }
           : null,
       })),

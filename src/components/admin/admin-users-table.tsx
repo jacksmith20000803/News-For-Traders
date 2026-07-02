@@ -16,6 +16,7 @@ import {
   RefreshCw,
   Search,
   Shield,
+  ShieldAlert,
   Trash2,
   UserRound,
   Users,
@@ -27,6 +28,15 @@ import { CountryFlag, countryDisplayName } from "@/components/ui/country-flag";
 import { readJsonResponse, secureFetch } from "@/lib/api/client";
 import { ROLE_LABELS } from "@/lib/auth/permissions";
 import { cn } from "@/lib/utils";
+
+type IpRiskRow = {
+  vpnDetected: boolean;
+  vpnProvider: string | null;
+  ipAsn: string | null;
+  ipCompany: string | null;
+  ipRiskSource: string | null;
+  ipRiskCheckedAt: string | null;
+};
 
 type AdminUserRow = {
   id: string;
@@ -50,6 +60,12 @@ type AdminUserRow = {
     os: string | null;
     userAgent: string | null;
     registeredAt: string;
+    vpnDetected: boolean;
+    vpnProvider: string | null;
+    ipAsn: string | null;
+    ipCompany: string | null;
+    ipRiskSource: string | null;
+    ipRiskCheckedAt: string | null;
   } | null;
   latestActivity: {
     ipAddress: string | null;
@@ -62,7 +78,14 @@ type AdminUserRow = {
     os: string | null;
     userAgent: string | null;
     createdAt: string;
+    vpnDetected: boolean;
+    vpnProvider: string | null;
+    ipAsn: string | null;
+    ipCompany: string | null;
+    ipRiskSource: string | null;
+    ipRiskCheckedAt: string | null;
   } | null;
+  ipRisk: IpRiskRow;
   hasDownloaded: boolean;
 };
 
@@ -74,6 +97,7 @@ type VisitorRow = {
   email: null;
   avatar: null;
   ipAddress: string | null;
+  ipRisk: IpRiskRow;
   location: {
     country: string | null;
     region: string | null;
@@ -179,6 +203,12 @@ function userStatus(user: AdminUserRow) {
   if (user.isBanned) return { label: "Banned", variant: "danger" as const };
   if (user.isSuspended) return { label: "Suspended", variant: "warning" as const };
   return { label: "Active", variant: "success" as const };
+}
+
+function vpnRiskLabel(risk: IpRiskRow | null | undefined) {
+  if (!risk?.vpnDetected) return null;
+  const provider = risk.vpnProvider || risk.ipCompany || risk.ipAsn || "Unknown";
+  return `${provider} VPN USING`;
 }
 
 function isRowActionTarget(target: EventTarget | null) {
@@ -597,6 +627,7 @@ function UserRecord({
           <p className="truncate text-xs text-muted-foreground">
             {user.username ? `@${user.username}` : "No username"}
           </p>
+          <VpnRiskBadge risk={user.ipRisk} />
         </div>
       </div>
 
@@ -695,6 +726,7 @@ function VisitorRecord({
         <div className="min-w-0">
           <p className="truncate text-base font-semibold text-foreground">Visitor {visitor.visitorId.slice(0, 8)}</p>
           <p className="truncate text-xs text-muted-foreground">{visitor.ipAddress ?? "IP unavailable"}</p>
+          <VpnRiskBadge risk={visitor.ipRisk} />
         </div>
       </div>
 
@@ -727,6 +759,18 @@ function VisitorRecord({
         </Button>
       </div>
     </article>
+  );
+}
+
+function VpnRiskBadge({ risk }: { risk: IpRiskRow | null | undefined }) {
+  const label = vpnRiskLabel(risk);
+  if (!label) return null;
+
+  return (
+    <span className="mt-2 inline-flex w-fit items-center gap-1.5 rounded-full bg-red-600/10 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.08em] text-red-600 ring-1 ring-red-500/30 dark:bg-red-500/15 dark:text-red-300">
+      <ShieldAlert className="h-3.5 w-3.5" />
+      {label}
+    </span>
   );
 }
 
