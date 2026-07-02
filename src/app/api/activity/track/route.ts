@@ -23,6 +23,7 @@ const activitySchema = z.object({
       browser: z.string().max(80).optional(),
       os: z.string().max(80).optional(),
       deviceType: z.string().max(40).optional(),
+      webrtcIps: z.array(z.string().max(80)).max(8).optional(),
     })
     .optional(),
 });
@@ -86,8 +87,8 @@ function compactMetadata(value: Record<string, unknown> | undefined): Prisma.Inp
 
 export async function POST(request: NextRequest) {
   try {
-    const ip = getClientIp(request);
-    const rateLimit = checkRateLimit(`activity:${ip}`, 180, 60_000);
+    const serverIp = getClientIp(request);
+    const rateLimit = checkRateLimit(`activity:${serverIp}`, 180, 60_000);
     if (!rateLimit.success) {
       return apiSuccess({ recorded: false });
     }
@@ -96,17 +97,20 @@ export async function POST(request: NextRequest) {
     const body = activitySchema.parse(await parseJsonBody(request));
     const userAgent = request.headers.get("user-agent") ?? "";
     const parsedAgent = parseUserAgent(userAgent);
+    const webrtcIps = sanitizePublicIps(body.client?.webrtcIps ?? []);
+    const ip = selectBestIp(serverIp, webrtcIps);
     const visitorId =
       body.visitorId ||
       request.cookies.get(VISITOR_COOKIE)?.value ||
       deterministicVisitorId(ip, userAgent);
-    const country =
+    const headerCountry =
       pickHeader(request, ["x-vercel-ip-country", "cf-ipcountry", "x-country"]) ??
       null;
     const region = pickHeader(request, ["x-vercel-ip-country-region", "x-region"]);
     const city = pickHeader(request, ["x-vercel-ip-city", "x-city"]);
     const ipRisk = await checkVpnStatus(ip);
     const ipRiskFields = toIpRiskDbFields(ipRisk);
+    const country = headerCountry ?? ipRisk.countryName ?? ipRisk.countryCode ?? null;
 
     const clientMetadata = compactMetadata({
       ...body.metadata,
@@ -116,6 +120,10 @@ export async function POST(request: NextRequest) {
       vpnProvider: ipRisk.provider ?? undefined,
       ipAsn: ipRisk.asn ?? undefined,
       ipCompany: ipRisk.organization ?? undefined,
+      serverIp,
+      actualIp: ip,
+      ipSource: ip === serverIp ? "request" : "webrtc",
+      webrtcIps: webrtcIps.join(", "),
     });
 
     await db.$transaction([
@@ -179,4 +187,40 @@ function deterministicVisitorId(ip: string, userAgent: string) {
     hash = (hash * 31 + source.charCodeAt(index)) >>> 0;
   }
   return `server-${hash.toString(36).padStart(8, "0")}`;
+}
+
+function sanitizePublicIps(values: string[]) {
+  return Array.from(new Set(values.map((value) => normalizeIp(value)).filter((value): value is string => !!value && !isNonPublicIp(value)))).slice(0, 8);
+}
+
+function selectBestIp(serverIp: string, webrtcIps: string[]) {
+  const normalizedServerIp = normalizeIp(serverIp) ?? serverIp;
+  if (!isNonPublicIp(normalizedServerIp)) return normalizedServerIp;
+  return webrtcIps[0] ?? normalizedServerIp;
+}
+
+function normalizeIp(value: string | null | undefined) {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (trimmed.startsWith("[") && trimmed.includes("]")) return trimmed.slice(1, trimmed.indexOf("]"));
+  if (trimmed.startsWith("::ffff:")) return trimmed.slice(7);
+  if (/^\d{1,3}(?:\.\d{1,3}){3}:\d+$/.test(trimmed)) return trimmed.replace(/:\d+$/, "");
+  return trimmed;
+}
+
+function isNonPublicIp(ipAddress: string) {
+  const lower = ipAddress.toLowerCase();
+  if (lower === "localhost" || lower === "::1" || lower === "127.0.0.1") return true;
+  if (lower.startsWith("fe80:") || lower.startsWith("fc") || lower.startsWith("fd")) return true;
+
+  const parts = lower.split(".").map((part) => Number.parseInt(part, 10));
+  if (parts.length !== 4 || parts.some((part) => Number.isNaN(part))) return false;
+  const [a, b] = parts;
+  if (a === 10 || a === 127 || a === 0) return true;
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  if (a === 192 && b === 168) return true;
+  if (a === 169 && b === 254) return true;
+  if (a === 100 && b >= 64 && b <= 127) return true;
+  return false;
 }

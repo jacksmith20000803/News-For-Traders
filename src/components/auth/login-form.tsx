@@ -436,8 +436,12 @@ function getSafeRedirect(value: string | null) {
 }
 
 function getOauthErrorMessage(searchParams: ReturnType<typeof useSearchParams>) {
-  if (searchParams.get("error") !== "oauth_not_configured") return "";
+  const error = searchParams.get("error");
+  if (!error) return "";
   const provider = searchParams.get("provider");
   const label = provider ? provider[0]?.toUpperCase() + provider.slice(1) : "This provider";
+  if (error !== "oauth_not_configured") {
+    return `${label} sign-in failed: ${error}. Please check the provider setup and try again.`;
+  }
   return `${label} sign-in is not configured yet. Add its OAuth client ID and secret to enable it.`;
 }

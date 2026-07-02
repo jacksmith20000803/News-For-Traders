@@ -121,7 +121,17 @@ function parseIpApiResponse(ipAddress: string, json: Record<string, unknown>): I
   const companyObject = readObject(json.company);
   const securityObject = readObject(json.security);
 
-  const isVpn = readBoolean(json.is_vpn) || readBoolean(json.isVpn) || readBoolean(vpnObject?.is_vpn) || readBoolean(vpnObject?.isVpn) || readBoolean(securityObject?.vpn);
+  const asnNumber = readString(asnObject?.asn) || readString(json.asn) || null;
+  const asnOrg = readString(asnObject?.org) || readString(asnObject?.name) || readString(asnObject?.organization);
+  const company = readString(companyObject?.name) || asnOrg || null;
+  const knownVpnProvider = detectKnownVpnProvider([asnNumber, asnOrg, company, readString(json.org), readString(json.isp)]);
+  const isVpn =
+    readBoolean(json.is_vpn) ||
+    readBoolean(json.isVpn) ||
+    readBoolean(vpnObject?.is_vpn) ||
+    readBoolean(vpnObject?.isVpn) ||
+    readBoolean(securityObject?.vpn) ||
+    !!knownVpnProvider;
   const isProxy = readBoolean(json.is_proxy) || readBoolean(json.isProxy) || readBoolean(proxyObject?.is_proxy) || readBoolean(proxyObject?.isProxy) || readBoolean(securityObject?.proxy);
   const isTor = readBoolean(json.is_tor) || readBoolean(json.isTor) || readBoolean(torObject?.is_tor) || readBoolean(torObject?.isTor) || readBoolean(securityObject?.tor);
   const isHosting = readBoolean(json.is_hosting) || readBoolean(json.isHosting) || readBoolean(hostingObject?.is_hosting) || readBoolean(hostingObject?.isHosting) || readBoolean(securityObject?.hosting);
@@ -130,11 +140,8 @@ function parseIpApiResponse(ipAddress: string, json: Record<string, unknown>): I
     readString(vpnObject?.name) ||
     readString(vpnObject?.provider) ||
     readString(vpnObject?.service) ||
+    knownVpnProvider ||
     (isVpn ? readString(companyObject?.name) || readString(asnObject?.org) || "Unknown" : null);
-
-  const asnNumber = readString(asnObject?.asn) || readString(json.asn) || null;
-  const asnOrg = readString(asnObject?.org) || readString(asnObject?.name) || readString(asnObject?.organization);
-  const company = readString(companyObject?.name) || asnOrg || null;
 
   return {
     ipAddress,
@@ -151,6 +158,19 @@ function parseIpApiResponse(ipAddress: string, json: Record<string, unknown>): I
     checkedAt: new Date().toISOString(),
     raw: compactJson(json),
   };
+}
+
+function detectKnownVpnProvider(values: Array<string | null>) {
+  const haystack = values.filter(Boolean).join(" ").toLowerCase();
+  if (!haystack) return null;
+  if (haystack.includes("astrill") || values.some((value) => value === "58546" || value === "AS58546")) return "Astrill";
+  if (haystack.includes("nordvpn") || haystack.includes("nord vpn")) return "NordVPN";
+  if (haystack.includes("expressvpn") || haystack.includes("express vpn")) return "ExpressVPN";
+  if (haystack.includes("surfshark")) return "Surfshark";
+  if (haystack.includes("proton vpn") || haystack.includes("protonvpn")) return "Proton VPN";
+  if (haystack.includes("mullvad")) return "Mullvad";
+  if (haystack.includes("private internet access") || haystack.includes("pia vpn")) return "Private Internet Access";
+  return null;
 }
 
 function cacheRisk(ipAddress: string, value: IpRiskInfo) {

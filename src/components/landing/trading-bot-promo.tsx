@@ -306,18 +306,20 @@ export function TradingBotPromo() {
       downloadClickedRef.current = false;
     }
 
+    const eligibleAt = Date.now() + INSTALL_NUDGE_DELAY_MS;
     const showNudge = () => {
+      if (Date.now() < eligibleAt) return;
       if (!downloadClickedRef.current) {
         setInstallNudgeStage((current) => (current === "hidden" ? "offer" : current));
       }
     };
 
     const timer = window.setTimeout(showNudge, INSTALL_NUDGE_DELAY_MS);
-    const backupTimer = window.setTimeout(showNudge, INSTALL_NUDGE_DELAY_MS + 30_000);
+    const repeatTimer = window.setInterval(showNudge, 60_000);
 
     return () => {
       window.clearTimeout(timer);
-      window.clearTimeout(backupTimer);
+      window.clearInterval(repeatTimer);
     };
   }, []);
 
@@ -769,12 +771,12 @@ function ExtensionInstallNudge({
       role="dialog"
       aria-live="polite"
       aria-label={isConfirming ? "Confirm trading bot app download choice" : "Download TradX trading bot app prompt"}
-      className="fixed left-1/2 top-4 z-[99] w-[min(calc(100vw-1.25rem),360px)] -translate-x-1/2 overflow-hidden rounded-[1.35rem] border border-emerald-300/35 bg-slate-950/94 p-3.5 text-white shadow-[0_24px_80px_rgba(16,185,129,0.26)] backdrop-blur-2xl"
+      className="fixed right-3 top-3 z-[99] w-[min(calc(100vw-1rem),320px)] overflow-hidden rounded-[1.2rem] border border-emerald-300/30 bg-slate-950/92 p-3 text-white shadow-[0_18px_56px_rgba(2,6,23,0.45)] backdrop-blur-2xl sm:right-5 sm:top-5"
     >
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(16,185,129,0.24),transparent_34%),radial-gradient(circle_at_90%_0%,rgba(59,130,246,0.18),transparent_28%)]" />
-      <div className="relative flex gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-emerald-400/16 text-emerald-200 shadow-[0_0_32px_rgba(52,211,153,0.26)]">
-          <PlugZap className="h-5 w-5" />
+      <div className="relative flex gap-2.5">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-emerald-400/16 text-emerald-200 shadow-[0_0_26px_rgba(52,211,153,0.24)]">
+          <PlugZap className="h-4 w-4" />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-3">
@@ -784,25 +786,25 @@ function ExtensionInstallNudge({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-full bg-white/10 px-2 py-0.5 text-xs font-bold text-white/75 transition hover:bg-white/18 hover:text-white active:scale-95"
+              className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-bold text-white/75 transition hover:bg-white/18 hover:text-white active:scale-95"
               aria-label="Dismiss trading bot app prompt"
             >
               x
             </button>
           </div>
-          <p className="mt-2 text-sm font-semibold leading-5 text-white">
+          <p className="mt-1.5 text-[13px] font-semibold leading-5 text-white">
             {isConfirming
               ? "Are you sure?"
               : "Would you like to download the newly released free version of the trading bot app (tradx)?"}
           </p>
-          <div className="mt-3 grid grid-cols-2 gap-2">
+          <div className="mt-2.5 grid grid-cols-2 gap-2">
             <button
               type="button"
               onClick={isConfirming ? onConfirmYes : onOfferYes}
               data-track-event={isConfirming ? "promo_nudge_confirm_yes" : "promo_nudge_offer_yes"}
               data-track-label="Yes"
               data-track-component="trading-bot-promo"
-              className="rounded-2xl bg-gradient-to-r from-emerald-300 to-lime-300 px-3 py-2 text-xs font-bold text-slate-950 shadow-[0_14px_36px_rgba(52,211,153,0.24)] transition hover:brightness-110 active:translate-y-0.5 active:scale-95"
+              className="rounded-xl bg-gradient-to-r from-emerald-300 to-lime-300 px-3 py-1.5 text-[11px] font-bold text-slate-950 shadow-[0_12px_28px_rgba(52,211,153,0.22)] transition hover:brightness-110 active:translate-y-0.5 active:scale-95"
             >
               Yes
             </button>
@@ -812,7 +814,7 @@ function ExtensionInstallNudge({
               data-track-event={isConfirming ? "promo_nudge_confirm_no" : "promo_nudge_offer_no"}
               data-track-label="No"
               data-track-component="trading-bot-promo"
-              className="rounded-2xl bg-gradient-to-r from-rose-400 to-red-500 px-3 py-2 text-xs font-bold text-white shadow-[0_14px_36px_rgba(244,63,94,0.24)] transition hover:brightness-110 active:translate-y-0.5 active:scale-95"
+              className="rounded-xl bg-gradient-to-r from-rose-400 to-red-500 px-3 py-1.5 text-[11px] font-bold text-white shadow-[0_12px_28px_rgba(244,63,94,0.22)] transition hover:brightness-110 active:translate-y-0.5 active:scale-95"
             >
               No
             </button>

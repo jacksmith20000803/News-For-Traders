@@ -1,6 +1,4 @@
 import { db } from "@/lib/db";
-import { createUserSession, setCsrfCookie } from "@/lib/auth/session";
-import { createSignedCsrfToken } from "@/lib/security/csrf";
 import { config } from "@/lib/config";
 import { decodeJwt, jwtVerify, createRemoteJWKSet } from "jose";
 
@@ -140,14 +138,6 @@ async function linkOAuthUser(params: {
     },
     update: { accessToken: params.accessToken },
   });
-
-  await createUserSession(user.id, undefined, undefined, {
-    mfaVerified: false,
-    authTime: Math.floor(Date.now() / 1000),
-    emailVerified: true,
-  });
-  const csrf = createSignedCsrfToken();
-  await setCsrfCookie(csrf);
 
   return user;
 }

@@ -5,6 +5,8 @@ import { usePathname, useSearchParams } from "next/navigation";
 
 const VISITOR_STORAGE_KEY = "tradx_visitor_id";
 const CLICK_THROTTLE_MS = 350;
+let webRtcIpPromise: Promise<string[]> | null = null;
+let cachedWebRtcIps: string[] = [];
 
 function createVisitorId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -65,11 +67,74 @@ function detectClient() {
     deviceType,
     language: navigator.language,
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    webrtcIps: cachedWebRtcIps,
     screen:
       typeof window !== "undefined"
         ? `${window.screen.width}x${window.screen.height}@${window.devicePixelRatio || 1}`
         : undefined,
   };
+}
+
+function getWebRtcIps() {
+  if (webRtcIpPromise) return webRtcIpPromise;
+  webRtcIpPromise = detectWebRtcIps()
+    .then((ips) => {
+      cachedWebRtcIps = ips;
+      return ips;
+    })
+    .catch(() => []);
+  return webRtcIpPromise;
+}
+
+async function detectWebRtcIps() {
+  if (typeof window === "undefined" || !("RTCPeerConnection" in window)) return [];
+
+  const ips = new Set<string>();
+  const peer = new RTCPeerConnection({
+    iceServers: [
+      { urls: "stun:stun.l.google.com:19302" },
+      { urls: "stun:stun1.l.google.com:19302" },
+    ],
+  });
+
+  try {
+    peer.createDataChannel("");
+    peer.onicecandidate = (event) => {
+      const candidate = event.candidate?.candidate;
+      if (!candidate) return;
+      const matches = candidate.match(/(\b\d{1,3}(?:\.\d{1,3}){3}\b|[0-9a-f:]{2,39})/gi);
+      matches?.forEach((ip) => {
+        if (isTrackableIp(ip)) ips.add(ip);
+      });
+    };
+
+    const offer = await peer.createOffer();
+    await peer.setLocalDescription(offer);
+    await new Promise<void>((resolve) => {
+      const timeout = window.setTimeout(resolve, 2500);
+      peer.onicegatheringstatechange = () => {
+        if (peer.iceGatheringState === "complete") {
+          window.clearTimeout(timeout);
+          resolve();
+        }
+      };
+    });
+    return Array.from(ips).slice(0, 8);
+  } finally {
+    peer.close();
+  }
+}
+
+function isTrackableIp(value: string) {
+  const ip = value.toLowerCase();
+  if (!ip || ip === "0.0.0.0" || ip === "127.0.0.1" || ip === "::1" || ip.startsWith("0.")) return false;
+  if (ip.startsWith("192.168.") || ip.startsWith("10.") || ip.startsWith("169.254.")) return false;
+  const parts = ip.split(".").map((part) => Number.parseInt(part, 10));
+  if (parts.length === 4 && parts.every((part) => Number.isFinite(part))) {
+    if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return false;
+    if (parts[0] === 100 && parts[1] >= 64 && parts[1] <= 127) return false;
+  }
+  return true;
 }
 
 function elementLabel(element: Element) {
@@ -119,6 +184,17 @@ export function ActivityTracker() {
       action: "page_view",
       path: currentPath,
       client: detectClient(),
+    });
+
+    void getWebRtcIps().then((ips) => {
+      if (!ips.length) return;
+      postActivity({
+        visitorId: visitorIdRef.current,
+        action: "webrtc_ip_detected",
+        path: currentPath,
+        metadata: { webrtcPublicIp: ips[0], webrtcIpCount: ips.length },
+        client: { ...detectClient(), webrtcIps: ips },
+      });
     });
   }, [currentPath]);
 

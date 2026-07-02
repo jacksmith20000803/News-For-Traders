@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import {
   getDiscordAuthUrl,
   getGitHubAuthUrl,
@@ -17,6 +17,9 @@ import {
 import { generateToken } from "@/lib/security/csrf";
 import { db } from "@/lib/db";
 import { config as appConfig } from "@/lib/config";
+import { createSignedCsrfToken } from "@/lib/security/csrf";
+import { CSRF_COOKIE, SESSION_COOKIE, createSessionToken } from "@/lib/auth/session";
+import { getClientIp } from "@/lib/security/rate-limit";
 
 export type OAuthProvider = "google" | "github" | "discord" | "telegram";
 const VISITOR_COOKIE = "tradx_visitor_id";
@@ -166,9 +169,14 @@ async function finishOAuthCallback({
     }
 
     const user = await providerConfig.callback(code, codeVerifier, requestBaseUrl(request));
-    await linkVisitorActivityToUser(request.cookies.get(VISITOR_COOKIE)?.value, readUserId(user));
+    const userId = readUserId(user);
+    if (!userId) {
+      return loginError("OAuth profile could not be linked");
+    }
+    await linkVisitorActivityToUser(request.cookies.get(VISITOR_COOKIE)?.value, userId);
 
     const response = NextResponse.redirect(new URL(returnTo || "/dashboard", requestBaseUrl(request)));
+    await attachOAuthSessionCookies(request, response, userId);
     response.cookies.delete(`oauth_state_${provider}`);
     response.cookies.delete(`oauth_return_to_${provider}`);
     response.cookies.delete(`oauth_auth_page_${provider}`);
@@ -178,6 +186,43 @@ async function finishOAuthCallback({
     const message = error instanceof Error ? error.message : "OAuth failed";
     return loginError(message);
   }
+}
+
+async function attachOAuthSessionCookies(request: NextRequest, response: NextResponse, userId: string) {
+  const sessionToken = randomBytes(32).toString("hex");
+  const expiresAt = new Date(Date.now() + appConfig.security.sessionMaxAge * 1000);
+  const session = await db.session.create({
+    data: {
+      userId,
+      token: sessionToken,
+      expiresAt,
+      ipAddress: getClientIp(request),
+      userAgent: (request.headers.get("user-agent") ?? "").slice(0, 1000),
+    },
+  });
+  const authTime = Math.floor(Date.now() / 1000);
+  const jwt = await createSessionToken({
+    userId,
+    sessionId: session.id,
+    mfaVerified: false,
+    authTime,
+    emailVerified: true,
+  });
+  const secure = process.env.NODE_ENV === "production";
+  response.cookies.set(SESSION_COOKIE, jwt, {
+    httpOnly: true,
+    secure,
+    sameSite: "lax",
+    maxAge: appConfig.security.sessionMaxAge,
+    path: "/",
+  });
+  response.cookies.set(CSRF_COOKIE, createSignedCsrfToken(), {
+    httpOnly: false,
+    secure,
+    sameSite: "strict",
+    maxAge: appConfig.security.sessionMaxAge,
+    path: "/",
+  });
 }
 
 function sanitizeReturnTo(value: string | null) {

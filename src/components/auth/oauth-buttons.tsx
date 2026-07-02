@@ -52,6 +52,7 @@ export function AuthOAuthButtons({
               alt=""
               width={22}
               height={22}
+              unoptimized
               className="h-5 w-5 shrink-0"
             />
             <span>{action} with {provider.name}</span>

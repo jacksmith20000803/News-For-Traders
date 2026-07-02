@@ -25,6 +25,7 @@ export async function recordTradingBotEvent(request: NextRequest, kind: BotEvent
   const geo = readGeo(request);
   const visitorId = resolveTradingBotVisitorId(request, ip, userAgent);
   const user = await resolveEventUser(visitorId, ip, userAgent);
+  const matchedVisitor = user ? null : await resolveEventVisitor(visitorId, ip, userAgent);
   const action = kind === "downloaded" ? "trading_bot_app_downloaded" : "trading_bot_app_installed";
 
   const metadata: Prisma.InputJsonObject = {
@@ -88,11 +89,16 @@ export async function recordTradingBotEvent(request: NextRequest, kind: BotEvent
         }
       : {
           id: null,
-          name: "Visitor",
+          name: matchedVisitor ? `Visitor ${matchedVisitor.visitorId.slice(0, 8)}` : "Unknown User",
           avatar: null,
-          country: geo.country,
+          country: geo.country ?? matchedVisitor?.country ?? null,
         },
-    location: formatLocation(geo),
+    location: formatLocation(geo) || formatLocation({
+      country: matchedVisitor?.country ?? null,
+      region: matchedVisitor?.region ?? null,
+      city: matchedVisitor?.city ?? null,
+      timezone: matchedVisitor?.timezone ?? null,
+    }),
     time: new Date(),
     device,
     ip,
@@ -137,6 +143,36 @@ async function resolveEventUser(visitorId: string | null, ip: string, userAgent:
     include: { user: true },
   });
   return linkedByNetwork?.user ?? null;
+}
+
+async function resolveEventVisitor(visitorId: string | null, ip: string, userAgent: string) {
+  const recent = { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) };
+  if (visitorId) {
+    const byVisitorId = await db.visitorActivity.findFirst({
+      where: { visitorId, createdAt: recent },
+      orderBy: { createdAt: "desc" },
+    });
+    if (byVisitorId) return byVisitorId;
+  }
+
+  const byNetwork = await db.visitorActivity.findFirst({
+    where: {
+      ipAddress: ip,
+      userAgent: userAgent ? { equals: userAgent.slice(0, 1000) } : undefined,
+      createdAt: recent,
+    },
+    orderBy: { createdAt: "desc" },
+  });
+  if (byNetwork) return byNetwork;
+
+  return db.visitorActivity.findFirst({
+    where: {
+      ipAddress: ip,
+      action: { in: ["trading_bot_app_downloaded", "promo_trading_bot_app_install_start", "promo_download_click"] },
+      createdAt: recent,
+    },
+    orderBy: { createdAt: "desc" },
+  });
 }
 
 async function notifyAdminsAboutBotEvent({
