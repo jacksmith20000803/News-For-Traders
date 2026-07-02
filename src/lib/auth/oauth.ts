@@ -35,14 +35,18 @@ export function isAppleOAuthConfigured() {
   return !!(config.oauth.apple.clientId && config.oauth.apple.clientSecret);
 }
 
-function redirectUri(provider: string) {
-  return `${config.app.url}/api/auth/oauth/${provider}/callback`;
+function redirectUri(provider: string, baseUrl = config.app.url) {
+  return `${baseUrl.replace(/\/+$/, "")}/api/auth/oauth/${provider}/callback`;
 }
 
-export function getGoogleAuthUrl(state: string) {
+export function getOAuthCallbackUrl(provider: string, baseUrl = config.app.url) {
+  return redirectUri(provider, baseUrl);
+}
+
+export function getGoogleAuthUrl(state: string, baseUrl?: string) {
   const params = new URLSearchParams({
     client_id: config.oauth.google.clientId,
-    redirect_uri: redirectUri("google"),
+    redirect_uri: redirectUri("google", baseUrl),
     response_type: "code",
     scope: "openid email profile",
     state,
@@ -52,20 +56,20 @@ export function getGoogleAuthUrl(state: string) {
   return `${GOOGLE_AUTH}?${params}`;
 }
 
-export function getGitHubAuthUrl(state: string) {
+export function getGitHubAuthUrl(state: string, baseUrl?: string) {
   const params = new URLSearchParams({
     client_id: config.oauth.github.clientId,
-    redirect_uri: redirectUri("github"),
+    redirect_uri: redirectUri("github", baseUrl),
     scope: "user:email",
     state,
   });
   return `${GITHUB_AUTH}?${params}`;
 }
 
-export function getMicrosoftAuthUrl(state: string) {
+export function getMicrosoftAuthUrl(state: string, baseUrl?: string) {
   const params = new URLSearchParams({
     client_id: config.oauth.microsoft.clientId,
-    redirect_uri: redirectUri("microsoft"),
+    redirect_uri: redirectUri("microsoft", baseUrl),
     response_type: "code",
     scope: "openid profile email User.Read",
     state,
@@ -74,10 +78,10 @@ export function getMicrosoftAuthUrl(state: string) {
   return `${microsoftAuthBase()}/authorize?${params}`;
 }
 
-export function getAppleAuthUrl(state: string) {
+export function getAppleAuthUrl(state: string, baseUrl?: string) {
   const params = new URLSearchParams({
     client_id: config.oauth.apple.clientId,
-    redirect_uri: redirectUri("apple"),
+    redirect_uri: redirectUri("apple", baseUrl),
     response_type: "code",
     response_mode: "form_post",
     scope: "name email",
@@ -144,7 +148,7 @@ async function linkOAuthUser(params: {
   return user;
 }
 
-export async function handleGoogleCallback(code: string) {
+export async function handleGoogleCallback(code: string, baseUrl?: string) {
   const tokenRes = await fetch(GOOGLE_TOKEN, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -152,7 +156,7 @@ export async function handleGoogleCallback(code: string) {
       code,
       client_id: config.oauth.google.clientId,
       client_secret: config.oauth.google.clientSecret,
-      redirect_uri: redirectUri("google"),
+      redirect_uri: redirectUri("google", baseUrl),
       grant_type: "authorization_code",
     }),
   });
@@ -184,7 +188,7 @@ export async function handleGoogleCallback(code: string) {
   });
 }
 
-export async function handleGitHubCallback(code: string) {
+export async function handleGitHubCallback(code: string, baseUrl?: string) {
   const tokenRes = await fetch(GITHUB_TOKEN, {
     method: "POST",
     headers: {
@@ -195,7 +199,7 @@ export async function handleGitHubCallback(code: string) {
       code,
       client_id: config.oauth.github.clientId,
       client_secret: config.oauth.github.clientSecret,
-      redirect_uri: redirectUri("github"),
+      redirect_uri: redirectUri("github", baseUrl),
     }),
   });
 
@@ -245,7 +249,7 @@ export async function handleGitHubCallback(code: string) {
   });
 }
 
-export async function handleMicrosoftCallback(code: string) {
+export async function handleMicrosoftCallback(code: string, baseUrl?: string) {
   const tokenRes = await fetch(`${microsoftAuthBase()}/token`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -253,7 +257,7 @@ export async function handleMicrosoftCallback(code: string) {
       code,
       client_id: config.oauth.microsoft.clientId,
       client_secret: config.oauth.microsoft.clientSecret,
-      redirect_uri: redirectUri("microsoft"),
+      redirect_uri: redirectUri("microsoft", baseUrl),
       grant_type: "authorization_code",
     }),
   });
@@ -284,7 +288,7 @@ export async function handleMicrosoftCallback(code: string) {
   });
 }
 
-export async function handleAppleCallback(code: string, userJson?: string | null) {
+export async function handleAppleCallback(code: string, userJson?: string | null, baseUrl?: string) {
   const tokenRes = await fetch(APPLE_TOKEN, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -292,7 +296,7 @@ export async function handleAppleCallback(code: string, userJson?: string | null
       code,
       client_id: config.oauth.apple.clientId,
       client_secret: config.oauth.apple.clientSecret,
-      redirect_uri: redirectUri("apple"),
+      redirect_uri: redirectUri("apple", baseUrl),
       grant_type: "authorization_code",
     }),
   });

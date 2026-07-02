@@ -21,29 +21,29 @@ const providers: Record<
   OAuthProvider,
   {
     configured: () => boolean;
-    getUrl: (state: string) => string;
-    callback: (code: string, appleUserJson?: string | null) => Promise<unknown>;
+    getUrl: (state: string, baseUrl?: string) => string;
+    callback: (code: string, appleUserJson?: string | null, baseUrl?: string) => Promise<unknown>;
   }
 > = {
   google: {
     configured: isGoogleOAuthConfigured,
     getUrl: getGoogleAuthUrl,
-    callback: (code) => handleGoogleCallback(code),
+    callback: (code, _appleUserJson, baseUrl) => handleGoogleCallback(code, baseUrl),
   },
   github: {
     configured: isGitHubOAuthConfigured,
     getUrl: getGitHubAuthUrl,
-    callback: (code) => handleGitHubCallback(code),
+    callback: (code, _appleUserJson, baseUrl) => handleGitHubCallback(code, baseUrl),
   },
   microsoft: {
     configured: isMicrosoftOAuthConfigured,
     getUrl: getMicrosoftAuthUrl,
-    callback: (code) => handleMicrosoftCallback(code),
+    callback: (code, _appleUserJson, baseUrl) => handleMicrosoftCallback(code, baseUrl),
   },
   apple: {
     configured: isAppleOAuthConfigured,
     getUrl: getAppleAuthUrl,
-    callback: (code, appleUserJson) => handleAppleCallback(code, appleUserJson),
+    callback: (code, appleUserJson, baseUrl) => handleAppleCallback(code, appleUserJson, baseUrl),
   },
 };
 
@@ -62,7 +62,8 @@ export function startOAuth(request: NextRequest, provider: OAuthProvider) {
   }
 
   const state = generateToken();
-  const response = NextResponse.redirect(providerConfig.getUrl(state));
+  const baseUrl = requestBaseUrl(request);
+  const response = NextResponse.redirect(providerConfig.getUrl(state, baseUrl));
   const cookieOptions = {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
@@ -153,7 +154,7 @@ async function finishOAuthCallback({
       return loginError("OAuth provider not configured");
     }
 
-    await providerConfig.callback(code, appleUserJson);
+    await providerConfig.callback(code, appleUserJson, requestBaseUrl(request));
 
     const response = NextResponse.redirect(new URL(returnTo || "/dashboard", request.url));
     response.cookies.delete(`oauth_state_${provider}`);
@@ -177,4 +178,14 @@ function sanitizeAuthPage(value: string | null) {
 
 function readFormValue(value: FormDataEntryValue | null) {
   return typeof value === "string" ? value : null;
+}
+
+function requestBaseUrl(request: NextRequest) {
+  const forwardedProto = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  const forwardedHost = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
+  if (forwardedHost) {
+    return `${forwardedProto || request.nextUrl.protocol.replace(":", "")}://${forwardedHost}`;
+  }
+
+  return request.nextUrl.origin;
 }

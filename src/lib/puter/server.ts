@@ -10,6 +10,7 @@ import { createNotification } from "@/lib/notifications";
 import { ensurePuterTokenTable } from "@/lib/puter/schema";
 
 const requireFromProject = createRequire(join(process.cwd(), "package.json"));
+const requireFromModule = createRequire(import.meta.url);
 
 type PuterChatOptions = { model?: string };
 type PuterChatResponse =
@@ -60,10 +61,18 @@ let puterBundleCache: string | null = null;
 function getPuterBundleCode() {
   if (puterBundleCache) return puterBundleCache;
 
-  const packageJsonPath = requireFromProject.resolve("@heyputer/puter.js/package.json");
+  const packageJsonPath = resolvePuterPackageJson();
   const bundlePath = join(dirname(packageJsonPath), "dist", "puter.cjs");
   puterBundleCache = readFileSync(bundlePath, "utf8");
   return puterBundleCache;
+}
+
+function resolvePuterPackageJson() {
+  try {
+    return requireFromProject.resolve("@heyputer/puter.js/package.json");
+  } catch {
+    return requireFromModule.resolve("@heyputer/puter.js/package.json");
+  }
 }
 
 const init: PuterInit = (authToken) => {
