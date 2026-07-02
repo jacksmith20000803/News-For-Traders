@@ -39,7 +39,7 @@ const TREND_STYLE: Record<
 > = {
   up: {
     label: "Bull trend",
-    image: "/chart-bull-placeholder.png",
+    image: "/chart-bull-placeholder.webp",
     imageAlt: "Bull placeholder for rising price",
     lineColor: "#00d4aa",
     topColor: "rgba(0, 212, 170, 0.28)",
@@ -48,7 +48,7 @@ const TREND_STYLE: Record<
   },
   down: {
     label: "Bear trend",
-    image: "/chart-bear-placeholder.png",
+    image: "/chart-bear-placeholder.webp",
     imageAlt: "Bear placeholder for falling price",
     lineColor: "#ff4757",
     topColor: "rgba(255, 71, 87, 0.25)",
@@ -851,7 +851,7 @@ export function TradingChart({
             alt={trendStyle.imageAlt}
             width={48}
             height={48}
-            className="h-9 w-9 drop-shadow-[0_10px_24px_rgba(0,0,0,0.32)] sm:h-12 sm:w-12"
+            className="h-9 w-9 rounded-full border border-white/20 drop-shadow-[0_10px_24px_rgba(0,0,0,0.32)] sm:h-12 sm:w-12"
           />
           <span className="text-xs font-bold uppercase tracking-[0.16em]">
             {trendStyle.label}

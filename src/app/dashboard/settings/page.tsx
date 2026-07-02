@@ -530,7 +530,7 @@ export default function UserSettingsPage() {
           <div
             className="absolute inset-0 opacity-20 dark:opacity-25"
             style={{
-              backgroundImage: "linear-gradient(120deg, rgba(5, 150, 105, 0.72), rgba(15, 23, 42, 0.9)), url('/default-news.jpg')",
+              backgroundImage: "linear-gradient(120deg, rgba(5, 150, 105, 0.72), rgba(15, 23, 42, 0.9)), url('/default-news.webp')",
               backgroundPosition: "center",
               backgroundSize: "cover",
             }}
@@ -732,7 +732,7 @@ function TraderSnapshot({ profile }: { profile: ProfileSnapshot }) {
         <div
           className="absolute inset-0 opacity-20"
           style={{
-            backgroundImage: "linear-gradient(160deg, rgba(16,185,129,0.58), rgba(2,6,23,0.88)), url('/default-news.jpg')",
+            backgroundImage: "linear-gradient(160deg, rgba(16,185,129,0.58), rgba(2,6,23,0.88)), url('/default-news.webp')",
             backgroundPosition: "center",
             backgroundSize: "cover",
           }}

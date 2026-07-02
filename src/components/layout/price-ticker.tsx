@@ -39,16 +39,34 @@ export function PriceTicker() {
         payload.quotes.map((quote) => [quote.symbol, quote])
       );
 
-      setTickers((prev) => prev.map((item) => {
-        const quote = quotesBySymbol.get(item.symbol);
-        if (!quote) return item;
-        return {
-          ...item,
-          price: quote.price,
-          change: quote.change ?? item.change,
-          changePercent: quote.changePercent ?? 0,
-        };
-      }));
+      setTickers((prev) => {
+        let changed = false;
+
+        const next = prev.map((item) => {
+          const quote = quotesBySymbol.get(item.symbol);
+          if (!quote) return item;
+
+          const nextItem = {
+            ...item,
+            price: quote.price,
+            change: quote.change ?? item.change,
+            changePercent: quote.changePercent ?? 0,
+          };
+
+          const itemChanged =
+            nextItem.price !== item.price ||
+            nextItem.change !== item.change ||
+            nextItem.changePercent !== item.changePercent;
+
+          if (itemChanged) {
+            changed = true;
+          }
+
+          return itemChanged ? nextItem : item;
+        });
+
+        return changed ? next : prev;
+      });
     });
   }, []);
 

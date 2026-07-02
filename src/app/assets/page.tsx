@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import Link from "next/link";
+import { connection } from "next/server";
 import { isDatabaseConnectivityError } from "@/lib/db-errors";
 import { FALLBACK_MARKET_QUOTES } from "@/lib/fallback-data";
 
@@ -35,6 +36,8 @@ async function getAssetProfiles(): Promise<AssetSummary[]> {
 }
 
 export default async function AssetsPage() {
+  await connection();
+
   const assetProfiles = await getAssetProfiles();
 
   return (

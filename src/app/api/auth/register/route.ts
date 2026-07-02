@@ -18,6 +18,7 @@ import { createNotification } from "@/lib/notifications";
 import { parseUserAgent, parseGeoFromHeaders } from "@/lib/security/user-agent";
 import { isDatabaseConnectivityError } from "@/lib/db-errors";
 import { createAndSendVerificationCode } from "@/lib/verification/email-verification";
+import { checkVpnStatus, toIpRiskDbFields } from "@/lib/security/ip-intelligence";
 
 export async function POST(request: NextRequest) {
   try {
@@ -88,7 +89,7 @@ export async function POST(request: NextRequest) {
       {
         user: toSafeUser(user),
         csrfToken,
-        message: "Account created successfully. Please verify your email with the code we send.",
+        message: "Account created successfully. You can start using tradx now; verify your email from your profile when ready.",
         redirectTo: "/dashboard",
       },
       201
@@ -135,9 +136,18 @@ async function runPostRegistrationTasks(params: {
   os: string;
   userAgent: string;
 }) {
+  const ipRisk = await checkVpnStatus(params.ip);
+  const ipRiskFields = toIpRiskDbFields(ipRisk);
+
   await Promise.allSettled([
     createAndSendVerificationCode(params.userId, params.email),
-    logUserActivity(params.userId, "REGISTER"),
+    logUserActivity(params.userId, "REGISTER", {
+      vpnDetected: ipRisk.isVpn,
+      vpnProvider: ipRisk.provider,
+      ipAsn: ipRisk.asn,
+      ipCompany: ipRisk.organization,
+      ipRiskSource: ipRisk.source,
+    }),
     db.registrationAudit.create({
       data: {
         userId: params.userId,
@@ -148,6 +158,7 @@ async function runPostRegistrationTasks(params: {
         deviceType: params.deviceType,
         os: params.os,
         userAgent: params.userAgent,
+        ...ipRiskFields,
       },
     }),
     db.userPreferences.upsert({

@@ -45,6 +45,7 @@ export async function GET(request: Request) {
     });
 
     if (!verification) {
+      console.warn("[email:verification] invalid or expired link token");
       return apiError("Invalid or expired verification token", 400);
     }
 
@@ -53,7 +54,7 @@ export async function GET(request: Request) {
         where: { id: verification.userId },
         data: { emailVerified: new Date() },
       }),
-      db.emailVerificationToken.delete({ where: { id: verification.id } }),
+      db.emailVerificationToken.deleteMany({ where: { userId: verification.userId } }),
     ]);
 
     return apiSuccess({ message: "Email verified successfully" });
@@ -73,7 +74,7 @@ export async function POST(request: Request) {
 
     const { code } = verifyCodeSchema.parse(await parseJsonBody(request));
     const verification = await db.emailVerificationToken.findFirst({
-      where: { userId: user.id },
+      where: { userId: user.id, token: { startsWith: "$argon2" } },
       orderBy: { createdAt: "desc" },
     });
 
@@ -125,6 +126,7 @@ export async function POST(request: Request) {
       await setSessionCookie(await createSessionToken({ ...payload, emailVerified: true }));
     }
     clearRateLimits(user.id);
+    console.info(`[email:verification] email verified for user ${user.id}`);
 
     return apiSuccess({
       message: "Email verified successfully",

@@ -3,7 +3,6 @@ import { apiSuccess, handleApiError } from "@/lib/api/response";
 import { destroySession, getSessionToken, verifySessionToken } from "@/lib/auth/session";
 import { validateCsrf } from "@/lib/auth/guards";
 import { logUserActivity } from "@/lib/audit";
-import { MFA_TRUST_COOKIE } from "@/lib/security/mfa";
 
 export async function POST(request: Request) {
   try {
@@ -16,7 +15,6 @@ export async function POST(request: Request) {
       after(() => logUserActivity(payload.userId, "LOGOUT"));
     }
     const response = apiSuccess({ message: "Logged out successfully" });
-    response.cookies.delete(MFA_TRUST_COOKIE);
     return response;
   } catch (error) {
     return handleApiError(error);

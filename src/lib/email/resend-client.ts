@@ -1,7 +1,11 @@
+import nodemailer from "nodemailer";
+
 interface SendVerificationEmailParams {
   toEmail: string;
   code: string;
   expiryMinutes: number;
+  verificationUrl: string;
+  tokenExpiryHours: number;
 }
 
 interface ResendResponse {
@@ -10,8 +14,24 @@ interface ResendResponse {
   name?: string;
 }
 
-function buildVerificationEmailHtml(code: string, expiryMinutes: number) {
+type StoredEmailKey = {
+  id: string;
+  displayName: string;
+  apiKey: string;
+  fromEmail: string;
+  enabled: boolean;
+};
+
+const EMAIL_KEYS_SETTING = "email_verification_resend_keys";
+
+function buildVerificationEmailHtml(
+  code: string,
+  expiryMinutes: number,
+  verificationUrl: string,
+  tokenExpiryHours: number
+) {
   const safeCode = code.replace(/[^0-9]/g, "");
+  const safeUrl = escapeHtml(verificationUrl);
 
   return `<!doctype html>
 <html lang="en">
@@ -34,7 +54,16 @@ function buildVerificationEmailHtml(code: string, expiryMinutes: number) {
             <tr>
               <td style="padding:32px;">
                 <p style="margin:0 0 16px;color:#374151;font-size:16px;line-height:1.6;">
-                  Use this one-time code to verify your TRADX account email address.
+                  Confirm this email address for your TRADX account. The secure button below expires in <strong>${tokenExpiryHours} hours</strong>.
+                </p>
+                <div style="margin:24px 0;text-align:center;">
+                  <a href="${safeUrl}" style="display:inline-block;border-radius:999px;background:#10b981;color:#ffffff;font-size:15px;font-weight:800;text-decoration:none;padding:14px 24px;box-shadow:0 14px 30px rgba(16,185,129,0.28);">
+                    Verify email
+                  </a>
+                </div>
+                <p style="margin:0;color:#6b7280;font-size:13px;line-height:1.6;word-break:break-all;">
+                  If the button does not work, copy and paste this link into your browser:<br />
+                  <a href="${safeUrl}" style="color:#047857;">${safeUrl}</a>
                 </p>
                 <div style="margin:24px 0;border-radius:18px;background:#ecfdf5;border:1px solid #a7f3d0;padding:22px;text-align:center;">
                   <div style="color:#047857;font-size:12px;font-weight:800;letter-spacing:0.22em;text-transform:uppercase;">Verification code</div>
@@ -60,14 +89,29 @@ export async function sendVerificationEmail({
   toEmail,
   code,
   expiryMinutes,
+  verificationUrl,
+  tokenExpiryHours,
 }: SendVerificationEmailParams): Promise<{ ok: true; id?: string } | { ok: false; error: string }> {
-  const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.RESEND_FROM_EMAIL;
+  const subject = "Verify your TRADX email";
+  const html = buildVerificationEmailHtml(code, expiryMinutes, verificationUrl, tokenExpiryHours);
+  const smtpConfig = getSmtpConfig();
+  if (smtpConfig) {
+    return sendViaSmtp({
+      toEmail,
+      subject,
+      html,
+      ...smtpConfig,
+    });
+  }
+
+  const config = await getVerificationEmailConfig();
+  const apiKey = config?.apiKey;
+  const from = config?.fromEmail;
 
   if (!apiKey || !from) {
     return {
       ok: false,
-      error: "Email delivery is not configured. Set RESEND_API_KEY and RESEND_FROM_EMAIL.",
+      error: "Email delivery is not configured. Add an active verification email key in Admin Settings or set RESEND_API_KEY and RESEND_FROM_EMAIL.",
     };
   }
 
@@ -81,8 +125,8 @@ export async function sendVerificationEmail({
       body: JSON.stringify({
         from,
         to: [toEmail],
-        subject: "Your TRADX verification code",
-        html: buildVerificationEmailHtml(code, expiryMinutes),
+        subject,
+        html,
       }),
     });
 
@@ -93,7 +137,106 @@ export async function sendVerificationEmail({
     }
 
     return { ok: true, id: json?.id };
-  } catch {
+  } catch (error) {
+    console.error("[email:verification:resend]", error);
     return { ok: false, error: "Verification email could not be sent." };
   }
+}
+
+function getSmtpConfig() {
+  const host = process.env.SMTP_HOST;
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS ?? process.env.SMTP_PASSWORD;
+  const from = process.env.EMAIL_FROM ?? user;
+  const port = Number.parseInt(process.env.SMTP_PORT ?? "587", 10);
+
+  if (!host || !user || !pass || !from || Number.isNaN(port)) return null;
+  return {
+    host,
+    port,
+    user,
+    pass,
+    from,
+  };
+}
+
+async function sendViaSmtp(params: {
+  host: string;
+  port: number;
+  user: string;
+  pass: string;
+  from: string;
+  toEmail: string;
+  subject: string;
+  html: string;
+}): Promise<{ ok: true; id?: string } | { ok: false; error: string }> {
+  try {
+    const transporter = nodemailer.createTransport({
+      host: params.host,
+      port: params.port,
+      secure: params.port === 465,
+      auth: {
+        user: params.user,
+        pass: params.pass,
+      },
+    });
+
+    const info = await transporter.sendMail({
+      from: params.from,
+      to: params.toEmail,
+      subject: params.subject,
+      html: params.html,
+    });
+
+    console.info(`[email:verification:smtp] sent ${info.messageId ?? "unknown"} to ${params.toEmail}`);
+    return { ok: true, id: info.messageId };
+  } catch (error) {
+    console.error("[email:verification:smtp]", error);
+    return { ok: false, error: "Verification email could not be sent through SMTP." };
+  }
+}
+
+async function getVerificationEmailConfig() {
+  const stored = await readStoredEmailKeys();
+  const active = stored.find((key) => key.enabled && key.apiKey && key.fromEmail);
+  if (active) return active;
+
+  if (process.env.RESEND_API_KEY && process.env.RESEND_FROM_EMAIL) {
+    return {
+      id: "env",
+      displayName: "Environment",
+      apiKey: process.env.RESEND_API_KEY,
+      fromEmail: process.env.RESEND_FROM_EMAIL,
+      enabled: true,
+    };
+  }
+
+  return null;
+}
+
+async function readStoredEmailKeys(): Promise<StoredEmailKey[]> {
+  try {
+    const { db } = await import("@/lib/db");
+    const setting = await db.siteSetting.findUnique({ where: { key: EMAIL_KEYS_SETTING } });
+    if (!setting?.value) return [];
+    const parsed = JSON.parse(setting.value) as StoredEmailKey[];
+    return Array.isArray(parsed) ? parsed.filter(isStoredEmailKey) : [];
+  } catch {
+    return [];
+  }
+}
+
+function isStoredEmailKey(value: unknown): value is StoredEmailKey {
+  if (!value || typeof value !== "object") return false;
+  const key = value as Partial<StoredEmailKey>;
+  return Boolean(key.id && key.displayName && key.apiKey && key.fromEmail);
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }

@@ -1,17 +1,17 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { AlertCircle, CheckCircle2, Download, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type InstallStatus = "idle" | "checking" | "starting" | "fallback" | "exeFallback" | "unsupported" | "error";
+type InstallStatus = "idle" | "checking" | "downloaded" | "unsupported" | "error";
 
 export interface AppInstallButtonProps {
   appName: string;
   appinstallerPath?: string;
   msixDirectUrl?: string;
-  exeFallbackUrl?: string;
-  exeFallbackFileName?: string;
+  directFallbackUrl?: string;
+  directFallbackFileName?: string;
   className?: string;
   buttonClassName?: string;
 }
@@ -22,11 +22,6 @@ function detectWindows() {
   const platform = nav.userAgentData?.platform || navigator.platform || "";
   const userAgent = navigator.userAgent || "";
   return /win/i.test(platform) || /windows/i.test(userAgent);
-}
-
-function toAbsoluteUrl(pathOrUrl: string) {
-  if (typeof window === "undefined") return pathOrUrl;
-  return new URL(pathOrUrl, window.location.origin).toString();
 }
 
 function isSameOriginUrl(pathOrUrl: string) {
@@ -54,30 +49,25 @@ function getServerPlatformSnapshot() {
 
 export function AppInstallButton({
   appName,
-  appinstallerPath = "/api/download/appinstaller",
   msixDirectUrl = process.env.NEXT_PUBLIC_MSIX_BUNDLE_URL || "/api/download/msix",
-  exeFallbackUrl = "/api/download/trading-bot-app",
-  exeFallbackFileName = "trading-bot-app.exe",
+  directFallbackUrl,
+  directFallbackFileName,
   className,
   buttonClassName,
 }: AppInstallButtonProps) {
   const [status, setStatus] = useState<InstallStatus>("idle");
   const [error, setError] = useState<string | null>(null);
-  const fallbackTimerRef = useRef<number | null>(null);
   const platform = useSyncExternalStore(subscribePlatform, getPlatformSnapshot, getServerPlatformSnapshot);
   const isWindows = platform === "windows";
   const effectiveStatus: InstallStatus = platform !== "unknown" && !isWindows && status === "idle" ? "unsupported" : status;
 
-  useEffect(() => {
-    return () => {
-      if (fallbackTimerRef.current) window.clearTimeout(fallbackTimerRef.current);
-    };
-  }, []);
+  const fallbackUrl = directFallbackUrl ?? "/api/download/trading-bot-app";
+  const fallbackFileName = directFallbackFileName ?? "trading-bot-app.msix";
 
-  const downloadExeFallback = () => {
+  const downloadDirectFallback = () => {
     const link = document.createElement("a");
-    link.href = exeFallbackUrl;
-    link.download = exeFallbackFileName;
+    link.href = fallbackUrl;
+    link.download = fallbackFileName;
     link.rel = "noopener";
     link.style.display = "none";
     document.body.appendChild(link);
@@ -87,7 +77,7 @@ export function AppInstallButton({
 
   const startInstall = async () => {
     if (!isWindows) {
-      downloadExeFallback();
+      downloadDirectFallback();
       setStatus("unsupported");
       return;
     }
@@ -99,32 +89,24 @@ export function AppInstallButton({
       if (isSameOriginUrl(msixDirectUrl)) {
         const availability = await fetch(msixDirectUrl, { method: "HEAD", cache: "no-store" });
         if (!availability.ok) {
-          downloadExeFallback();
-          setStatus("exeFallback");
+          setError("The Windows package is not available yet.");
+          setStatus("error");
           return;
         }
       }
 
-      setStatus("starting");
-      const appinstallerUrl = toAbsoluteUrl(appinstallerPath);
-      const protocolUrl = `ms-appinstaller:?source=${encodeURIComponent(appinstallerUrl)}`;
-      fallbackTimerRef.current = window.setTimeout(() => {
-        setStatus("fallback");
-      }, 2200);
-      window.location.href = protocolUrl;
+      downloadDirectFallback();
+      setStatus("downloaded");
     } catch {
-      downloadExeFallback();
-      setError("Windows App Installer could not be opened from this browser, so the EXE installer was downloaded.");
-      setStatus("exeFallback");
+      downloadDirectFallback();
+      setError("The package availability check failed, so the Windows package was downloaded directly.");
+      setStatus("downloaded");
     }
   };
 
-  const label =
-    effectiveStatus === "checking"
+  const label = effectiveStatus === "checking"
       ? "Checking installer..."
-      : effectiveStatus === "starting"
-        ? "Starting installation..."
-        : `Install ${appName}`;
+      : `Download ${appName}`;
 
   return (
     <div className={cn("inline-flex max-w-full flex-col gap-2", className)}>
@@ -132,7 +114,7 @@ export function AppInstallButton({
         <button
           type="button"
           onClick={startInstall}
-          disabled={effectiveStatus === "checking" || effectiveStatus === "starting"}
+          disabled={effectiveStatus === "checking"}
           aria-label={label}
           data-track-event="app_install_start"
           data-track-label={appName}
@@ -145,7 +127,7 @@ export function AppInstallButton({
             buttonClassName
           )}
         >
-          {effectiveStatus === "checking" || effectiveStatus === "starting" ? (
+          {effectiveStatus === "checking" ? (
             <Loader2 className="relative z-10 h-4 w-4 animate-spin" />
           ) : (
             <Download className="relative z-10 h-4 w-4" />
@@ -154,9 +136,9 @@ export function AppInstallButton({
         </button>
       ) : (
         <a
-          href={exeFallbackUrl}
-          download={exeFallbackFileName}
-          data-track-event="app_exe_download"
+          href={fallbackUrl}
+          download={fallbackFileName}
+          data-track-event="app_msix_download"
           data-track-label={appName}
           data-track-component="app-install-button"
           data-track-kind="download"
@@ -170,36 +152,17 @@ export function AppInstallButton({
         </a>
       )}
 
-      {effectiveStatus === "checking" || effectiveStatus === "starting" ? (
+      {effectiveStatus === "checking" ? (
         <p className="flex items-center gap-2 text-xs font-semibold text-emerald-600 dark:text-emerald-300">
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          {effectiveStatus === "checking" ? "Checking signed installer package..." : "Opening Windows App Installer..."}
+          Checking signed installer package...
         </p>
       ) : null}
 
-      {effectiveStatus === "fallback" ? (
-        <div className="rounded-2xl border border-amber-400/30 bg-amber-500/10 p-3 text-xs leading-5 text-amber-700 dark:text-amber-100">
-          <p className="flex items-center gap-2 font-bold">
-            <AlertCircle className="h-4 w-4" />
-            App Installer did not open automatically.
-          </p>
-          <a className="mt-2 inline-flex font-bold underline" href={appinstallerPath} target="_blank" rel="noreferrer">
-            Open the installer file manually
-          </a>
-        </div>
-      ) : null}
-
-      {effectiveStatus === "unsupported" ? (
+      {effectiveStatus === "unsupported" || effectiveStatus === "downloaded" ? (
         <p className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
           <CheckCircle2 className="h-3.5 w-3.5" />
-          The Windows EXE installer was downloaded. Your browser will not execute it automatically.
-        </p>
-      ) : null}
-
-      {effectiveStatus === "exeFallback" ? (
-        <p className="flex items-center gap-2 text-xs font-semibold text-amber-600 dark:text-amber-200">
-          <AlertCircle className="h-3.5 w-3.5" />
-          Signed MSIX installation is not configured yet, so the EXE installer was downloaded.
+          The Windows MSIX package was downloaded. Open it to continue installation.
         </p>
       ) : null}
 

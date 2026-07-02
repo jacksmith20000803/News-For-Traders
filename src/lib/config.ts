@@ -30,7 +30,7 @@ assertProductionSecrets();
 export const config = {
   app: {
     name: process.env.APP_NAME ?? "TRADX",
-    url: process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
+    url: normalizeAppUrl(process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"),
   },
   security: {
     sessionSecret:
@@ -55,6 +55,15 @@ export const config = {
       clientId: process.env.GITHUB_CLIENT_ID ?? "",
       clientSecret: process.env.GITHUB_CLIENT_SECRET ?? "",
     },
+    microsoft: {
+      clientId: process.env.MICROSOFT_CLIENT_ID ?? "",
+      clientSecret: process.env.MICROSOFT_CLIENT_SECRET ?? "",
+      tenant: process.env.MICROSOFT_TENANT_ID ?? "common",
+    },
+    apple: {
+      clientId: process.env.APPLE_CLIENT_ID ?? "",
+      clientSecret: process.env.APPLE_CLIENT_SECRET ?? "",
+    },
   },
   features: {
     maintenanceMode: process.env.MAINTENANCE_MODE === "true",
@@ -71,4 +80,8 @@ export function requireEnv(key: string): string {
     throw new Error(`Missing required environment variable: ${key}`);
   }
   return value;
+}
+
+function normalizeAppUrl(value: string) {
+  return value.trim().replace(/\/+$/, "");
 }

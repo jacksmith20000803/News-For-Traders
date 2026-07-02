@@ -5,6 +5,7 @@ import { apiSuccess, handleApiError, parseJsonBody } from "@/lib/api/response";
 import { getCurrentUser } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { checkRateLimit, getClientIp } from "@/lib/security/rate-limit";
+import { checkVpnStatus, toIpRiskDbFields } from "@/lib/security/ip-intelligence";
 
 const VISITOR_COOKIE = "tradx_visitor_id";
 
@@ -101,11 +102,17 @@ export async function POST(request: NextRequest) {
       null;
     const region = pickHeader(request, ["x-vercel-ip-country-region", "x-region"]);
     const city = pickHeader(request, ["x-vercel-ip-city", "x-city"]);
+    const ipRisk = await checkVpnStatus(ip);
+    const ipRiskFields = toIpRiskDbFields(ipRisk);
 
     const clientMetadata = compactMetadata({
       ...body.metadata,
       language: body.client?.language,
       screen: body.client?.screen,
+      vpnDetected: ipRisk.isVpn,
+      vpnProvider: ipRisk.provider ?? undefined,
+      ipAsn: ipRisk.asn ?? undefined,
+      ipCompany: ipRisk.organization ?? undefined,
     });
 
     await db.$transaction([
@@ -125,6 +132,7 @@ export async function POST(request: NextRequest) {
           os: body.client?.os ?? parsedAgent.os,
           deviceType: body.client?.deviceType ?? parsedAgent.deviceType,
           userAgent: userAgent.slice(0, 1000),
+          ...ipRiskFields,
           metadata: clientMetadata,
         },
       }),

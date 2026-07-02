@@ -22,8 +22,17 @@ const securityHeaders = [
   },
 ];
 
+const immutableAssetHeaders = [
+  { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+];
+
 const nextConfig: NextConfig = {
   output: "standalone",
+  compress: true,
+  reactStrictMode: true,
+  outputFileTracingIncludes: {
+    "/*": ["./node_modules/@heyputer/puter.js/dist/**/*"],
+  },
   poweredByHeader: false,
   allowedDevOrigins: ["127.0.0.1"],
   images: {
@@ -51,7 +60,17 @@ const nextConfig: NextConfig = {
     unoptimized: true,
   },
   async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
+    return [
+      { source: "/:path*", headers: securityHeaders },
+      { source: "/coin-avatar/:path*", headers: immutableAssetHeaders },
+      { source: "/coin-backgrounds/:path*", headers: immutableAssetHeaders },
+      { source: "/coin-badge/:path*", headers: immutableAssetHeaders },
+      { source: "/country-flags-main/:path*", headers: immutableAssetHeaders },
+      { source: "/promo/:path*", headers: immutableAssetHeaders },
+      { source: "/tradx-logo.webp", headers: immutableAssetHeaders },
+      { source: "/favicon.ico", headers: immutableAssetHeaders },
+      { source: "/default-news.webp", headers: immutableAssetHeaders },
+    ];
   },
 };
 

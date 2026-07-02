@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { connection } from "next/server";
 import { db } from "@/lib/db";
 import { Badge } from "@/components/ui/badge";
 import { POST_CATEGORY_LABELS } from "@/lib/constants";
@@ -13,6 +14,8 @@ export async function generateMetadata({
 }: {
   params: Promise<{ slug: string }>;
 }) {
+  await connection();
+
   const { slug } = await params;
   const article = await db.article.findUnique({ where: { slug }, select: { title: true } });
   return { title: article?.title ?? "Article" };
@@ -23,6 +26,8 @@ export default async function ArticleDetailPage({
 }: {
   params: Promise<{ slug: string }>;
 }) {
+  await connection();
+
   const { slug } = await params;
 
   const article = await db.article.findUnique({

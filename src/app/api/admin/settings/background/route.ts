@@ -3,6 +3,7 @@ import { apiSuccess, apiError, handleApiError } from "@/lib/api/response";
 import { db } from "@/lib/db";
 import { requireAdminApi } from "@/lib/auth/admin-guard";
 import { validateCsrf } from "@/lib/auth/guards";
+import { getClientIp } from "@/lib/security/rate-limit";
 
 export async function POST(request: NextRequest) {
   try {
@@ -26,7 +27,7 @@ export async function POST(request: NextRequest) {
       data: {
         adminId: admin.id,
         action: "SETTINGS_UPDATE",
-        ipAddress: request.headers.get("x-forwarded-for") || "unknown",
+        ipAddress: getClientIp(request),
         metadata: { setting: "platform_background_image", value: imageUrl },
       },
     });

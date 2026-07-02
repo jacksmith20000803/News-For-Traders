@@ -7,7 +7,6 @@ const MAINTENANCE_COOKIE = "nft_maintenance";
 const SESSION_COOKIE = "nft_session";
 
 const protectedRoutes = ["/dashboard", "/admin"];
-const emailVerificationRoutes = ["/verify-email", "/api/auth/verify-email", "/api/auth/send-verification-code"];
 
 function isMaintenanceActive(request: NextRequest): boolean {
   if (appConfig.features.maintenanceMode) return true;
@@ -40,13 +39,11 @@ export async function proxy(request: NextRequest) {
   const sessionToken = request.cookies.get(SESSION_COOKIE)?.value;
   let isAuthenticated = false;
   let shouldClearSession = false;
-  let emailVerified: boolean | undefined;
 
   if (sessionToken) {
     try {
-      const { payload } = await jwtVerify(sessionToken, secret);
+      await jwtVerify(sessionToken, secret);
       isAuthenticated = true;
-      emailVerified = typeof payload.emailVerified === "boolean" ? payload.emailVerified : undefined;
     } catch {
       isAuthenticated = false;
       shouldClearSession = true;
@@ -61,17 +58,6 @@ export async function proxy(request: NextRequest) {
     const redirect = NextResponse.redirect(loginUrl);
     if (shouldClearSession) clearSessionCookie(redirect);
     return redirect;
-  }
-
-  if (
-    isProtected &&
-    isAuthenticated &&
-    emailVerified === false &&
-    !emailVerificationRoutes.some((route) => pathname.startsWith(route))
-  ) {
-    const verifyUrl = new URL("/verify-email", request.url);
-    verifyUrl.searchParams.set("callbackUrl", pathname);
-    return NextResponse.redirect(verifyUrl);
   }
 
   const response = NextResponse.next();

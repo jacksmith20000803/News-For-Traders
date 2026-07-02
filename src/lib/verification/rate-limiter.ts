@@ -1,6 +1,5 @@
 import {
-  MAX_CODE_REQUESTS_PER_HOUR,
-  VERIFICATION_CODE_COOLDOWN_SECONDS,
+  MAX_CODE_REQUESTS_PER_MINUTE,
 } from "@/lib/verification/constants";
 
 interface RequestRecord {
@@ -8,7 +7,7 @@ interface RequestRecord {
 }
 
 const requestsByUser = new Map<string, RequestRecord>();
-const HOUR_MS = 60 * 60 * 1000;
+const WINDOW_MS = 60 * 1000;
 
 // TODO: Replace in-memory Maps with Upstash Redis (@upstash/redis) for production multi-instance support.
 export function recordCodeRequest(userId: string): {
@@ -18,30 +17,16 @@ export function recordCodeRequest(userId: string): {
 } {
   const now = Date.now();
   const record = requestsByUser.get(userId) ?? { timestamps: [] };
-  record.timestamps = record.timestamps.filter((timestamp) => now - timestamp < HOUR_MS);
+  record.timestamps = record.timestamps.filter((timestamp) => now - timestamp < WINDOW_MS);
 
-  const lastRequestAt = record.timestamps[record.timestamps.length - 1];
-  if (lastRequestAt) {
-    const elapsedSeconds = Math.floor((now - lastRequestAt) / 1000);
-    if (elapsedSeconds < VERIFICATION_CODE_COOLDOWN_SECONDS) {
-      const retryAfterSeconds = VERIFICATION_CODE_COOLDOWN_SECONDS - elapsedSeconds;
-      requestsByUser.set(userId, record);
-      return {
-        allowed: false,
-        retryAfterSeconds,
-        error: `Please wait ${retryAfterSeconds} seconds before requesting another code.`,
-      };
-    }
-  }
-
-  if (record.timestamps.length >= MAX_CODE_REQUESTS_PER_HOUR) {
+  if (record.timestamps.length >= MAX_CODE_REQUESTS_PER_MINUTE) {
     const oldest = record.timestamps[0];
-    const retryAfterSeconds = Math.max(1, Math.ceil((HOUR_MS - (now - oldest)) / 1000));
+    const retryAfterSeconds = Math.max(1, Math.ceil((WINDOW_MS - (now - oldest)) / 1000));
     requestsByUser.set(userId, record);
     return {
       allowed: false,
       retryAfterSeconds,
-      error: "Too many verification code requests. Please try again later.",
+      error: "Too many verification email requests. Please try again in a minute.",
     };
   }
 
@@ -52,10 +37,9 @@ export function recordCodeRequest(userId: string): {
 
 export function getCooldownRemaining(userId: string): number {
   const record = requestsByUser.get(userId);
-  const lastRequestAt = record?.timestamps.at(-1);
-  if (!lastRequestAt) return 0;
-  const elapsedSeconds = Math.floor((Date.now() - lastRequestAt) / 1000);
-  return Math.max(0, VERIFICATION_CODE_COOLDOWN_SECONDS - elapsedSeconds);
+  if (!record || record.timestamps.length < MAX_CODE_REQUESTS_PER_MINUTE) return 0;
+  const oldest = record.timestamps[0];
+  return Math.max(0, Math.ceil((WINDOW_MS - (Date.now() - oldest)) / 1000));
 }
 
 export function clearRateLimits(userId: string): void {

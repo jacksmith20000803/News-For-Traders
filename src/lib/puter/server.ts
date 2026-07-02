@@ -33,15 +33,22 @@ type PuterInstance = {
         | {
             prompt: string;
             model?: string;
-            width?: number;
-            height?: number;
+            ratio?: { w: number; h: number };
             response_format?: string;
           },
       options?: {
         model?: string;
-        width?: number;
-        height?: number;
+        ratio?: { w: number; h: number };
         response_format?: string;
+      }
+    ) => Promise<unknown>;
+  };
+  images?: {
+    generate?: (
+      options: {
+        prompt: string;
+        size?: string;
+        model?: string;
       }
     ) => Promise<unknown>;
   };
@@ -166,8 +173,22 @@ function normalizePuterResponse(response: PuterChatResponse): string {
   return content.trim();
 }
 
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error(`${label} timed out. Please try again.`));
+    }, timeoutMs);
+  });
+
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timeoutId) clearTimeout(timeoutId);
+  });
+}
+
 function shouldExhaustToken(errorMessage: string): boolean {
-  return /auth|token|expired|unauthorized|forbidden|quota|limit|insufficient|reauth|required/i.test(
+  return /expired|unauthorized|forbidden|quota|limit|insufficient|invalid token|reauth/i.test(
     errorMessage
   );
 }
@@ -182,13 +203,95 @@ function normalizeImageUrl(result: unknown): string {
     const record = result as Record<string, unknown>;
     if (typeof record.url === "string") return record.url.trim();
     if (typeof record.src === "string") return record.src.trim();
+    if (typeof record.currentSrc === "string") return record.currentSrc.trim();
     if (typeof record.href === "string") return record.href.trim();
+    if (typeof record.image === "string") return record.image.trim();
+    if (typeof record.data === "string") return record.data.trim();
+    if (typeof record.output === "string") return record.output.trim();
+    if (Array.isArray(record.images)) {
+      const first = record.images[0];
+      const url = normalizeImageUrl(first);
+      if (url) return url;
+    }
+    if (Array.isArray(record.data)) {
+      const first = record.data[0];
+      const url = normalizeImageUrl(first);
+      if (url) return url;
+    }
     if (typeof record.toString === "function") {
       const value = record.toString();
       if (typeof value === "string" && value !== "[object Object]") return value.trim();
     }
   }
   return "";
+}
+
+function normalizeErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  if (error && typeof error === "object") {
+    const record = error as Record<string, unknown>;
+    const message =
+      typeof record.message === "string"
+        ? record.message
+        : typeof record.error === "string"
+          ? record.error
+          : typeof record.code === "string"
+            ? record.code
+            : "";
+    const code = typeof record.code === "string" && record.code !== message ? ` (${record.code})` : "";
+    if (message) return `${message}${code}`;
+
+    try {
+      return JSON.stringify(record);
+    } catch {
+      return "Unknown provider error.";
+    }
+  }
+  return "Unknown provider error.";
+}
+
+async function generatePuterImage(puter: PuterInstance, prompt: string, model?: string) {
+  if (puter.images?.generate) {
+    try {
+      return await puter.images.generate({
+        prompt,
+        size: "1024x1024",
+        ...(model ? { model } : {}),
+      });
+    } catch (error) {
+      if (!puter.ai.txt2img) throw error;
+    }
+  }
+
+  if (puter.ai.txt2img) {
+    const attempts: Array<() => Promise<unknown>> = [
+      () =>
+        puter.ai.txt2img!({
+          prompt,
+          ...(model ? { model } : {}),
+          ratio: { w: 1024, h: 1024 },
+        }),
+      () =>
+        puter.ai.txt2img!(
+          prompt,
+          model ? { model, ratio: { w: 1024, h: 1024 } } : { ratio: { w: 1024, h: 1024 } }
+        ),
+      () => puter.ai.txt2img!(prompt),
+    ];
+
+    let lastError: unknown;
+    for (const attempt of attempts) {
+      try {
+        return await attempt();
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw new Error(normalizeErrorMessage(lastError));
+  }
+
+  throw new Error("Installed AI provider does not expose image generation.");
 }
 
 async function notifyAdminsMissingToken(message: string) {
@@ -239,8 +342,8 @@ export async function chatWithManagedPuterTokens(params: {
   await ensurePuterTokenTable();
 
   const tokens = await db.puterToken.findMany({
-    where: { isActive: true, isExhausted: false },
-    orderBy: [{ failureCount: "asc" }, { lastUsedAt: "asc" }, { createdAt: "asc" }],
+    where: { isActive: true },
+    orderBy: [{ isExhausted: "asc" }, { failureCount: "asc" }, { lastUsedAt: "asc" }, { createdAt: "asc" }],
     take: 10,
   });
 
@@ -256,6 +359,8 @@ export async function chatWithManagedPuterTokens(params: {
   let lastError = "No usable AI token was found.";
 
   for (const token of tokens) {
+    if (token.requestLimit > 0 && token.requestCount >= token.requestLimit) continue;
+
     const models = normalizeModels(token.selectedModels);
     const selectedModel =
       params.model && models.includes(params.model)
@@ -263,7 +368,7 @@ export async function chatWithManagedPuterTokens(params: {
         : models[0] ?? params.model ?? undefined;
 
     try {
-      const puter = init(token.token);
+      const puter = init(token.token.trim());
       const prompt = buildTradingAssistantPrompt(userMessage, attachments);
       const imageInputs = attachments
         .filter((attachment) => attachment.kind === "image" && attachment.dataUrl)
@@ -271,8 +376,8 @@ export async function chatWithManagedPuterTokens(params: {
       const options = selectedModel ? { model: selectedModel } : undefined;
       const response =
         imageInputs.length > 0
-          ? await puter.ai.chat(prompt, imageInputs, options)
-          : await puter.ai.chat(prompt, options);
+          ? await withTimeout(puter.ai.chat(prompt, imageInputs, options), 45_000, "AI assistant request")
+          : await withTimeout(puter.ai.chat(prompt, options), 45_000, "AI assistant request");
       const content = normalizePuterResponse(response);
 
       if (!content) throw new Error("AI returned an empty response.");
@@ -295,7 +400,7 @@ export async function chatWithManagedPuterTokens(params: {
         tokenDisplayName: token.displayName,
       };
     } catch (error) {
-      lastError = error instanceof Error ? error.message : String(error);
+      lastError = normalizeErrorMessage(error);
       await db.puterToken.update({
         where: { id: token.id },
         data: {
@@ -322,8 +427,8 @@ export async function generateImageWithManagedPuterTokens(prompt: string) {
   await ensurePuterTokenTable();
 
   const tokens = await db.puterToken.findMany({
-    where: { isActive: true, isExhausted: false },
-    orderBy: [{ failureCount: "asc" }, { lastUsedAt: "asc" }, { createdAt: "asc" }],
+    where: { isActive: true },
+    orderBy: [{ isExhausted: "asc" }, { failureCount: "asc" }, { lastUsedAt: "asc" }, { createdAt: "asc" }],
     take: 10,
   });
 
@@ -339,21 +444,17 @@ export async function generateImageWithManagedPuterTokens(prompt: string) {
   let lastError = "No usable AI image token was found.";
 
   for (const token of tokens) {
+    if (token.requestLimit > 0 && token.requestCount >= token.requestLimit) continue;
+
     const selectedModel = selectImageModel(normalizeModels(token.selectedModels));
 
     try {
-      const puter = init(token.token);
-      if (!puter.ai.txt2img) {
-        throw new Error("Installed AI provider does not expose image generation.");
-      }
-
-      const result = await puter.ai.txt2img({
-        prompt: imagePrompt,
-        ...(selectedModel ? { model: selectedModel } : {}),
-        width: 1024,
-        height: 1024,
-        response_format: "url",
-      });
+      const puter = init(token.token.trim());
+      const result = await withTimeout(
+        generatePuterImage(puter, imagePrompt, selectedModel),
+        60_000,
+        "Image generation"
+      );
       const url = normalizeImageUrl(result);
 
       if (!url) {
@@ -378,7 +479,7 @@ export async function generateImageWithManagedPuterTokens(prompt: string) {
         tokenDisplayName: token.displayName,
       };
     } catch (error) {
-      lastError = error instanceof Error ? error.message : String(error);
+      lastError = normalizeErrorMessage(error);
       await db.puterToken.update({
         where: { id: token.id },
         data: {

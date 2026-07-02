@@ -56,21 +56,79 @@ if (typeof setInterval !== "undefined") {
   }, 60_000);
 }
 
+function normalizeIp(value: string | null): string | null {
+  if (!value) return null;
+  const candidate = value.trim();
+  if (!candidate) return null;
+  if (candidate.startsWith("[") && candidate.includes("]")) return candidate.slice(1, candidate.indexOf("]"));
+  if (candidate.startsWith("::ffff:")) return candidate.slice(7);
+  if (/^\d{1,3}(?:\.\d{1,3}){3}:\d+$/.test(candidate)) return candidate.replace(/:\d+$/, "");
+  return candidate.replace(/^"|"$/g, "");
+}
+
+function isPrivateIp(ip: string) {
+  const lower = ip.toLowerCase();
+  if (lower === "localhost" || lower === "::1") return true;
+  if (lower.startsWith("fe80:") || lower.startsWith("fc") || lower.startsWith("fd")) return true;
+
+  const parts = lower.split(".").map((part) => Number.parseInt(part, 10));
+  if (parts.length !== 4 || parts.some((part) => Number.isNaN(part))) return false;
+  const [a, b] = parts;
+  if (a === 10 || a === 127 || a === 0) return true;
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  if (a === 192 && b === 168) return true;
+  if (a === 169 && b === 254) return true;
+  if (a === 100 && b >= 64 && b <= 127) return true;
+  return false;
+}
+
+function parseForwardedFor(value: string | null) {
+  if (!value) return [];
+  return value
+    .split(",")
+    .map((part) => normalizeIp(part))
+    .filter((ip): ip is string => Boolean(ip));
+}
+
+function parseForwardedHeader(value: string | null) {
+  if (!value) return [];
+  return value
+    .split(",")
+    .flatMap((segment) => {
+      const match = /for="?([^;,"]+)/i.exec(segment);
+      return match?.[1] ? [normalizeIp(match[1])] : [];
+    })
+    .filter((ip): ip is string => Boolean(ip));
+}
+
+function firstPublicIp(candidates: string[]) {
+  return candidates.find((ip) => !isPrivateIp(ip)) ?? candidates[0] ?? null;
+}
+
 /**
- * Extract client IP. When TRUST_PROXY=true, reads x-forwarded-for (first hop).
- * Without TRUST_PROXY, only x-real-ip is trusted to prevent spoofing.
+ * Extract the best available client IP from common hosting/proxy headers.
+ * Set TRUST_PROXY=false to ignore forwarded headers in private deployments.
  */
 export function getClientIp(request: Request): string {
-  const trustProxy = process.env.TRUST_PROXY === "true";
+  const trustProxy = process.env.TRUST_PROXY !== "false";
 
   if (trustProxy) {
-    const forwarded = request.headers.get("x-forwarded-for");
-    if (forwarded) {
-      return forwarded.split(",")[0]?.trim() ?? "unknown";
+    const directHeaders = ["cf-connecting-ip", "true-client-ip", "x-client-ip", "x-real-ip", "fastly-client-ip"];
+    for (const header of directHeaders) {
+      const ip = normalizeIp(request.headers.get(header));
+      if (ip) return ip;
     }
+
+    const forwardedCandidates = [
+      ...parseForwardedFor(request.headers.get("x-forwarded-for")),
+      ...parseForwardedFor(request.headers.get("x-vercel-forwarded-for")),
+      ...parseForwardedHeader(request.headers.get("forwarded")),
+    ];
+    const ip = firstPublicIp(forwardedCandidates);
+    if (ip) return ip;
   }
 
-  return request.headers.get("x-real-ip") ?? "127.0.0.1";
+  return normalizeIp(request.headers.get("x-real-ip")) ?? "127.0.0.1";
 }
 
 /** Placeholder for Redis/KV adapter — swap in production multi-instance deployments. */

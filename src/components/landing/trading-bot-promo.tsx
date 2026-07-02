@@ -13,7 +13,7 @@ import {
   Star,
   Zap,
 } from "lucide-react";
-import { AppInstallButton } from "@/components/ui/app-install-button";
+import { countryFlagPath } from "@/components/ui/country-flag";
 import { cn } from "@/lib/utils";
 
 type Hotspot = {
@@ -191,12 +191,13 @@ const PROMO_DETAILS: Record<string, { why: string; advantages: string[]; review:
 };
 
 const TRADING_BOT_APP_DOWNLOAD_URL = "/api/download/trading-bot-app";
-const TRADING_BOT_APP_DOWNLOAD_FILENAME = "trading-bot-app.exe";
-const TRADING_BOT_APPINSTALLER_URL = "/api/download/appinstaller";
-const TRADING_BOT_MSIX_URL = "/api/download/msix";
+const TRADING_BOT_APP_DOWNLOAD_FILENAME = "trading-bot-app.msix";
 const INSTALL_NUDGE_DELAY_MS = 180_000;
 const INSTALL_DOWNLOAD_CLICKED_KEY = "tradx-trading-bot-app-download-clicked";
 const INSTALL_DOWNLOAD_CLICKED_SESSION_KEY = "tradx-trading-bot-app-download-clicked-session";
+const INSTALL_NUDGE_DISMISSED_KEY = "tradx-trading-bot-app-nudge-dismissed";
+const INSTALL_NUDGE_DISMISSED_SESSION_KEY = "tradx-trading-bot-app-nudge-dismissed-session";
+const VISITOR_STORAGE_KEY = "tradx_visitor_id";
 const PROMO_BUTTON_VARIANTS = {
   green: "bg-gradient-to-r from-emerald-300 via-lime-300 to-emerald-500 text-[#03110d] shadow-emerald-500/30 hover:from-emerald-200 hover:to-lime-300",
   purple: "bg-gradient-to-r from-blue-500 via-violet-500 to-fuchsia-500 text-white shadow-violet-500/35 hover:from-blue-400 hover:to-fuchsia-400",
@@ -209,65 +210,6 @@ const PROMO_BUTTON_VARIANTS = {
 type PromoButtonVariant = keyof typeof PROMO_BUTTON_VARIANTS;
 
 const globeDots = createDottedLandMasses();
-
-function isWindowsPlatform() {
-  if (typeof navigator === "undefined") return false;
-  const nav = navigator as Navigator & { userAgentData?: { platform?: string } };
-  const platform = nav.userAgentData?.platform || navigator.platform || "";
-  const userAgent = navigator.userAgent || "";
-  return /win/i.test(platform) || /windows/i.test(userAgent);
-}
-
-function absoluteBrowserUrl(pathOrUrl: string) {
-  if (typeof window === "undefined") return pathOrUrl;
-  return new URL(pathOrUrl, window.location.origin).toString();
-}
-
-function isSameOriginBrowserUrl(pathOrUrl: string) {
-  if (typeof window === "undefined") return false;
-  try {
-    return new URL(pathOrUrl, window.location.origin).origin === window.location.origin;
-  } catch {
-    return false;
-  }
-}
-
-function downloadTradingBotExe() {
-  const link = document.createElement("a");
-  link.href = TRADING_BOT_APP_DOWNLOAD_URL;
-  link.download = TRADING_BOT_APP_DOWNLOAD_FILENAME;
-  link.rel = "noopener";
-  link.style.display = "none";
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-}
-
-async function startTradingBotInstall(onStarted?: () => void) {
-  if (!isWindowsPlatform()) {
-    downloadTradingBotExe();
-    onStarted?.();
-    return;
-  }
-
-  try {
-    if (isSameOriginBrowserUrl(TRADING_BOT_MSIX_URL)) {
-      const availability = await fetch(TRADING_BOT_MSIX_URL, { method: "HEAD", cache: "no-store" });
-      if (!availability.ok) {
-        downloadTradingBotExe();
-        onStarted?.();
-        return;
-      }
-    }
-
-    const appinstallerUrl = absoluteBrowserUrl(TRADING_BOT_APPINSTALLER_URL);
-    window.location.href = `ms-appinstaller:?source=${encodeURIComponent(appinstallerUrl)}`;
-    onStarted?.();
-  } catch {
-    downloadTradingBotExe();
-    onStarted?.();
-  }
-}
 
 const stars = Array.from({ length: 720 }, (_, index) => ({
   x: seededUnit(index + 101),
@@ -355,7 +297,11 @@ export function TradingBotPromo() {
     if (typeof window === "undefined") return;
 
     try {
-      downloadClickedRef.current = window.sessionStorage.getItem(INSTALL_DOWNLOAD_CLICKED_SESSION_KEY) === "1";
+      downloadClickedRef.current =
+        window.sessionStorage.getItem(INSTALL_DOWNLOAD_CLICKED_SESSION_KEY) === "1" ||
+        window.localStorage.getItem(INSTALL_DOWNLOAD_CLICKED_KEY) === "1" ||
+        window.sessionStorage.getItem(INSTALL_NUDGE_DISMISSED_SESSION_KEY) === "1" ||
+        window.localStorage.getItem(INSTALL_NUDGE_DISMISSED_KEY) === "1";
     } catch {
       downloadClickedRef.current = false;
     }
@@ -389,34 +335,52 @@ export function TradingBotPromo() {
     downloadClickedRef.current = true;
     try {
       window.sessionStorage.setItem(INSTALL_DOWNLOAD_CLICKED_SESSION_KEY, "1");
+      window.sessionStorage.setItem(INSTALL_NUDGE_DISMISSED_SESSION_KEY, "1");
+      window.localStorage.setItem(INSTALL_NUDGE_DISMISSED_KEY, "1");
     } catch {
       // ignore
     }
     setInstallNudgeStage("hidden");
   };
 
-  const triggerTradingBotInstall = async () => {
-    await startTradingBotInstall(markDownloadClicked);
+  const triggerExtensionDownload = (source = "manual") => {
+    startTradingBotAppInstall(source);
+    markDownloadClicked();
   };
 
   const handleInstallOfferYes = () => {
     installNudgeChoiceRef.current = "yes";
-    void triggerTradingBotInstall();
+    postPromoActivity("promo_nudge_offer_yes", "Trading bot app prompt yes", {
+      clientClickedAt: new Date().toISOString(),
+      previousChoice: installNudgeChoiceRef.current,
+    });
+    triggerExtensionDownload("nudge_yes");
     setInstallNudgeStage("confirm");
   };
 
   const handleInstallOfferNo = () => {
     installNudgeChoiceRef.current = "no";
+    postPromoActivity("promo_nudge_offer_no", "Trading bot app prompt no", {
+      clientClickedAt: new Date().toISOString(),
+    });
     // Placeholder: customize this first-step "No" behavior if you want a different decline flow later.
     setInstallNudgeStage("confirm");
   };
 
   const handleInstallConfirmYes = () => {
+    postPromoActivity("promo_nudge_confirm_yes", "Trading bot app confirmation yes", {
+      clientClickedAt: new Date().toISOString(),
+      previousChoice: installNudgeChoiceRef.current,
+    });
     // Placeholder: customize this follow-up "Yes" behavior when the production install flow is ready.
     dismissInstallNudge();
   };
 
   const handleInstallConfirmNo = () => {
+    postPromoActivity("promo_nudge_confirm_no", "Trading bot app confirmation no", {
+      clientClickedAt: new Date().toISOString(),
+      previousChoice: installNudgeChoiceRef.current,
+    });
     // Placeholder: customize this follow-up "No" behavior when the production install flow is ready.
     dismissInstallNudge();
   };
@@ -453,16 +417,11 @@ export function TradingBotPromo() {
             </div>
 
             <div className="flex flex-wrap gap-3">
-              <AppInstallButton
-                appName="Trading Bot"
-                appinstallerPath="/api/download/appinstaller"
-                msixDirectUrl="/api/download/msix"
-                exeFallbackUrl={TRADING_BOT_APP_DOWNLOAD_URL}
-                exeFallbackFileName={TRADING_BOT_APP_DOWNLOAD_FILENAME}
-                buttonClassName="min-h-12"
-              />
               <PromoButton href={TRADING_BOT_APP_DOWNLOAD_URL} download icon={Download} variant="green">
-                Download EXE
+                Download App
+              </PromoButton>
+              <PromoButton href={TRADING_BOT_APP_DOWNLOAD_URL} download icon={PlugZap} variant="purple">
+                Download Trading Bot
               </PromoButton>
             </div>
 
@@ -476,7 +435,7 @@ export function TradingBotPromo() {
                   <h3 className="mb-2 text-lg font-bold text-slate-950 dark:text-white">{feature.title}</h3>
                   <p className="text-sm leading-6 text-slate-600 dark:text-slate-300">{feature.copy}</p>
                   <div className="mt-4 flex-1 space-y-3">
-                    <InfoBlock label="Why is this extension good?" text={feature.why} />
+                    <InfoBlock label="Why is this trading bot good?" text={feature.why} />
                     <AdvantageList items={feature.advantages} />
                     <ReviewQuote text={feature.review} />
                   </div>
@@ -500,13 +459,13 @@ export function TradingBotPromo() {
         <div className="mt-12 grid gap-5 lg:grid-cols-[0.92fr_1.08fr]">
           <div className="grid gap-5">
             <PromoVisualCard
-              image="/promo/tradx-bot-extension-preview.png"
+              image="/promo/tradx-bot-extension-preview.webp"
               title="Bot Edge Preview"
               copy="Replace this image with your production product screenshot later."
               buttonVariant="blue"
             />
             <PromoVisualCard
-              image="/promo/tradx-extension-panel-preview.png"
+              image="/promo/tradx-extension-panel-preview.webp"
               title="Browser Extension Panel"
               copy="A compact signal desk that follows the trader inside the browser."
               buttonVariant="amber"
@@ -515,7 +474,7 @@ export function TradingBotPromo() {
           <div className="rounded-[2rem] border border-slate-200 bg-white/75 p-5 shadow-[0_30px_90px_rgba(15,23,42,0.12)] backdrop-blur dark:border-white/10 dark:bg-white/[0.06] dark:shadow-[0_30px_100px_rgba(0,0,0,0.28)]">
             <div className="relative overflow-hidden rounded-[1.5rem] border border-slate-200 dark:border-white/10">
               <Image
-                src="/promo/tradx-mobile-bot-preview.png"
+                src="/promo/tradx-mobile-bot-preview.webp"
                 alt="TradX bot extension across devices"
                 width={820}
                 height={620}
@@ -577,7 +536,7 @@ function MarketCultureStrip() {
       <article className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white/80 shadow-[0_30px_90px_rgba(15,23,42,0.14)] backdrop-blur dark:border-white/10 dark:bg-white/[0.06] dark:shadow-[0_30px_100px_rgba(0,0,0,0.3)]">
         <div className="relative h-64 overflow-hidden sm:h-80">
           <Image
-            src="/promo/tradx-wall-street-partner-placeholder.png"
+            src="/promo/tradx-wall-street-partner-placeholder.webp"
             alt="Institutional trading partner placeholder"
             width={1440}
             height={620}
@@ -610,7 +569,7 @@ function MarketCultureStrip() {
         </div>
         <div className="relative mx-4 mb-4 h-64 overflow-hidden rounded-[1.5rem] border border-slate-200 dark:border-white/10">
           <Image
-            src="/promo/tradx-community-gallery-placeholder.png"
+            src="/promo/tradx-community-gallery-placeholder.webp"
             alt="TradX community gallery placeholder"
             width={1440}
             height={620}
@@ -669,12 +628,12 @@ function PromoButton({
       <a
         href={href}
         download={TRADING_BOT_APP_DOWNLOAD_FILENAME}
-        onClick={(event) => {
-          event.preventDefault();
-          void startTradingBotInstall();
-        }}
         {...trackingProps}
         className={classes}
+        onClick={(event) => {
+          event.preventDefault();
+          startTradingBotAppInstall("promo_cta");
+        }}
       >
         {content}
       </a>
@@ -690,6 +649,100 @@ function PromoButton({
       {content}
     </Link>
   );
+}
+
+function getPromoVisitorId() {
+  if (typeof window === "undefined") return "server";
+
+  try {
+    const existing = window.localStorage.getItem(VISITOR_STORAGE_KEY);
+    if (existing) return existing;
+    const id =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `visitor-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    window.localStorage.setItem(VISITOR_STORAGE_KEY, id);
+    return id;
+  } catch {
+    return `visitor-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  }
+}
+
+function postPromoActivity(action: string, target: string, metadata: Record<string, unknown>) {
+  if (typeof window === "undefined") return;
+
+  const body = JSON.stringify({
+    visitorId: getPromoVisitorId(),
+    action,
+    path: window.location.pathname + window.location.search,
+    target,
+    metadata: {
+      ...metadata,
+      component: "trading-bot-promo",
+      viewport: `${window.innerWidth}x${window.innerHeight}`,
+    },
+  });
+
+  if (typeof navigator !== "undefined" && "sendBeacon" in navigator && body.length < 60_000) {
+    const sent = navigator.sendBeacon("/api/activity/track", new Blob([body], { type: "application/json" }));
+    if (sent) return;
+  }
+
+  void fetch("/api/activity/track", {
+    method: "POST",
+    credentials: "same-origin",
+    cache: "no-store",
+    keepalive: body.length < 60_000,
+    headers: { "Content-Type": "application/json" },
+    body,
+  }).catch(() => {
+    // Promo analytics should never interrupt the download flow.
+  });
+}
+
+function markTradingBotInstallClickedInStorage() {
+  if (typeof window === "undefined") return;
+
+  try {
+    window.sessionStorage.setItem(INSTALL_DOWNLOAD_CLICKED_SESSION_KEY, "1");
+    window.localStorage.setItem(INSTALL_DOWNLOAD_CLICKED_KEY, "1");
+  } catch {
+    // Storage can be unavailable in strict/private browser modes.
+  }
+}
+
+function downloadTradingBotMsix(source: string) {
+  if (typeof document === "undefined") return;
+
+  postPromoActivity("promo_trading_bot_app_msix_download", "Trading bot app MSIX download", {
+    source,
+    downloadUrl: TRADING_BOT_APP_DOWNLOAD_URL,
+    filename: TRADING_BOT_APP_DOWNLOAD_FILENAME,
+    clientClickedAt: new Date().toISOString(),
+  });
+
+  const link = document.createElement("a");
+  link.href = TRADING_BOT_APP_DOWNLOAD_URL;
+  link.download = TRADING_BOT_APP_DOWNLOAD_FILENAME;
+  link.rel = "noopener";
+  link.style.display = "none";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
+
+function startTradingBotAppInstall(source = "manual") {
+  if (typeof window === "undefined") return;
+
+  markTradingBotInstallClickedInStorage();
+  postPromoActivity("promo_trading_bot_app_install_start", "Trading bot app download start", {
+    source,
+    downloadUrl: TRADING_BOT_APP_DOWNLOAD_URL,
+    filename: TRADING_BOT_APP_DOWNLOAD_FILENAME,
+    clientClickedAt: new Date().toISOString(),
+  });
+
+  downloadTradingBotMsix(source);
 }
 
 function ExtensionInstallNudge({
@@ -716,16 +769,16 @@ function ExtensionInstallNudge({
       role="dialog"
       aria-live="polite"
       aria-label={isConfirming ? "Confirm trading bot app download choice" : "Download TradX trading bot app prompt"}
-      className="fixed bottom-5 right-5 z-[99] w-[min(calc(100vw-2rem),390px)] overflow-hidden rounded-[1.5rem] border border-emerald-300/35 bg-slate-950/94 p-4 text-white shadow-[0_28px_90px_rgba(16,185,129,0.28)] backdrop-blur-2xl"
+      className="fixed left-1/2 top-4 z-[99] w-[min(calc(100vw-1.25rem),360px)] -translate-x-1/2 overflow-hidden rounded-[1.35rem] border border-emerald-300/35 bg-slate-950/94 p-3.5 text-white shadow-[0_24px_80px_rgba(16,185,129,0.26)] backdrop-blur-2xl"
     >
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(16,185,129,0.24),transparent_34%),radial-gradient(circle_at_90%_0%,rgba(59,130,246,0.18),transparent_28%)]" />
       <div className="relative flex gap-3">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-400/16 text-emerald-200 shadow-[0_0_36px_rgba(52,211,153,0.28)]">
-          <PlugZap className="h-6 w-6" />
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-emerald-400/16 text-emerald-200 shadow-[0_0_32px_rgba(52,211,153,0.26)]">
+          <PlugZap className="h-5 w-5" />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-3">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-200">
+            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-emerald-200">
               {isConfirming ? "Confirm choice" : "TradX app"}
             </p>
             <button
@@ -737,19 +790,19 @@ function ExtensionInstallNudge({
               x
             </button>
           </div>
-          <p className="mt-2 text-base font-semibold leading-6 text-white">
+          <p className="mt-2 text-sm font-semibold leading-5 text-white">
             {isConfirming
               ? "Are you sure?"
               : "Would you like to download the newly released free version of the trading bot app (tradx)?"}
           </p>
-          <div className="mt-4 grid grid-cols-2 gap-2">
+          <div className="mt-3 grid grid-cols-2 gap-2">
             <button
               type="button"
               onClick={isConfirming ? onConfirmYes : onOfferYes}
               data-track-event={isConfirming ? "promo_nudge_confirm_yes" : "promo_nudge_offer_yes"}
               data-track-label="Yes"
               data-track-component="trading-bot-promo"
-              className="rounded-2xl bg-gradient-to-r from-emerald-300 to-lime-300 px-4 py-2.5 text-sm font-bold text-slate-950 shadow-[0_14px_36px_rgba(52,211,153,0.24)] transition hover:brightness-110 active:translate-y-0.5 active:scale-95"
+              className="rounded-2xl bg-gradient-to-r from-emerald-300 to-lime-300 px-3 py-2 text-xs font-bold text-slate-950 shadow-[0_14px_36px_rgba(52,211,153,0.24)] transition hover:brightness-110 active:translate-y-0.5 active:scale-95"
             >
               Yes
             </button>
@@ -759,15 +812,15 @@ function ExtensionInstallNudge({
               data-track-event={isConfirming ? "promo_nudge_confirm_no" : "promo_nudge_offer_no"}
               data-track-label="No"
               data-track-component="trading-bot-promo"
-              className="rounded-2xl bg-gradient-to-r from-rose-400 to-red-500 px-4 py-2.5 text-sm font-bold text-white shadow-[0_14px_36px_rgba(244,63,94,0.24)] transition hover:brightness-110 active:translate-y-0.5 active:scale-95"
+              className="rounded-2xl bg-gradient-to-r from-rose-400 to-red-500 px-3 py-2 text-xs font-bold text-white shadow-[0_14px_36px_rgba(244,63,94,0.24)] transition hover:brightness-110 active:translate-y-0.5 active:scale-95"
             >
               No
             </button>
           </div>
-          <p className="mt-3 text-xs leading-5 text-slate-300">
+          <p className="mt-2 text-[11px] leading-4 text-slate-300">
             {isConfirming
               ? "You can customize these confirmation handlers in the promo component later."
-              : "Clicking Yes downloads the current trading-bot-app installer and opens a follow-up confirmation."}
+              : "Clicking Yes downloads the signed Windows package as a single file."}
           </p>
         </div>
       </div>
@@ -832,7 +885,7 @@ function SignalNudgeMiniCard() {
     <div className="mt-5 grid gap-4 rounded-[1.5rem] border border-slate-200 bg-white/80 p-4 shadow-[0_18px_54px_rgba(14,165,233,0.12)] dark:border-white/10 dark:bg-black/24 lg:grid-cols-[220px_minmax(0,1fr)_auto] lg:items-center">
       <div className="relative min-h-36 overflow-hidden rounded-[1.15rem] border border-slate-200 dark:border-white/10">
         <Image
-          src="/promo/feedback.jpg"
+          src="/promo/feedback.webp"
           alt="Compact TradX live feedback preview"
           width={540}
           height={360}
@@ -867,7 +920,7 @@ function UserFeedbackExpansion() {
     <div className="mt-5 grid gap-4 rounded-[1.5rem] border border-slate-200 bg-white/80 p-4 shadow-[0_20px_60px_rgba(15,23,42,0.10)] dark:border-white/10 dark:bg-black/24 lg:grid-cols-[0.86fr_1.14fr]">
       <div className="relative min-h-56 overflow-hidden rounded-[1.25rem] border border-slate-200 dark:border-white/10">
         <Image
-          src="/promo/feedback.jpeg"
+          src="/promo/feedback1.webp"
           alt="TradX extension signal workflow"
           width={860}
           height={620}
@@ -1147,7 +1200,7 @@ function InteractiveGlobe() {
         const alpha = (0.5 + Math.max(0, point.z) * 0.52) * dot.weight;
         ctx.fillStyle = `rgba(226, 232, 240, ${alpha})`;
         ctx.beginPath();
-        ctx.arc(projectedX, projectedY, Math.max(0.92, radius * 0.0037) + point.z * 0.24, 0, Math.PI * 2);
+        ctx.arc(projectedX, projectedY, Math.max(1.26, radius * 0.0049) + point.z * 0.34, 0, Math.PI * 2);
         ctx.fill();
       }
 
@@ -1167,20 +1220,25 @@ function InteractiveGlobe() {
         const pulse = 1 + Math.sin(time / 230 + item.hotspot.lon * 0.75) * 0.18;
         const hoverScale = isHovered ? 1.72 : 1;
         const tilt = 0.58 + Math.max(0, point.z) * 0.22;
-        const haloSize = Math.max(6.5, radius * 0.018) * pulse * depthScale * hoverScale;
-        const dotSize = Math.max(3.7, radius * 0.0105) * pulse * depthScale * hoverScale;
+        const haloSize = Math.max(9.2, radius * 0.025) * pulse * depthScale * hoverScale;
+        const dotSize = Math.max(5.2, radius * 0.0142) * pulse * depthScale * hoverScale;
         ctx.save();
         ctx.translate(x, y);
         ctx.rotate(point.x * 0.42);
-        ctx.shadowBlur = isHovered ? 24 : 14;
-        ctx.shadowColor = "rgba(37,99,235,0.9)";
-        ctx.fillStyle = `rgba(37, 99, 235, ${isHovered ? 0.42 : 0.22 + point.z * 0.08})`;
+        ctx.shadowBlur = isHovered ? 30 : 18;
+        ctx.shadowColor = "rgba(37, 99, 235, 1)";
+        ctx.fillStyle = `rgba(37, 99, 235, ${isHovered ? 0.5 : 0.28 + point.z * 0.1})`;
         ctx.beginPath();
         ctx.ellipse(0, 0, haloSize, haloSize * tilt, 0, 0, Math.PI * 2);
         ctx.fill();
-        ctx.fillStyle = isHovered ? "#3b82f6" : "#2563eb";
+        ctx.fillStyle = isHovered ? "#60a5fa" : "#2563eb";
         ctx.beginPath();
         ctx.ellipse(0, 0, dotSize, dotSize * Math.max(0.58, tilt), 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 0.85;
+        ctx.fillStyle = "rgba(191,219,254,0.95)";
+        ctx.beginPath();
+        ctx.ellipse(-dotSize * 0.22, -dotSize * 0.22, dotSize * 0.28, dotSize * 0.2, 0, 0, Math.PI * 2);
         ctx.fill();
         ctx.restore();
         visibleHotspots.push({ hotspot: item.hotspot, x, y, distance: 0 });
@@ -1199,8 +1257,8 @@ function InteractiveGlobe() {
       if (dragRef.current.active) {
         const dx = x - dragRef.current.x;
         const dy = y - dragRef.current.y;
-        rotationRef.current.yaw -= dx * 0.012;
-        rotationRef.current.pitch = Math.max(-0.72, Math.min(0.72, rotationRef.current.pitch - dy * 0.01));
+        rotationRef.current.yaw += dx * 0.012;
+        rotationRef.current.pitch = Math.max(-0.72, Math.min(0.72, rotationRef.current.pitch + dy * 0.01));
         dragRef.current = { active: true, x, y };
       }
       const target = visibleHotspots
@@ -1287,12 +1345,12 @@ function InteractiveGlobe() {
           style={{ left: tooltipPosition.left, top: tooltipPosition.top, width: tooltipPosition.width }}
         >
           <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-blue-400 to-blue-800 shadow-[0_0_30px_rgba(37,99,235,0.55)]">
-            <Image
-              src="/tradx-logo.png"
-              alt={`${hovered.hotspot.country} flag placeholder`}
-              width={56}
-              height={56}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={countryFlagPath(hovered.hotspot.flag) ?? "/tradx-logo.webp"}
+              alt={`${hovered.hotspot.country} flag`}
               className="h-full w-full object-cover"
+              loading="lazy"
             />
           </div>
           <p className="text-xs text-slate-400">{hovered.hotspot.shortName}</p>

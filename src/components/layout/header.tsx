@@ -87,7 +87,7 @@ export function Header() {
         <Link href="/" className="flex shrink-0 items-center group">
           <div className="relative">
             <Image
-              src="/tradx-logo.png"
+              src="/tradx-logo.webp"
               alt="TRADX"
               width={64}
               height={64}

@@ -62,6 +62,7 @@ export function NewsGridClient({
   const [hasMore, setHasMore] = useState(initialNews.length >= 20);
   const observerTarget = useRef<HTMLDivElement>(null);
   const coinMenuRef = useRef<HTMLDivElement>(null);
+  const lastVisibleCardRef = useRef<HTMLDivElement>(null);
   const searchPending = searchText.trim() !== searchQuery;
   const coinOptions = useMemo(
     () =>
@@ -114,6 +115,8 @@ export function NewsGridClient({
 
   const loadMore = useCallback(async () => {
     if (loading || !hasMore) return;
+    const anchor = lastVisibleCardRef.current;
+    const anchorTop = anchor?.getBoundingClientRect().top ?? null;
     setLoading(true);
     try {
       const data = await fetchNewsPage(page + 1);
@@ -127,6 +130,14 @@ export function NewsGridClient({
       }
       setPage(data.pagination.page);
       setHasMore(data.pagination.page < data.pagination.totalPages);
+      if (anchor && anchorTop !== null) {
+        window.requestAnimationFrame(() => {
+          window.requestAnimationFrame(() => {
+            const nextTop = anchor.getBoundingClientRect().top;
+            window.scrollBy({ top: nextTop - anchorTop, behavior: "auto" });
+          });
+        });
+      }
     } catch (error) {
       console.error("Failed to load more news:", error);
     } finally {
@@ -396,23 +407,28 @@ export function NewsGridClient({
         id="news-grid"
         aria-busy={loading || searchPending}
       >
-        {displayedNews.map((item) => (
-          <NewsCard
+        {displayedNews.map((item, index) => (
+          <div
             key={item.id}
-            id={item.id}
-            headline={item.headline}
-            summary={item.summary}
-            source={item.source.name}
-            publishedAt={item.publishedAt}
-            importance={item.importance}
-            reliabilityStatus={item.reliabilityStatus}
-            imageUrl={item.imageUrl}
-            assets={item.assets.map((a) => ({ symbol: a.symbol, assetType: a.assetType }))}
-            commentCount={item._count?.comments ?? 0}
-            initialFavorite={favoriteIds.has(item.id)}
-            onFavoriteChange={handleFavoriteChange}
-            layout={viewMode}
-          />
+            ref={index === displayedNews.length - 1 ? lastVisibleCardRef : undefined}
+            data-news-anchor={item.id}
+          >
+            <NewsCard
+              id={item.id}
+              headline={item.headline}
+              summary={item.summary}
+              source={item.source.name}
+              publishedAt={item.publishedAt}
+              importance={item.importance}
+              reliabilityStatus={item.reliabilityStatus}
+              imageUrl={item.imageUrl}
+              assets={item.assets.map((a) => ({ symbol: a.symbol, assetType: a.assetType }))}
+              commentCount={item._count?.comments ?? 0}
+              initialFavorite={favoriteIds.has(item.id)}
+              onFavoriteChange={handleFavoriteChange}
+              layout={viewMode}
+            />
+          </div>
         ))}
         {displayedNews.length === 0 && !loading && !searchPending && (
           <div className="rounded-2xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">

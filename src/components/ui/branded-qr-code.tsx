@@ -49,7 +49,7 @@ function roundedRect(
 
 export function BrandedQRCode({
   qrDataUrl,
-  logoSrc = "/tradx-logo.png",
+  logoSrc = "/tradx-logo.webp",
   size = 300,
   logoSizePercent = 22,
   alt = "Scan with authenticator app",

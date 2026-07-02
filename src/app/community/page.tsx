@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { connection } from "next/server";
 import { db } from "@/lib/db";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -55,6 +56,8 @@ async function getDiscussions(): Promise<CommunityDiscussion[]> {
 }
 
 export default async function CommunityPage() {
+  await connection();
+
   const discussions = await getDiscussions();
 
   return (

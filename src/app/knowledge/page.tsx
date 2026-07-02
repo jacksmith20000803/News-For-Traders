@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { connection } from "next/server";
 import { db } from "@/lib/db";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -57,6 +58,8 @@ async function getPublishedArticles(): Promise<KnowledgeArticle[]> {
 }
 
 export default async function KnowledgePage() {
+  await connection();
+
   const articles = await getPublishedArticles();
 
   return (

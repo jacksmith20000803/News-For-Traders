@@ -21,7 +21,7 @@ export function Logo({ variant = "header", className, showTagline = false }: Log
     <Link href="/" className={cn("flex shrink-0 flex-col items-start gap-1", className)}>
       <div className="relative">
         <Image
-          src="/tradx-logo.png"
+          src="/tradx-logo.webp"
           alt="TRADX — Trade. Invest. Grow."
           width={width}
           height={height}

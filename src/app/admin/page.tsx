@@ -112,7 +112,6 @@ export default async function AdminDashboardPage() {
           <CardContent className="space-y-2">
             {[
               { href: "/admin/users", label: "User Management" },
-              { href: "/admin/content", label: "Content Management" },
               { href: "/admin/news", label: "News Management" },
               { href: "/admin/moderation", label: "Community Moderation" },
               { href: "/admin/audit", label: "Audit Logs" },

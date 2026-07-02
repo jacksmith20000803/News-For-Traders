@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { connection } from "next/server";
 import { getCurrentUser } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { Card, CardContent } from "@/components/ui/card";
@@ -7,6 +8,8 @@ import { Bookmark } from "lucide-react";
 import Link from "next/link";
 
 export default async function BookmarksPage() {
+  await connection();
+
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 

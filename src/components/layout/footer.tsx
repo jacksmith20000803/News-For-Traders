@@ -8,7 +8,7 @@ export function Footer() {
         <div className="grid gap-8 sm:grid-cols-2 sm:gap-10 lg:grid-cols-[1.45fr_1fr_1fr_1fr]" suppressHydrationWarning>
           <div className="max-w-sm" suppressHydrationWarning>
             <Image
-              src="/tradx-logo.png"
+              src="/tradx-logo.webp"
               alt="TRADX"
               width={88}
               height={88}

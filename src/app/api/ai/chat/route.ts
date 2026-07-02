@@ -4,7 +4,7 @@ import { apiError, apiSuccess, handleApiError, parseJsonBody } from "@/lib/api/r
 import { getCurrentUser } from "@/lib/auth/session";
 import { validateCsrf } from "@/lib/auth/guards";
 import { checkRateLimit, getClientIp } from "@/lib/security/rate-limit";
-import { chatWithManagedPuterTokens, type PuterAttachmentContext } from "@/lib/puter/server";
+import type { PuterAttachmentContext } from "@/lib/puter/server";
 import { db } from "@/lib/db";
 import type { Prisma } from "@prisma/client";
 
@@ -15,6 +15,10 @@ const chatSchema = z.object({
   message: z.string().max(4000).optional().default(""),
   model: z.string().min(1).max(80).optional(),
   conversationId: z.string().cuid().optional(),
+});
+
+const deleteMessageSchema = z.object({
+  messageId: z.string().cuid(),
 });
 
 interface ChatPayload {
@@ -75,6 +79,7 @@ export async function POST(request: NextRequest) {
     const effectiveMessage = hasUserMessage ? data.message.trim() : "Please analyze the attached file(s).";
 
     let conversationId: string | null = null;
+    let userMessage: Awaited<ReturnType<typeof db.aIMessage.create>> | null = null;
 
     if (user) {
       const existingConversation = data.conversationId
@@ -103,7 +108,7 @@ export async function POST(request: NextRequest) {
         }));
 
       conversationId = conversation.id;
-      await db.aIMessage.create({
+      userMessage = await db.aIMessage.create({
         data: {
           conversationId,
           role: "user",
@@ -116,6 +121,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    const { chatWithManagedPuterTokens } = await import("@/lib/puter/server");
     const response = await chatWithManagedPuterTokens({
       message: effectiveMessage,
       model: data.model,
@@ -135,10 +141,35 @@ export async function POST(request: NextRequest) {
         ...response,
         conversationId,
         message: assistantMessage,
+        userMessage,
       });
     }
 
     return apiSuccess({ ...response, conversationId: null });
+  } catch (error) {
+    return handleApiError(error);
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    await validateCsrf(request);
+    const user = await getCurrentUser();
+    if (!user) return apiError("Authentication required", 401, "AUTH_REQUIRED");
+
+    const data = deleteMessageSchema.parse(await parseJsonBody(request));
+    const deleted = await db.aIMessage.deleteMany({
+      where: {
+        id: data.messageId,
+        conversation: { userId: user.id },
+      },
+    });
+
+    if (deleted.count === 0) {
+      return apiError("Message not found", 404, "MESSAGE_NOT_FOUND");
+    }
+
+    return apiSuccess({ deleted: deleted.count });
   } catch (error) {
     return handleApiError(error);
   }

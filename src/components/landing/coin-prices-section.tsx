@@ -182,7 +182,7 @@ const CoinPriceCard = memo(function CoinPriceCard({
   };
   const backgroundImage = coin.background === null
     ? "radial-gradient(circle at 20% 20%, rgba(56,189,248,0.45), transparent 34%), linear-gradient(135deg, #0f172a 0%, #0a0c0c 55%, #052e2b 100%)"
-    : `url(/coin-backgrounds/${coin.background ?? `${coin.symbol.toLowerCase()}.jpg`})`;
+    : `url(/coin-backgrounds/${coin.background ?? `${coin.symbol.toLowerCase()}.webp`})`;
 
   return (
     <motion.div

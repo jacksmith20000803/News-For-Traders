@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { connection } from "next/server";
 import { db } from "@/lib/db";
 import { Badge } from "@/components/ui/badge";
 import { POST_CATEGORY_LABELS } from "@/lib/constants";
@@ -14,6 +15,8 @@ export default async function DiscussionDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await connection();
+
   const { id } = await params;
 
   const discussion = await db.discussion.findUnique({

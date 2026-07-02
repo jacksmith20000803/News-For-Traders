@@ -4,7 +4,7 @@ import path from "node:path";
 
 export const runtime = "nodejs";
 
-const DEFAULT_INSTALLER_NAME = "trading-bot-app.exe";
+const DEFAULT_INSTALLER_NAME = "trading-bot-app.msix";
 const DEFAULT_VERSION = "0.0.0-dev";
 
 function getInstallerFileName() {
@@ -50,7 +50,7 @@ export async function GET(request: Request) {
       return Response.json(
         {
           error:
-            "Trading bot installer is not present yet. Place your signed installer in public/downloads/trading-bot-app.exe or set TRADING_BOT_APP_FILE.",
+            "Trading bot installer is not present yet. Place your signed installer in public/downloads/trading-bot-app.msix or set TRADING_BOT_APP_FILE.",
           expectedFileName: fileName,
         },
         { status: 404 }

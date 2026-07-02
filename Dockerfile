@@ -11,7 +11,6 @@ FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN npx prisma generate
 ENV NEXT_TELEMETRY_DISABLED=1
 ARG DATABASE_URL="postgresql://build:build@localhost:5432/build"
 ARG SESSION_SECRET="build-session-secret-change-me-32-bytes"

@@ -172,7 +172,7 @@ function VerifyEmailContent() {
             role={status === "error" ? "alert" : "status"}
             className={
               status === "error"
-                ? "rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm font-medium text-amber-700 dark:text-amber-200"
+                ? "rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm font-medium text-red-700 dark:text-red-200"
                 : "rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm font-medium text-emerald-600 dark:text-emerald-300"
             }
           >

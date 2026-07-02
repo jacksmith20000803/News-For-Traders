@@ -1,10 +1,13 @@
 import { TradingChart } from "@/components/charts/trading-chart";
 import { getCurrentUser } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import { connection } from "next/server";
 
 export const metadata = { title: "Charts" };
 
 export default async function ChartsPage() {
+  await connection();
+
   const user = await getCurrentUser();
   
   let prefs = null;

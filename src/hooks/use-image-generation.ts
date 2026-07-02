@@ -15,6 +15,20 @@ function dedupePrompts(prompts: string[]) {
   return Array.from(new Set(prompts.map((prompt) => prompt.trim()).filter(Boolean)));
 }
 
+function withClientTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error("Image generation is taking too long. Please try again."));
+    }, timeoutMs);
+  });
+
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timeoutId) clearTimeout(timeoutId);
+  });
+}
+
 export function useImageGeneration(prompts: string[]): ImageGenerationMap {
   const uniquePrompts = useMemo(() => dedupePrompts(prompts), [prompts]);
   const requestedPromptsRef = useRef<Set<string>>(new Set());
@@ -56,7 +70,7 @@ export function useImageGeneration(prompts: string[]): ImageGenerationMap {
 
     void Promise.allSettled(
       promptsToGenerate.map(async (prompt) => {
-        const result = await generateImage(prompt);
+        const result = await withClientTimeout(generateImage(prompt), 70_000);
         return { prompt, result };
       })
     ).then((settled) => {

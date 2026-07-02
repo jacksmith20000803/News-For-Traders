@@ -33,7 +33,7 @@ function stripHtml(html: string | null | undefined): string {
   return html.replace(/<[^>]*>/g, "");
 }
 
-const DEFAULT_NEWS_IMAGE = "/default-news.jpg";
+const DEFAULT_NEWS_IMAGE = "/default-news.webp";
 
 interface NewsCardProps {
   id: string;

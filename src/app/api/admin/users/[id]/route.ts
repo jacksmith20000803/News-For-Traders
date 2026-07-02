@@ -124,7 +124,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
     if (!user) return apiError("User not found", 404, "USER_NOT_FOUND");
 
-    const [activity, totalActivity, dateRows] = await Promise.all([
+    const [activity, totalActivity, dateRows, latestActivity] = await Promise.all([
       db.visitorActivity.findMany({
         where: { userId: user.id, createdAt: { gte: start, lt: end } },
         orderBy: { createdAt: "asc" },
@@ -139,6 +139,10 @@ export async function GET(request: NextRequest, context: RouteContext) {
         orderBy: { createdAt: "desc" },
         take: 300,
         select: { createdAt: true },
+      }),
+      db.visitorActivity.findFirst({
+        where: { userId: user.id },
+        orderBy: { createdAt: "desc" },
       }),
     ]);
 
@@ -179,17 +183,17 @@ export async function GET(request: NextRequest, context: RouteContext) {
           createdAt: feedback.createdAt.toISOString(),
         })),
         location: {
-          country: user.country ?? user.registrationAudit?.country ?? null,
-          region: null,
-          city: user.registrationAudit?.city ?? null,
-          timezone: user.timezone,
+          country: latestActivity?.country ?? user.country ?? user.registrationAudit?.country ?? null,
+          region: latestActivity?.region ?? null,
+          city: latestActivity?.city ?? user.registrationAudit?.city ?? null,
+          timezone: latestActivity?.timezone ?? user.timezone,
         },
         device: {
-          browser: user.registrationAudit?.browser ?? null,
-          os: user.registrationAudit?.os ?? null,
-          deviceType: user.registrationAudit?.deviceType ?? null,
-          userAgent: user.registrationAudit?.userAgent ?? latestSession?.userAgent ?? null,
-          ipAddress: user.registrationAudit?.ipAddress ?? latestSession?.ipAddress ?? null,
+          browser: latestActivity?.browser ?? user.registrationAudit?.browser ?? null,
+          os: latestActivity?.os ?? user.registrationAudit?.os ?? null,
+          deviceType: latestActivity?.deviceType ?? user.registrationAudit?.deviceType ?? null,
+          userAgent: latestActivity?.userAgent ?? user.registrationAudit?.userAgent ?? latestSession?.userAgent ?? null,
+          ipAddress: latestActivity?.ipAddress ?? user.registrationAudit?.ipAddress ?? latestSession?.ipAddress ?? null,
         },
         sessions: user.sessions.map((session) => ({
           id: session.id,

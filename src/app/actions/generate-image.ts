@@ -3,7 +3,6 @@
 import { headers } from "next/headers";
 import { ApiError } from "@/lib/api/response";
 import { getCurrentUser } from "@/lib/auth/session";
-import { generateImageWithManagedPuterTokens } from "@/lib/puter/server";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 
 export type GenerateImageResult = {
@@ -38,6 +37,7 @@ export async function generateImage(prompt: string): Promise<GenerateImageResult
   }
 
   try {
+    const { generateImageWithManagedPuterTokens } = await import("@/lib/puter/server");
     const result = await generateImageWithManagedPuterTokens(trimmedPrompt);
     return { url: result.url, error: null };
   } catch (error) {

@@ -1,55 +1,56 @@
 import { redirect } from "next/navigation";
+import { connection } from "next/server";
+import { NotificationsManager } from "@/components/notifications/notifications-manager";
 import { getCurrentUser } from "@/lib/auth/session";
 import { db } from "@/lib/db";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { EmptyState } from "@/components/ui/empty-state";
-import { Bell } from "lucide-react";
-import { formatRelative } from "@/lib/utils";
+
+const PAGE_SIZE = 12;
 
 export default async function NotificationsPage() {
+  await connection();
+
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const notifications = await db.notification.findMany({
-    where: {
-      userId: user.id,
-      NOT: { title: "Market Data Updated" },
+  const where = {
+    userId: user.id,
+    NOT: { title: "Market Data Updated" },
+  };
+
+  const [notifications, unreadCount, total] = await Promise.all([
+    db.notification.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      take: PAGE_SIZE,
+    }),
+    db.notification.count({ where: { ...where, read: false } }),
+    db.notification.count({ where }),
+  ]);
+
+  const initialData = {
+    notifications: notifications.map((notification) => ({
+      ...notification,
+      createdAt: notification.createdAt.toISOString(),
+    })),
+    unreadCount,
+    pagination: {
+      page: 1,
+      limit: PAGE_SIZE,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)),
     },
-    orderBy: { createdAt: "desc" },
-    take: 50,
-  });
+  };
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
-      <h1 className="text-2xl font-bold mb-6">Notifications</h1>
-      {notifications.length === 0 ? (
-        <EmptyState
-          icon={Bell}
-          title="No notifications"
-          description="Replies, mentions, and alerts will appear here."
-        />
-      ) : (
-        <div className="space-y-2">
-          {notifications.map((n) => (
-            <Card key={n.id} className={n.read ? "opacity-70" : ""}>
-              <CardContent className="p-4 flex justify-between gap-4">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <Badge variant="outline">{n.type}</Badge>
-                    {!n.read && <Badge variant="primary">New</Badge>}
-                  </div>
-                  <p className="font-medium">{n.title}</p>
-                  <p className="text-sm text-muted-foreground">{n.message}</p>
-                </div>
-                <span className="text-xs text-muted-foreground whitespace-nowrap">
-                  {formatRelative(n.createdAt)}
-                </span>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold tracking-tight">Notifications</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Review alerts, switch between list and card views, and remove old notifications.
+        </p>
+      </div>
+
+      <NotificationsManager initialData={initialData} />
     </div>
   );
 }

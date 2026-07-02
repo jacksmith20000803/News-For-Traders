@@ -77,7 +77,7 @@ export default function SetupMfaPage() {
             </p>
           ) : (
             <>
-              <BrandedQRCode qrDataUrl={qrDataUrl} logoSrc="/tradx-logo.png" />
+              <BrandedQRCode qrDataUrl={qrDataUrl} logoSrc="/tradx-logo.webp" />
               <p className="text-sm text-muted-foreground">{message}</p>
               <div className="rounded-2xl border border-border bg-background/70 p-4 text-left">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">

@@ -1,66 +1,71 @@
+import Link from "next/link";
+import { AdminNewsManagement } from "@/components/admin/admin-news-management";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireAdminPage } from "@/lib/auth/admin-guard";
 import { db } from "@/lib/db";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { IMPORTANCE_CONFIG, RELIABILITY_CONFIG } from "@/lib/constants";
-import Link from "next/link";
-import type { ImportanceLevel, ReliabilityStatus } from "@prisma/client";
 
 export default async function AdminNewsPage() {
   await requireAdminPage();
 
-  const [news, sources] = await Promise.all([
+  const [news, totalNews, sources] = await Promise.all([
     db.news.findMany({
-      include: { source: true, category: true },
-      orderBy: { publishedAt: "desc" },
-      take: 30,
+      include: {
+        source: { select: { id: true, name: true, reliabilityScore: true } },
+        category: { select: { id: true, name: true } },
+      },
+      orderBy: [{ isPinned: "desc" }, { publishedAt: "desc" }],
+      take: 12,
     }),
-    db.newsSource.findMany(),
+    db.news.count(),
+    db.newsSource.findMany({ orderBy: { name: "asc" } }),
   ]);
+
+  const initialData = {
+    items: news.map((item) => ({
+      ...item,
+      publishedAt: item.publishedAt.toISOString(),
+      createdAt: item.createdAt.toISOString(),
+      updatedAt: item.updatedAt.toISOString(),
+    })),
+    pagination: {
+      page: 1,
+      limit: 12,
+      total: totalNews,
+      totalPages: Math.max(1, Math.ceil(totalNews / 12)),
+    },
+  };
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">News Management</h1>
-        <Link href="/admin" className="text-sm text-primary hover:underline">← Back</Link>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">News Management</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Review, search, and remove news items from the platform feed.
+          </p>
+        </div>
+        <Link href="/admin" className="text-sm text-primary hover:underline">
+          Back
+        </Link>
       </div>
 
-      <Card className="mb-6">
+      <Card className="mb-6 bg-card/95">
         <CardHeader>
           <CardTitle>Sources ({sources.length})</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-2">
-            {sources.map((s) => (
-              <Badge key={s.id} variant="outline">
-                {s.name} ({Math.round(s.reliabilityScore * 100)}%)
+            {sources.map((source) => (
+              <Badge key={source.id} variant="outline">
+                {source.name} ({Math.round(source.reliabilityScore * 100)}%)
               </Badge>
             ))}
           </div>
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>News Items ({news.length})</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {news.map((item) => (
-            <div key={item.id} className="border-b border-border pb-3">
-              <p className="font-medium">{item.headline}</p>
-              <div className="flex gap-2 mt-1">
-                <Badge variant="outline">{item.source.name}</Badge>
-                <Badge className={IMPORTANCE_CONFIG[item.importance as ImportanceLevel].bg}>
-                  {IMPORTANCE_CONFIG[item.importance as ImportanceLevel].label}
-                </Badge>
-                <Badge variant="outline" className={RELIABILITY_CONFIG[item.reliabilityStatus as ReliabilityStatus].color}>
-                  {RELIABILITY_CONFIG[item.reliabilityStatus as ReliabilityStatus].label}
-                </Badge>
-              </div>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
+      <AdminNewsManagement initialData={initialData} />
     </div>
   );
 }

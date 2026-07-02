@@ -16,12 +16,12 @@ import {
   List,
   Loader2,
   Mail,
-  MapPin,
   ShieldCheck,
   Trash2,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { CountryFlag, countryDisplayName } from "@/components/ui/country-flag";
 import { readJsonResponse, secureFetch } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
 
@@ -158,6 +158,7 @@ export function AdminUserDetail({ id, kind }: { id: string; kind: DetailKind }) 
   const [loading, setLoading] = useState(true);
   const [activityLoading, setActivityLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [actionPending, setActionPending] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [selectedRole, setSelectedRole] = useState<Role>("USER");
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -228,10 +229,10 @@ export function AdminUserDetail({ id, kind }: { id: string; kind: DetailKind }) 
   }, [activityLoading, data, loadDetail, page]);
 
   const canManageUser = data?.kind === "user";
+  if (data) countryFlag(data.details.location.country);
   const location = data
-    ? [
-        countryFlag(data.details.location.country),
-        data.details.location.country,
+      ? [
+        countryDisplayName(data.details.location.country),
         data.details.location.region,
         data.details.location.city,
         data.details.location.timezone,
@@ -244,7 +245,8 @@ export function AdminUserDetail({ id, kind }: { id: string; kind: DetailKind }) 
     : "";
 
   async function runAdminAction(payload: Record<string, unknown>, success = "Action completed") {
-    setMessage("");
+    setActionPending(true);
+    setMessage("Processing... Please wait a moment.");
     try {
       const res = await secureFetch("/api/admin", {
         method: "POST",
@@ -256,12 +258,15 @@ export function AdminUserDetail({ id, kind }: { id: string; kind: DetailKind }) 
       await loadDetail(1, "replace");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Action failed");
+    } finally {
+      setActionPending(false);
     }
   }
 
   async function deleteLogs() {
     if (!confirm("Delete all recorded activity logs for this record?")) return;
-    setMessage("");
+    setActionPending(true);
+    setMessage("Processing... Please wait a moment.");
     try {
       const res = await secureFetch(`/api/admin/users/${encodeURIComponent(id)}?kind=${kind}`, {
         method: "DELETE",
@@ -272,6 +277,8 @@ export function AdminUserDetail({ id, kind }: { id: string; kind: DetailKind }) 
       await loadDetail(1, "replace");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Failed to delete logs");
+    } finally {
+      setActionPending(false);
     }
   }
 
@@ -337,7 +344,7 @@ export function AdminUserDetail({ id, kind }: { id: string; kind: DetailKind }) 
                   {data.profile.email ?? "No email"}
                 </span>
                 <span className="flex items-center gap-2">
-                  <MapPin className="h-4 w-4" />
+                  <CountryFlag countryCode={data.details.location.country} className="h-5 w-5" />
                   {location || "Location unknown"}
                 </span>
                 <span className="flex items-center gap-2">
@@ -433,7 +440,7 @@ export function AdminUserDetail({ id, kind }: { id: string; kind: DetailKind }) 
                 <option value="MODERATOR">Moderator</option>
                 <option value="ADMIN">Admin</option>
               </select>
-              <Button size="sm" className="h-10" onClick={() => runAdminAction({ action: "update_user", userId: id, role: selectedRole }, "Role updated")}>
+              <Button size="sm" className="h-10" disabled={actionPending} isLoading={actionPending} onClick={() => runAdminAction({ action: "update_user", userId: id, role: selectedRole }, "Role updated")}>
                 <ShieldCheck className="h-4 w-4" />
                 Save role
               </Button>
@@ -443,6 +450,7 @@ export function AdminUserDetail({ id, kind }: { id: string; kind: DetailKind }) 
           <div className="flex flex-wrap gap-2">
             <Button
               size="sm"
+              disabled={actionPending}
               onClick={() => runAdminAction({ action: "reset_password", userId: id })}
               className="bg-emerald-600 text-white shadow-[0_12px_30px_rgba(16,185,129,0.22)] hover:bg-emerald-500"
             >
@@ -452,6 +460,7 @@ export function AdminUserDetail({ id, kind }: { id: string; kind: DetailKind }) 
             <Button
               size="sm"
               variant="destructive"
+              disabled={actionPending}
               onClick={() =>
                 runAdminAction({
                   action: "update_user",
@@ -467,6 +476,7 @@ export function AdminUserDetail({ id, kind }: { id: string; kind: DetailKind }) 
             <Button
               size="sm"
               variant="destructive"
+              disabled={actionPending}
               onClick={() => {
                 if (confirm("Delete this account?")) void runAdminAction({ action: "delete_user", userId: id }, "User deleted");
               }}
@@ -504,7 +514,7 @@ export function AdminUserDetail({ id, kind }: { id: string; kind: DetailKind }) 
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="destructive" onClick={deleteLogs}>
+            <Button size="sm" variant="destructive" disabled={actionPending} onClick={deleteLogs}>
               <Trash2 className="h-4 w-4" />
               Delete logs
             </Button>

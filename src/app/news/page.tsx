@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { connection } from "next/server";
 import { NewsViewToggle } from "@/components/news/news-view-toggle";
 import { NewsGridClient } from "@/components/news/news-grid-client";
 import { getCurrentUser } from "@/lib/auth/session";
@@ -21,6 +22,8 @@ const DEFAULT_NEWS_COINS = [
 ];
 
 export default async function NewsPage() {
+  await connection();
+
   const user = await getCurrentUser();
 
   const [news, newsAssets] = await Promise.all([

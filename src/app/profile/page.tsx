@@ -1,15 +1,18 @@
 import { getCurrentUser } from "@/lib/auth/session";
 import { redirect } from "next/navigation";
+import { connection } from "next/server";
 import { db } from "@/lib/db";
 import { ProfileEditor } from "@/components/profile/profile-editor";
 import { SecuritySettings } from "@/components/profile/security-settings";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Activity, CalendarDays, Mail, MapPin, Shield, Sparkles, Target, User } from "lucide-react";
+import { Activity, AlertTriangle, CalendarDays, Mail, MapPin, Shield, Sparkles, Target, User } from "lucide-react";
 
 export const metadata = { title: "Profile Management" };
 
 export default async function ProfilePage() {
+  await connection();
+
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
@@ -98,6 +101,23 @@ export default async function ProfilePage() {
           </div>
         </div>
       </div>
+
+      {!fullUser.emailVerified && (
+        <div
+          role="status"
+          className="mb-6 flex flex-col gap-3 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 text-amber-800 shadow-lg shadow-amber-500/5 dark:text-amber-100 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
+            <div>
+              <p className="text-sm font-bold">Verify your email to unlock full account protection.</p>
+              <p className="mt-1 text-xs leading-5 text-amber-700/90 dark:text-amber-100/80">
+                You can use tradx now, but email verification is required before enabling two-factor authentication.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-3">
         <Card className="h-full overflow-hidden border-border/80 bg-card/95 shadow-2xl shadow-black/10 dark:bg-[#101214]/95 lg:col-span-1">

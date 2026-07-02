@@ -15,7 +15,12 @@ interface Notification {
   message: string;
   read: boolean;
   createdAt: string;
-  metadata?: { newsId?: string; discussionId?: string };
+  metadata?: {
+    newsId?: string;
+    discussionId?: string;
+    actorAvatar?: string | null;
+    actorName?: string | null;
+  };
 }
 
 export function NotificationBell() {
@@ -188,11 +193,16 @@ export function NotificationBell() {
                     !n.read ? "bg-primary/5" : ""
                   }`}
                 >
-                  <p className={`text-sm font-medium ${textColor}`}>{n.title}</p>
-                  <p className="text-xs text-muted-foreground line-clamp-2">{n.message}</p>
-                  <p className="mt-1 text-[10px] text-muted-foreground">
-                    {formatRelative(n.createdAt)}
-                  </p>
+                  <div className="flex gap-3">
+                    <NotificationAvatar notification={n} />
+                    <div className="min-w-0 flex-1">
+                      <p className={`text-sm font-medium ${textColor}`}>{n.title}</p>
+                      <p className="line-clamp-2 text-xs text-muted-foreground">{n.message}</p>
+                      <p className="mt-1 text-[10px] text-muted-foreground">
+                        {formatRelative(n.createdAt)}
+                      </p>
+                    </div>
+                  </div>
                 </Link>
               ))
             )}
@@ -207,5 +217,22 @@ export function NotificationBell() {
         </div>
       )}
     </div>
+  );
+}
+
+function NotificationAvatar({ notification }: { notification: Notification }) {
+  const avatar = notification.metadata?.actorAvatar;
+  const name = notification.metadata?.actorName || notification.title;
+  if (avatar) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={avatar} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover ring-1 ring-border" />
+    );
+  }
+
+  return (
+    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-500/12 text-xs font-bold text-emerald-500 ring-1 ring-emerald-500/20">
+      {name.trim().charAt(0).toUpperCase() || "N"}
+    </span>
   );
 }

@@ -23,6 +23,13 @@ type ChatResponse = {
       createdAt: string;
       sources?: unknown;
     };
+    userMessage?: {
+      id: string;
+      role: string;
+      content: string;
+      createdAt: string;
+      sources?: unknown;
+    };
   };
   error?: string;
 };
@@ -93,7 +100,19 @@ export async function chatWithPuter(
     content,
     conversationId: json.data?.conversationId ?? null,
     message: json.data?.message,
+    userMessage: json.data?.userMessage,
   };
+}
+
+export async function deletePuterChatMessage(messageId: string) {
+  const res = await secureFetch("/api/ai/chat", {
+    method: "DELETE",
+    body: JSON.stringify({ messageId }),
+  });
+  const json = await readJsonResponse<{ success: boolean; error?: string }>(res);
+  if (!res.ok || !json.success) {
+    throw new Error(json.error ?? "Could not delete message.");
+  }
 }
 
 async function sendMultipartChat(

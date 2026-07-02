@@ -12,12 +12,27 @@ const GITHUB_TOKEN = "https://github.com/login/oauth/access_token";
 const GITHUB_USER = "https://api.github.com/user";
 const GITHUB_EMAIL = "https://api.github.com/user/emails";
 
+const APPLE_AUTH = "https://appleid.apple.com/auth/authorize";
+const APPLE_TOKEN = "https://appleid.apple.com/auth/token";
+
+function microsoftAuthBase() {
+  return `https://login.microsoftonline.com/${encodeURIComponent(config.oauth.microsoft.tenant)}/oauth2/v2.0`;
+}
+
 export function isGoogleOAuthConfigured() {
   return !!(config.oauth.google.clientId && config.oauth.google.clientSecret);
 }
 
 export function isGitHubOAuthConfigured() {
   return !!(config.oauth.github.clientId && config.oauth.github.clientSecret);
+}
+
+export function isMicrosoftOAuthConfigured() {
+  return !!(config.oauth.microsoft.clientId && config.oauth.microsoft.clientSecret);
+}
+
+export function isAppleOAuthConfigured() {
+  return !!(config.oauth.apple.clientId && config.oauth.apple.clientSecret);
 }
 
 function redirectUri(provider: string) {
@@ -45,6 +60,30 @@ export function getGitHubAuthUrl(state: string) {
     state,
   });
   return `${GITHUB_AUTH}?${params}`;
+}
+
+export function getMicrosoftAuthUrl(state: string) {
+  const params = new URLSearchParams({
+    client_id: config.oauth.microsoft.clientId,
+    redirect_uri: redirectUri("microsoft"),
+    response_type: "code",
+    scope: "openid profile email User.Read",
+    state,
+    prompt: "select_account",
+  });
+  return `${microsoftAuthBase()}/authorize?${params}`;
+}
+
+export function getAppleAuthUrl(state: string) {
+  const params = new URLSearchParams({
+    client_id: config.oauth.apple.clientId,
+    redirect_uri: redirectUri("apple"),
+    response_type: "code",
+    response_mode: "form_post",
+    scope: "name email",
+    state,
+  });
+  return `${APPLE_AUTH}?${params}`;
 }
 
 async function linkOAuthUser(params: {
@@ -204,4 +243,103 @@ export async function handleGitHubCallback(code: string) {
     providerAccountId: String(profile.id),
     accessToken: tokens.access_token,
   });
+}
+
+export async function handleMicrosoftCallback(code: string) {
+  const tokenRes = await fetch(`${microsoftAuthBase()}/token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      code,
+      client_id: config.oauth.microsoft.clientId,
+      client_secret: config.oauth.microsoft.clientSecret,
+      redirect_uri: redirectUri("microsoft"),
+      grant_type: "authorization_code",
+    }),
+  });
+
+  if (!tokenRes.ok) throw new Error("Failed to exchange Microsoft token");
+  const tokens = (await tokenRes.json()) as { access_token: string };
+
+  const profileRes = await fetch("https://graph.microsoft.com/v1.0/me?$select=id,displayName,mail,userPrincipalName", {
+    headers: { Authorization: `Bearer ${tokens.access_token}` },
+  });
+  if (!profileRes.ok) throw new Error("Failed to fetch Microsoft profile");
+
+  const profile = (await profileRes.json()) as {
+    id: string;
+    displayName?: string;
+    mail?: string;
+    userPrincipalName?: string;
+  };
+  const email = profile.mail ?? profile.userPrincipalName;
+  if (!email) throw new Error("Microsoft account has no email");
+
+  return linkOAuthUser({
+    email,
+    name: profile.displayName ?? email.split("@")[0],
+    provider: "microsoft",
+    providerAccountId: profile.id,
+    accessToken: tokens.access_token,
+  });
+}
+
+export async function handleAppleCallback(code: string, userJson?: string | null) {
+  const tokenRes = await fetch(APPLE_TOKEN, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      code,
+      client_id: config.oauth.apple.clientId,
+      client_secret: config.oauth.apple.clientSecret,
+      redirect_uri: redirectUri("apple"),
+      grant_type: "authorization_code",
+    }),
+  });
+
+  if (!tokenRes.ok) throw new Error("Failed to exchange Apple token");
+  const tokens = (await tokenRes.json()) as {
+    access_token?: string;
+    id_token?: string;
+  };
+
+  const claims = decodeJwtPayload(tokens.id_token);
+  const email = typeof claims.email === "string" ? claims.email : null;
+  const providerAccountId = typeof claims.sub === "string" ? claims.sub : null;
+
+  if (!email || !providerAccountId) throw new Error("Apple account has no email");
+
+  const appleUser = parseAppleUser(userJson);
+  const name = [appleUser?.name?.firstName, appleUser?.name?.lastName].filter(Boolean).join(" ");
+
+  return linkOAuthUser({
+    email,
+    name: name || email.split("@")[0],
+    provider: "apple",
+    providerAccountId,
+    accessToken: tokens.access_token,
+  });
+}
+
+function decodeJwtPayload(token: string | null | undefined): Record<string, unknown> {
+  if (!token) return {};
+  const [, payload] = token.split(".");
+  if (!payload) return {};
+
+  try {
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+    return JSON.parse(Buffer.from(padded, "base64").toString("utf8")) as Record<string, unknown>;
+  } catch {
+    return {};
+  }
+}
+
+function parseAppleUser(value: string | null | undefined): { name?: { firstName?: string; lastName?: string } } | null {
+  if (!value) return null;
+  try {
+    return JSON.parse(value) as { name?: { firstName?: string; lastName?: string } };
+  } catch {
+    return null;
+  }
 }

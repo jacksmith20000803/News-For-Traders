@@ -19,23 +19,22 @@ export default function PromotionsPage() {
               Download the TradX trading bot in one clean flow.
             </h1>
             <p className="mt-4 max-w-xl text-base leading-8 text-slate-300">
-              The install button opens Windows App Installer when a signed MSIX package is available. If the signed package is not configured yet, it falls back to the current EXE download from a stable URL.
+              The install button downloads the current signed Windows package from one stable URL. Open the downloaded package to continue installation.
             </p>
           </div>
           <div className="flex flex-wrap items-start gap-3">
             <AppInstallButton
               appName="Trading Bot"
-              appinstallerPath="/api/download/appinstaller"
               msixDirectUrl="/api/download/msix"
-              exeFallbackUrl="/api/download/trading-bot-app"
-              exeFallbackFileName="trading-bot-app.exe"
+              directFallbackUrl="/api/download/trading-bot-app"
+              directFallbackFileName="trading-bot-app.msix"
             />
             <a
               href="/api/download/trading-bot-app"
-              download="trading-bot-app.exe"
+              download="trading-bot-app.msix"
               className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-gradient-to-r from-sky-400 via-blue-500 to-indigo-500 px-5 text-sm font-bold text-white shadow-[0_18px_48px_rgba(59,130,246,0.28)] transition hover:-translate-y-1 hover:brightness-110 active:translate-y-0.5 active:scale-95"
             >
-              Download EXE fallback
+              Download MSIX package
             </a>
             <a
               href="/api/download/trading-bot-app/manifest"
@@ -45,13 +44,13 @@ export default function PromotionsPage() {
             </a>
           </div>
           <p className="max-w-xl text-xs leading-6 text-slate-400">
-            Browsers and Windows cannot silently execute an EXE after download. Store-like installation requires a signed MSIX/App Installer package and still asks the user to approve installation.
+            Browsers cannot silently install apps after download. Store-like installation requires a signed MSIX/App Installer package and still asks the user to approve installation.
           </p>
         </div>
 
         <div className="relative min-h-[340px] overflow-hidden rounded-[1.75rem] border border-white/10 bg-black/30">
           <Image
-            src="/promo/tradx-bot-extension-preview.png"
+            src="/promo/tradx-bot-extension-preview.webp"
             alt="TradX trading bot preview placeholder"
             width={960}
             height={620}

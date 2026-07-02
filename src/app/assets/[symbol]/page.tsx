@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { connection } from "next/server";
 import { getAssetDetail } from "@/lib/trader/queries";
 import { TradingChart } from "@/components/charts/trading-chart";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +26,8 @@ export default async function AssetPage({
 }: {
   params: Promise<{ symbol: string }>;
 }) {
+  await connection();
+
   const { symbol } = await params;
   const data = await getAssetDetail(symbol);
 
@@ -35,8 +38,8 @@ export default async function AssetPage({
   const positive = (data.quote?.changePercent ?? data.performance ?? 0) >= 0;
   const heroBackground =
     data.asset.category === "CRYPTO"
-      ? `/coin-badge/${data.asset.slug.toLowerCase()}.png`
-      : "/default-news.jpg";
+      ? `/coin-badge/${data.asset.slug.toLowerCase()}.webp`
+      : "/default-news.webp";
 
   return (
     <div className="mx-auto min-h-full max-w-6xl px-4 py-8 sm:px-6">

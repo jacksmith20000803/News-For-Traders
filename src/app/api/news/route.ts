@@ -12,7 +12,11 @@ import { ingestNewsFromProviders } from "@/lib/providers/news/ingest";
 
 const NEWS_STALE_AFTER_MS = 10 * 60 * 1000;
 const NEWS_REFRESH_COOLDOWN_MS = 60 * 1000;
+const NEWS_FRESHNESS_PROBE_CACHE_MS = 30 * 1000;
+const PUBLIC_NEWS_CACHE = "public, max-age=15, stale-while-revalidate=60";
+const PRIVATE_NEWS_CACHE = "private, max-age=10, stale-while-revalidate=30";
 let lastNewsRefreshAttempt = 0;
+let newsFreshUntil = 0;
 let newsRefreshInFlight: Promise<unknown> | null = null;
 
 export const dynamic = "force-dynamic";
@@ -68,7 +72,7 @@ export async function GET(request: NextRequest) {
       ];
     }
 
-    await refreshNewsIfStale();
+    await refreshNewsIfStale({ waitForProviderRefresh: !fast });
 
     if (lite) {
       const news = await db.news.findMany({
@@ -100,7 +104,7 @@ export async function GET(request: NextRequest) {
           totalPages: news.length < params.limit ? params.page : params.page + 1,
         },
       });
-      response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate");
+      response.headers.set("Cache-Control", PUBLIC_NEWS_CACHE);
       return response;
     }
 
@@ -112,7 +116,7 @@ export async function GET(request: NextRequest) {
         favoriteNewsIds: [],
         pagination: { page: params.page, limit: params.limit, total: 0, totalPages: 0 },
       });
-      response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate");
+      response.headers.set("Cache-Control", PRIVATE_NEWS_CACHE);
       return response;
     }
 
@@ -205,7 +209,10 @@ export async function GET(request: NextRequest) {
           : Math.ceil((total ?? 0) / params.limit),
       },
     });
-    response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate");
+    response.headers.set(
+      "Cache-Control",
+      user || favoriteOnly || includePersonalized ? PRIVATE_NEWS_CACHE : PUBLIC_NEWS_CACHE
+    );
     return response;
   } catch (error) {
     if (isDatabaseConnectivityError(error)) {
@@ -234,10 +241,18 @@ export async function GET(request: NextRequest) {
   }
 }
 
-async function refreshNewsIfStale() {
+async function refreshNewsIfStale({
+  waitForProviderRefresh,
+}: {
+  waitForProviderRefresh: boolean;
+}) {
   const now = Date.now();
+  if (now < newsFreshUntil) return;
+
   if (newsRefreshInFlight) {
-    await withTimeout(newsRefreshInFlight, 4000);
+    if (waitForProviderRefresh) {
+      await withTimeout(newsRefreshInFlight, 4000);
+    }
     return;
   }
   if (now - lastNewsRefreshAttempt < NEWS_REFRESH_COOLDOWN_MS) return;
@@ -247,7 +262,13 @@ async function refreshNewsIfStale() {
     select: { publishedAt: true },
   });
 
-  if (latest && now - latest.publishedAt.getTime() < NEWS_STALE_AFTER_MS) return;
+  if (latest && now - latest.publishedAt.getTime() < NEWS_STALE_AFTER_MS) {
+    newsFreshUntil = Math.min(
+      latest.publishedAt.getTime() + NEWS_STALE_AFTER_MS,
+      now + NEWS_FRESHNESS_PROBE_CACHE_MS
+    );
+    return;
+  }
 
   lastNewsRefreshAttempt = now;
   newsRefreshInFlight = ingestNewsFromProviders()
@@ -255,10 +276,13 @@ async function refreshNewsIfStale() {
       console.warn("[news] Live news refresh failed:", error);
     })
     .finally(() => {
+      newsFreshUntil = Date.now() + NEWS_REFRESH_COOLDOWN_MS;
       newsRefreshInFlight = null;
     });
 
-  await withTimeout(newsRefreshInFlight, 4000);
+  if (waitForProviderRefresh) {
+    await withTimeout(newsRefreshInFlight, 4000);
+  }
 }
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number) {

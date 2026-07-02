@@ -2,11 +2,29 @@
 
 import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
-import { Bot, X, Send, Loader2, Paperclip, FileText, Image as ImageIcon, Trash2 } from "lucide-react";
+import {
+  Bot,
+  X,
+  Send,
+  Loader2,
+  Paperclip,
+  FileText,
+  Image as ImageIcon,
+  Trash2,
+  Copy,
+  Check,
+  PlugZap,
+  ChevronRight,
+} from "lucide-react";
 import { useTheme } from "@/components/providers/theme-provider";
 import { useAuth } from "@/components/providers/auth-provider";
 import { MessageRenderer } from "@/components/chat/message-renderer";
-import { chatWithPuter, loadPuterChatHistory, type ChatAttachment } from "@/lib/puter/client";
+import {
+  chatWithPuter,
+  deletePuterChatMessage,
+  loadPuterChatHistory,
+  type ChatAttachment,
+} from "@/lib/puter/client";
 import { cn } from "@/lib/utils";
 
 interface Message {
@@ -28,6 +46,7 @@ const MAX_ATTACHMENTS = 4;
 
 export function AIChatModal() {
   const [open, setOpen] = useState(false);
+  const [closing, setClosing] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [input, setInput] = useState("");
@@ -37,6 +56,8 @@ export function AIChatModal() {
   const [loading, setLoading] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [messagesOverflow, setMessagesOverflow] = useState(false);
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
   const { theme, resolvedTheme } = useTheme();
   const { user } = useAuth();
   const userId = user?.id ?? null;
@@ -49,6 +70,19 @@ export function AIChatModal() {
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  const openModal = () => {
+    setClosing(false);
+    setOpen(true);
+  };
+
+  const closeModal = () => {
+    setClosing(true);
+    window.setTimeout(() => {
+      setOpen(false);
+      setClosing(false);
+    }, 260);
   };
 
   useEffect(() => {
@@ -235,6 +269,52 @@ export function AIChatModal() {
     inputRef.current?.focus();
   };
 
+  const copyMessage = async (message: Message) => {
+    const text = message.content.trim();
+    if (!text) return;
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.setAttribute("readonly", "true");
+        textArea.style.position = "fixed";
+        textArea.style.left = "-9999px";
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand("copy");
+        textArea.remove();
+      }
+      setCopiedMessageId(message.id);
+      window.setTimeout(() => setCopiedMessageId((current) => (current === message.id ? null : current)), 1600);
+    } catch {
+      setAttachmentError("Could not copy this message.");
+    } finally {
+      inputRef.current?.focus();
+    }
+  };
+
+  const deleteMessage = async (message: Message) => {
+    setDeletingMessageId(message.id);
+    setAttachmentError("");
+    const previousMessages = messages;
+    setMessages((current) => current.filter((item) => item.id !== message.id));
+
+    try {
+      if (isPersistedAIMessageId(message.id)) {
+        await deletePuterChatMessage(message.id);
+      }
+    } catch (error) {
+      setMessages(previousMessages);
+      setAttachmentError(error instanceof Error ? error.message : "Could not delete this message.");
+    } finally {
+      setDeletingMessageId(null);
+      inputRef.current?.focus();
+    }
+  };
+
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if ((!input.trim() && attachments.length === 0) || loading) return;
@@ -259,6 +339,19 @@ export function AIChatModal() {
     try {
       const response = await chatWithPuter(userMessage, undefined, conversationId, filesToSend);
       setConversationId(response.conversationId ?? conversationId);
+      if (response.userMessage?.id) {
+        setMessages((prev) =>
+          prev.map((message) =>
+            message.id === newMessage.id
+              ? {
+                  ...message,
+                  id: response.userMessage!.id,
+                  createdAt: response.userMessage!.createdAt ?? message.createdAt,
+                }
+              : message
+          )
+        );
+      }
 
       const assistantMessage: Message = {
         id: response.message?.id ?? (Date.now() + 1).toString(),
@@ -284,7 +377,7 @@ export function AIChatModal() {
   if (!open) {
     return (
       <button
-        onClick={() => setOpen(true)}
+        onClick={openModal}
         aria-label="Open AI assistant"
         style={{position: "fixed"}}
         className="ask-ai-launcher fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-2xl border border-emerald-300/40 bg-emerald-600 px-5 py-3 text-sm font-bold text-white shadow-[0_18px_48px_rgba(16,185,129,0.35)] transition-all duration-300 hover:-translate-y-1 hover:bg-emerald-500 hover:shadow-[0_22px_56px_rgba(16,185,129,0.48)]"
@@ -298,12 +391,12 @@ export function AIChatModal() {
 
   return (
     <div
-      className={`fixed bottom-6 right-6 z-50 w-[400px] max-w-[calc(100vw-3rem)] overflow-hidden rounded-2xl border bg-cover bg-center shadow-2xl ${
+      className={`ai-scroll-modal fixed bottom-6 right-6 z-50 w-[400px] max-w-[calc(100vw-3rem)] overflow-hidden rounded-2xl border bg-cover bg-center shadow-2xl ${closing ? "ai-scroll-modal-closing" : ""} ${
       currentTheme === "dark" 
         ? "border-white/10"
         : "border-gray-300"
     }`}
-      style={{ backgroundImage: "url('/default-news.jpg')" }}
+      style={{ backgroundImage: "url('/default-news.webp')" }}
     >
       <div className={`absolute inset-0 ${currentTheme === "dark" ? "bg-[#06100e]/92" : "bg-white/90"} backdrop-blur-sm`} />
       <div className={`relative flex items-center justify-between border-b px-4 py-3 ${
@@ -314,7 +407,7 @@ export function AIChatModal() {
           <span className={`font-semibold ${currentTheme === "dark" ? "text-white" : "text-gray-900"}`}>AI Assistant</span>
         </div>
         <button
-          onClick={() => setOpen(false)}
+          onClick={closeModal}
           className={`rounded-lg p-1 hover:bg-white/5 hover:text-foreground ${
             currentTheme === "dark" ? "text-gray-400" : "text-gray-600"
           }`}
@@ -350,25 +443,59 @@ export function AIChatModal() {
               className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
             >
               <div
-                className={`max-w-[82%] rounded-2xl px-3 py-2 shadow-sm ${
+                className={`group/message relative max-w-[82%] rounded-2xl px-3 py-2 shadow-sm ${
                   msg.role === "user"
                     ? "bg-pink-100 text-pink-950 dark:bg-pink-300/25 dark:text-pink-50"
                     : "bg-emerald-100 text-emerald-950 dark:bg-emerald-300/20 dark:text-emerald-50"
                 }`}
               >
-                <MessageRenderer content={msg.content} />
-                {msg.attachments && msg.attachments.length > 0 && (
-                  <AttachmentPreviewList attachments={msg.attachments} />
-                )}
+                <div className="absolute right-2 top-2 flex gap-1 opacity-0 transition-opacity group-hover/message:opacity-100 focus-within:opacity-100">
+                  <button
+                    type="button"
+                    onClick={() => copyMessage(msg)}
+                    className={`inline-flex h-7 w-7 items-center justify-center rounded-lg border text-[11px] shadow-sm transition-all hover:-translate-y-0.5 active:scale-95 ${
+                      msg.role === "user"
+                        ? "border-pink-300/60 bg-white/70 text-pink-800 hover:bg-pink-50 dark:border-pink-200/20 dark:bg-pink-950/50 dark:text-pink-100"
+                        : "border-emerald-300/60 bg-white/70 text-emerald-800 hover:bg-emerald-50 dark:border-emerald-200/20 dark:bg-emerald-950/50 dark:text-emerald-100"
+                    }`}
+                    aria-label={copiedMessageId === msg.id ? "Message copied" : "Copy message"}
+                    title={copiedMessageId === msg.id ? "Copied" : "Copy"}
+                  >
+                    {copiedMessageId === msg.id ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void deleteMessage(msg)}
+                    disabled={deletingMessageId === msg.id}
+                    className={`inline-flex h-7 w-7 items-center justify-center rounded-lg border text-[11px] shadow-sm transition-all hover:-translate-y-0.5 active:scale-95 disabled:opacity-50 ${
+                      msg.role === "user"
+                        ? "border-pink-300/60 bg-white/70 text-pink-800 hover:bg-red-50 hover:text-red-600 dark:border-pink-200/20 dark:bg-pink-950/50 dark:text-pink-100"
+                        : "border-emerald-300/60 bg-white/70 text-emerald-800 hover:bg-red-50 hover:text-red-600 dark:border-emerald-200/20 dark:bg-emerald-950/50 dark:text-emerald-100"
+                    }`}
+                    aria-label="Delete message"
+                    title="Delete"
+                  >
+                    {deletingMessageId === msg.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                  </button>
+                </div>
+                <div className="pr-16">
+                  <MessageRenderer content={msg.content} />
+                  {msg.attachments && msg.attachments.length > 0 && (
+                    <AttachmentPreviewList attachments={msg.attachments} />
+                  )}
+                  <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.12em] opacity-55">
+                    {formatMessageTime(msg.createdAt)}
+                  </p>
+                </div>
               </div>
             </div>
           ))
         )}
         {loading && (
           <div className="flex justify-start">
-            <div className="flex items-center gap-3 rounded-2xl bg-emerald-100 px-3 py-2 text-emerald-950 shadow-sm dark:bg-emerald-300/20 dark:text-emerald-50">
+            <div className="ai-thinking-edge relative flex items-center gap-3 overflow-hidden rounded-2xl bg-emerald-100 px-3 py-2 text-emerald-950 shadow-sm dark:bg-emerald-300/20 dark:text-emerald-50">
               <ModalLoader compact />
-              <span className="text-sm font-semibold opacity-80">Thinking...</span>
+              <span className="relative z-10 text-sm font-semibold opacity-80">Thinking...</span>
             </div>
           </div>
         )}
@@ -480,6 +607,24 @@ export function AIChatModal() {
           )}
         </div>
       </form>
+      <div className={`relative border-t px-4 py-3 ${
+        currentTheme === "dark" ? "border-white/10 bg-black/20" : "border-gray-200 bg-white/70"
+      }`}>
+        <a
+          href="/api/download/trading-bot-app"
+          download="trading-bot-app.msix"
+          data-track-event="promo_download_click"
+          data-track-label="Download Trading Bot"
+          data-track-component="trading-bot-promo"
+          data-track-kind="download"
+          data-track-href="/api/download/trading-bot-app"
+          className="tradx-rotating-gradient-button group relative inline-flex min-h-11 w-full items-center justify-center gap-2 overflow-hidden rounded-2xl px-5 text-sm font-bold text-white shadow-[0_18px_48px_rgba(139,92,246,0.35)] transition-all hover:-translate-y-1 hover:brightness-110 active:translate-y-0.5 active:scale-95"
+        >
+          <PlugZap className="relative z-10 h-4 w-4" aria-hidden="true" />
+          <span className="relative z-10">Download Trading Bot</span>
+          <ChevronRight className="relative z-10 h-4 w-4 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+        </a>
+      </div>
     </div>
   );
 }
@@ -541,7 +686,7 @@ function ModalLoader({ compact = false }: { compact?: boolean }) {
         <div className="relative z-10 flex items-center justify-center">
           <div className="absolute inset-0 animate-pulse rounded-full bg-emerald-500/10 blur-xl" />
           <Image
-            src="/tradx-logo.png"
+            src="/tradx-logo.webp"
             alt="TRADX"
             width={logoSize}
             height={logoSize}
@@ -626,6 +771,21 @@ function inferClientMimeType(fileName: string) {
   if (lower.endsWith(".md")) return "text/markdown";
   if (lower.endsWith(".txt")) return "text/plain";
   return "application/octet-stream";
+}
+
+function isPersistedAIMessageId(id: string) {
+  return /^c[a-z0-9]{8,}$/i.test(id);
+}
+
+function formatMessageTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
 }
 
 function formatBytes(bytes: number) {

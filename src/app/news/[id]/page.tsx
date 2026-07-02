@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
+import { connection } from "next/server";
 import { db } from "@/lib/db";
 import { Badge } from "@/components/ui/badge";
 import { IMPORTANCE_CONFIG, RELIABILITY_CONFIG } from "@/lib/constants";
@@ -21,6 +22,8 @@ export async function generateMetadata({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await connection();
+
   const { id } = await params;
   const news = await db.news.findUnique({ where: { id }, select: { headline: true } });
   return { title: news?.headline ?? "News" };
@@ -31,6 +34,8 @@ export default async function NewsDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await connection();
+
   const { id } = await params;
 
   const news = await db.news.findUnique({

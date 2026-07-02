@@ -34,20 +34,20 @@ interface ProfileEditorUser {
 }
 
 const avatarLibrary = [
-  { label: "Bitcoin", src: "/coin-avatar/btc.png" },
-  { label: "DOGE", src: "/coin-avatar/doge.png" },
-  { label: "UNI", src: "/coin-avatar/uni.png" },
-  { label: "Ethereum", src: "/coin-avatar/eth.png" },
-  { label: "Solana", src: "/coin-avatar/sol.png" },
-  { label: "XRP", src: "/coin-avatar/xrp.png" },
-  { label: "Litecoin", src: "/coin-avatar/ltc.png" },
-  { label: "BNB", src: "/coin-avatar/bnb.png" },
-  { label: "Polkadot", src: "/coin-avatar/dot.png" },
-  { label: "Chainlink", src: "/coin-avatar/link.png" },
-  { label: "ETC", src: "/coin-avatar/etc.png" },
-  { label: "ADA", src: "/coin-avatar/ada.png" },
-  { label: "AVAX", src: "/coin-avatar/avax.png" },
-  { label: "EUR", src: "/coin-avatar/eur.png" },
+  { label: "Bitcoin", src: "/coin-avatar/btc.webp" },
+  { label: "DOGE", src: "/coin-avatar/doge.webp" },
+  { label: "UNI", src: "/coin-avatar/uni.webp" },
+  { label: "Ethereum", src: "/coin-avatar/eth.webp" },
+  { label: "Solana", src: "/coin-avatar/sol.webp" },
+  { label: "XRP", src: "/coin-avatar/xrp.webp" },
+  { label: "Litecoin", src: "/coin-avatar/ltc.webp" },
+  { label: "BNB", src: "/coin-avatar/bnb.webp" },
+  { label: "Polkadot", src: "/coin-avatar/dot.webp" },
+  { label: "Chainlink", src: "/coin-avatar/link.webp" },
+  { label: "ETC", src: "/coin-avatar/etc.webp" },
+  { label: "ADA", src: "/coin-avatar/ada.webp" },
+  { label: "AVAX", src: "/coin-avatar/avax.webp" },
+  { label: "EUR", src: "/coin-avatar/eur.webp" },
 ];
 
 const locations = [
@@ -258,18 +258,23 @@ export function ProfileEditor({ user }: { user: ProfileEditorUser }) {
     setError("");
 
     try {
+      const payload: Record<string, string> = {
+        name: form.name,
+        username: form.username,
+        avatar: form.avatar,
+        bio: form.bio,
+        dateOfBirth: form.dateOfBirth,
+        location: form.location,
+      };
+
+      if (form.newPassword.trim()) {
+        payload.currentPassword = form.currentPassword;
+        payload.newPassword = form.newPassword;
+      }
+
       const response = await secureFetch("/api/user", {
         method: "PATCH",
-        body: JSON.stringify({
-          name: form.name,
-          username: form.username,
-          avatar: form.avatar,
-          bio: form.bio,
-          dateOfBirth: form.dateOfBirth,
-          location: form.location,
-          currentPassword: form.currentPassword,
-          newPassword: form.newPassword,
-        }),
+        body: JSON.stringify(payload),
       });
       const json = await readJsonResponse<{
         success: boolean;
@@ -279,6 +284,8 @@ export function ProfileEditor({ user }: { user: ProfileEditorUser }) {
           username?: string | null;
           avatar?: string | null;
           bio?: string | null;
+          dateOfBirth?: string | null;
+          location?: string | null;
         };
       }>(response);
 
@@ -287,7 +294,19 @@ export function ProfileEditor({ user }: { user: ProfileEditorUser }) {
         return;
       }
 
-      setForm((current) => ({ ...current, currentPassword: "", newPassword: "" }));
+      setForm((current) => ({
+        ...current,
+        name: json.data?.name ?? current.name,
+        username: json.data?.username ?? current.username,
+        avatar: json.data?.avatar ?? current.avatar,
+        bio: json.data?.bio ?? current.bio,
+        dateOfBirth: json.data?.dateOfBirth
+          ? String(json.data.dateOfBirth).slice(0, 10)
+          : current.dateOfBirth,
+        location: json.data?.location ?? current.location,
+        currentPassword: "",
+        newPassword: "",
+      }));
       updateAuthenticatedUser({
         name: json.data?.name ?? form.name,
         username: json.data?.username ?? (form.username || null),
@@ -632,8 +651,16 @@ export function ProfileEditor({ user }: { user: ProfileEditorUser }) {
             </div>
           </div>
 
-          {error && <p className="text-sm text-destructive">{error}</p>}
-          {status && <p className="text-sm text-emerald-500">{status}</p>}
+          {error && (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          )}
+          {status && (
+            <p role="status" className="text-sm text-emerald-500">
+              {status}
+            </p>
+          )}
 
           <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
             <Button

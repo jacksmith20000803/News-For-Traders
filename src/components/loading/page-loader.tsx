@@ -31,7 +31,7 @@ export function PageLoader() {
           <div className="relative z-10 flex items-center justify-center" suppressHydrationWarning>
             <div className="absolute inset-0 animate-pulse bg-emerald-500/10 blur-2xl rounded-full" suppressHydrationWarning />
             <Image
-              src="/tradx-logo.png"
+              src="/tradx-logo.webp"
               alt="TRADX"
               width={300}
               height={90}

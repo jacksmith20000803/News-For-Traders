@@ -1,8 +1,44 @@
 import { NextRequest } from "next/server";
+import { Prisma } from "@prisma/client";
 import { apiError, apiSuccess, handleApiError, parseJsonBody } from "@/lib/api/response";
 import { requireAdmin, validateCsrf } from "@/lib/auth/guards";
 import { db } from "@/lib/db";
 import { logAuditEvent } from "@/lib/audit";
+import { getClientIp } from "@/lib/security/rate-limit";
+
+const DOWNLOAD_ACTIONS = [
+  "promo_download_click",
+  "promo_trading_bot_app_msix_download",
+  "promo_trading_bot_app_install_start",
+  "promo_trading_bot_app_appinstaller_open",
+  "app_msix_download",
+  "trading_bot_app_downloaded",
+];
+
+function visitorSearchSql(q: string | undefined) {
+  if (!q) return Prisma.empty;
+  const pattern = `%${q}%`;
+  return Prisma.sql`AND (
+    "visitorId" ILIKE ${pattern}
+    OR "country" ILIKE ${pattern}
+    OR "region" ILIKE ${pattern}
+    OR "city" ILIKE ${pattern}
+    OR "browser" ILIKE ${pattern}
+    OR "os" ILIKE ${pattern}
+  )`;
+}
+
+async function countDistinctVisitors(q: string | undefined) {
+  const rows = await db.$queryRaw<Array<{ count: bigint | number }>>(
+    Prisma.sql`
+      SELECT COUNT(DISTINCT "visitorId") AS "count"
+      FROM "VisitorActivity"
+      WHERE "userId" IS NULL
+      ${visitorSearchSql(q)}
+    `
+  );
+  return Number(rows[0]?.count ?? 0);
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -31,7 +67,7 @@ export async function GET(request: NextRequest) {
           : {}),
       };
 
-      const [groups, totalGroups] = await Promise.all([
+      const [groups, totalVisitors] = await Promise.all([
         db.visitorActivity.groupBy({
           by: ["visitorId"],
           where,
@@ -42,19 +78,40 @@ export async function GET(request: NextRequest) {
           skip,
           take: limit,
         }),
-        db.visitorActivity.groupBy({
-          by: ["visitorId"],
-          where,
-          _count: { _all: true },
-        }),
+        countDistinctVisitors(q),
       ]);
 
-      const visitors = await Promise.all(
-        groups.map(async (group) => {
-          const latest = await db.visitorActivity.findFirst({
-            where: { visitorId: group.visitorId },
-            orderBy: { createdAt: "desc" },
-          });
+      const visitorIds = groups.map((group) => group.visitorId);
+      const latestRows =
+        visitorIds.length > 0
+          ? await db.visitorActivity.findMany({
+              where: { visitorId: { in: visitorIds } },
+              orderBy: [{ visitorId: "asc" }, { createdAt: "desc" }],
+            })
+          : [];
+      const latestByVisitor = new Map<string, (typeof latestRows)[number]>();
+
+      for (const row of latestRows) {
+        if (!latestByVisitor.has(row.visitorId)) {
+          latestByVisitor.set(row.visitorId, row);
+        }
+      }
+
+      const downloadRows =
+        visitorIds.length > 0
+          ? await db.visitorActivity.findMany({
+              where: {
+                visitorId: { in: visitorIds },
+                action: { in: DOWNLOAD_ACTIONS },
+              },
+              distinct: ["visitorId"],
+              select: { visitorId: true },
+            })
+          : [];
+      const downloadedVisitorIds = new Set(downloadRows.map((row) => row.visitorId));
+
+      const visitors = groups.map((group) => {
+          const latest = latestByVisitor.get(group.visitorId);
 
           return {
             id: group.visitorId,
@@ -79,9 +136,9 @@ export async function GET(request: NextRequest) {
             firstSeenAt: group._min.createdAt?.toISOString() ?? latest?.createdAt.toISOString() ?? null,
             lastSeenAt: latest?.createdAt.toISOString() ?? null,
             activityCount: group._count._all,
+            hasDownloaded: downloadedVisitorIds.has(group.visitorId),
           };
-        })
-      );
+        });
 
       return apiSuccess({
         kind,
@@ -90,8 +147,8 @@ export async function GET(request: NextRequest) {
         pagination: {
           page,
           limit,
-          total: totalGroups.length,
-          totalPages: Math.max(1, Math.ceil(totalGroups.length / limit)),
+          total: totalVisitors,
+          totalPages: Math.max(1, Math.ceil(totalVisitors / limit)),
         },
       });
     }
@@ -147,10 +204,39 @@ export async function GET(request: NextRequest) {
             take: 1,
             select: { createdAt: true, ipAddress: true, userAgent: true },
           },
+          visitorActivities: {
+            orderBy: { createdAt: "desc" },
+            take: 1,
+            select: {
+              ipAddress: true,
+              country: true,
+              region: true,
+              city: true,
+              timezone: true,
+              browser: true,
+              deviceType: true,
+              os: true,
+              userAgent: true,
+              createdAt: true,
+            },
+          },
         },
       }),
       db.user.count({ where }),
     ]);
+    const userIds = users.map((user) => user.id);
+    const downloadRows =
+      userIds.length > 0
+        ? await db.visitorActivity.findMany({
+            where: {
+              userId: { in: userIds },
+              action: { in: DOWNLOAD_ACTIONS },
+            },
+            distinct: ["userId"],
+            select: { userId: true },
+          })
+        : [];
+    const downloadedUserIds = new Set(downloadRows.map((row) => row.userId).filter(Boolean));
 
     return apiSuccess({
       kind,
@@ -160,6 +246,14 @@ export async function GET(request: NextRequest) {
         passwordSet: Boolean(passwordHash),
         createdAt: user.createdAt.toISOString(),
         lastLoginAt: user.sessions[0]?.createdAt.toISOString() ?? null,
+        latestActivity: user.visitorActivities[0]
+          ? {
+              ...user.visitorActivities[0],
+              createdAt: user.visitorActivities[0].createdAt.toISOString(),
+            }
+          : null,
+        hasDownloaded: downloadedUserIds.has(user.id),
+        visitorActivities: undefined,
         sessions: undefined,
         registrationAudit: user.registrationAudit
           ? {
@@ -207,7 +301,7 @@ export async function DELETE(request: NextRequest) {
         targetType: "visitor",
         targetId: uniqueIds.join(","),
         metadata: { action: "bulk_delete_visitors", count: result.count },
-        ipAddress: request.headers.get("x-forwarded-for") ?? undefined,
+        ipAddress: getClientIp(request),
       });
       return apiSuccess({ deleted: result.count, message: `Deleted ${result.count} visitor activity records.` });
     }
@@ -229,7 +323,7 @@ export async function DELETE(request: NextRequest) {
       targetType: "user",
       targetId: deletableIds.join(","),
       metadata: { deleted: true, bulk: true, count: result.count },
-      ipAddress: request.headers.get("x-forwarded-for") ?? undefined,
+      ipAddress: getClientIp(request),
     });
 
     return apiSuccess({ deleted: result.count, message: `Deleted ${result.count} account${result.count === 1 ? "" : "s"}.` });

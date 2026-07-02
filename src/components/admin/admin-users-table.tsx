@@ -1,27 +1,29 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Role } from "@prisma/client";
 import {
   CalendarDays,
+  Check,
   ChevronLeft,
   ChevronRight,
   Globe2,
   LayoutGrid,
   List,
   Mail,
-  MapPin,
   RefreshCw,
   Search,
   Shield,
   Trash2,
   UserRound,
   Users,
+  X,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { CountryFlag, countryDisplayName } from "@/components/ui/country-flag";
 import { readJsonResponse, secureFetch } from "@/lib/api/client";
 import { ROLE_LABELS } from "@/lib/auth/permissions";
 import { cn } from "@/lib/utils";
@@ -49,6 +51,19 @@ type AdminUserRow = {
     userAgent: string | null;
     registeredAt: string;
   } | null;
+  latestActivity: {
+    ipAddress: string | null;
+    country: string | null;
+    region: string | null;
+    city: string | null;
+    timezone: string | null;
+    browser: string | null;
+    deviceType: string | null;
+    os: string | null;
+    userAgent: string | null;
+    createdAt: string;
+  } | null;
+  hasDownloaded: boolean;
 };
 
 type VisitorRow = {
@@ -74,6 +89,7 @@ type VisitorRow = {
   firstSeenAt: string | null;
   lastSeenAt: string | null;
   activityCount: number;
+  hasDownloaded: boolean;
 };
 
 type ApiResponse<T> = {
@@ -124,20 +140,39 @@ function countryFlag(country: string | null | undefined) {
 }
 
 function userLocation(user: AdminUserRow) {
-  const country = user.country ?? user.registrationAudit?.country ?? null;
-  const city = user.registrationAudit?.city;
-  return [countryFlag(country), country, city].filter(Boolean).join(" ");
+  const country = user.latestActivity?.country ?? user.country ?? user.registrationAudit?.country ?? null;
+  const region = user.latestActivity?.region ?? null;
+  const city = user.latestActivity?.city ?? user.registrationAudit?.city;
+  countryFlag(country);
+  return [countryDisplayName(country), region, city].filter(Boolean).join(", ");
 }
 
 function visitorLocation(visitor: VisitorRow) {
   return [
-    countryFlag(visitor.location.country),
-    visitor.location.country,
+    countryDisplayName(visitor.location.country),
     visitor.location.region,
     visitor.location.city,
   ]
     .filter(Boolean)
-    .join(" ");
+    .join(", ");
+}
+
+function userCountryCode(user: AdminUserRow) {
+  return user.latestActivity?.country ?? user.country ?? user.registrationAudit?.country ?? null;
+}
+
+function userIpAddress(user: AdminUserRow) {
+  return user.latestActivity?.ipAddress ?? user.registrationAudit?.ipAddress ?? "IP unavailable";
+}
+
+function userDevice(user: AdminUserRow) {
+  return [
+    user.latestActivity?.deviceType ?? user.registrationAudit?.deviceType,
+    user.latestActivity?.browser ?? user.registrationAudit?.browser,
+    user.latestActivity?.os ?? user.registrationAudit?.os,
+  ]
+    .filter(Boolean)
+    .join(" / ");
 }
 
 function userStatus(user: AdminUserRow) {
@@ -167,9 +202,12 @@ export function AdminUsersTable() {
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
   const [message, setMessage] = useState("");
+  const requestInFlightRef = useRef(false);
 
-  const loadRows = useCallback(async (nextPage: number, nextKind = kind, q = activeQuery) => {
-    setLoading(true);
+  const loadRows = useCallback(async (nextPage: number, nextKind = kind, q = activeQuery, showLoading = true) => {
+    if (requestInFlightRef.current) return;
+    requestInFlightRef.current = true;
+    if (showLoading) setLoading(true);
     setMessage("");
     try {
       const params = new URLSearchParams({
@@ -186,14 +224,15 @@ export function AdminUsersTable() {
       if (!json.success || !json.data) throw new Error(json.error ?? "Failed to load records");
       setUsers(Array.isArray(json.data.users) ? json.data.users : []);
       setVisitors(Array.isArray(json.data.visitors) ? json.data.visitors : []);
-      setSelectedIds(new Set());
+      if (showLoading) setSelectedIds(new Set());
       setPage(json.data.pagination.page);
       setTotalPages(json.data.pagination.totalPages);
       setTotalRows(json.data.pagination.total);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Failed to load records");
     } finally {
-      setLoading(false);
+      requestInFlightRef.current = false;
+      if (showLoading) setLoading(false);
     }
   }, [activeQuery, kind]);
 
@@ -202,8 +241,8 @@ export function AdminUsersTable() {
       void loadRows(page, kind, activeQuery);
     }, 0);
     const timer = window.setInterval(() => {
-      if (document.visibilityState !== "hidden") void loadRows(page, kind, activeQuery);
-    }, 60_000);
+      if (document.visibilityState !== "hidden") void loadRows(page, kind, activeQuery, false);
+    }, 1_000);
     return () => {
       window.clearTimeout(firstLoad);
       window.clearInterval(timer);
@@ -519,9 +558,7 @@ function UserRecord({
 }) {
   const status = userStatus(user);
   const location = userLocation(user) || "Location unknown";
-  const device = [user.registrationAudit?.deviceType, user.registrationAudit?.browser, user.registrationAudit?.os]
-    .filter(Boolean)
-    .join(" / ");
+  const device = userDevice(user);
 
   return (
     <article
@@ -569,9 +606,10 @@ function UserRecord({
           <span className="truncate">{user.email}</span>
         </span>
         <span className="flex min-w-0 items-center gap-2">
-          <MapPin className="h-4 w-4 shrink-0" />
+          <CountryFlag countryCode={userCountryCode(user)} className="h-5 w-5" />
           <span className="truncate">{location}</span>
         </span>
+        <span className="truncate text-xs font-mono">{userIpAddress(user)}</span>
         <span className="flex min-w-0 items-center gap-2">
           <CalendarDays className="h-4 w-4 shrink-0" />
           <span className="truncate">Registered {formatDate(user.registrationAudit?.registeredAt ?? user.createdAt)}</span>
@@ -582,6 +620,7 @@ function UserRecord({
       <div className="mt-4 flex flex-wrap items-center gap-2 lg:mt-0 lg:justify-end">
         <Badge variant={status.variant}>{status.label}</Badge>
         <Badge variant="outline">{ROLE_LABELS[user.role]}</Badge>
+        <DownloadStatus downloaded={user.hasDownloaded} />
         <ButtonLink href={`/admin/users/${user.id}`} label="See Details" />
         <Button
           type="button"
@@ -661,7 +700,7 @@ function VisitorRecord({
 
       <div className="mt-4 grid gap-2 text-sm text-muted-foreground lg:mt-0">
         <span className="flex min-w-0 items-center gap-2">
-          <MapPin className="h-4 w-4 shrink-0" />
+          <CountryFlag countryCode={visitor.location.country} className="h-5 w-5" />
           <span className="truncate">{location}</span>
         </span>
         <span className="flex min-w-0 items-center gap-2">
@@ -673,6 +712,7 @@ function VisitorRecord({
 
       <div className="mt-4 flex flex-wrap items-center gap-2 lg:mt-0 lg:justify-end">
         <Badge variant="primary">{visitor.activityCount} events</Badge>
+        <DownloadStatus downloaded={visitor.hasDownloaded} />
         <ButtonLink href={`/admin/users/${encodeURIComponent(visitor.visitorId)}?kind=visitor`} label="See Details" />
         <Button
           type="button"
@@ -714,6 +754,30 @@ function ButtonLink({ href, label }: { href: string; label: string }) {
       <Shield className="h-3.5 w-3.5" />
       {label}
     </Link>
+  );
+}
+
+function DownloadStatus({ downloaded }: { downloaded: boolean }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex h-9 items-center gap-2 rounded-xl px-3 text-xs font-semibold ring-1",
+        downloaded
+          ? "bg-emerald-600 text-white ring-emerald-400/40"
+          : "bg-red-600 text-white ring-red-400/40"
+      )}
+      title={downloaded ? "Trading bot download clicked" : "No trading bot download recorded"}
+    >
+      <span
+        className={cn(
+          "inline-flex h-5 w-5 items-center justify-center rounded-full",
+          downloaded ? "bg-emerald-500 text-white" : "bg-red-500 text-black ring-1 ring-red-200/70"
+        )}
+      >
+        {downloaded ? <Check className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
+      </span>
+      {downloaded ? "Downloaded" : "Not downloaded"}
+    </span>
   );
 }
 

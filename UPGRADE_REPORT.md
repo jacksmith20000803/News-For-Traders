@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-MarketPulse has been rebranded to **TRADX** with emerald-green premium styling and your logo (`/public/tradx-logo.png`). This upgrade adds real-time market streaming, TradingView Lightweight Charts, user onboarding/personalization, extended profile management, registration analytics, support chat, feedback inbox, and an enhanced admin dashboard — while preserving all existing trader features from v2.1.
+MarketPulse has been rebranded to **TRADX** with emerald-green premium styling and your logo (`/public/tradx-logo.webp`). This upgrade adds real-time market streaming, TradingView Lightweight Charts, user onboarding/personalization, extended profile management, registration analytics, support chat, feedback inbox, and an enhanced admin dashboard — while preserving all existing trader features from v2.1.
 
 ---
 
@@ -16,7 +16,7 @@ MarketPulse has been rebranded to **TRADX** with emerald-green premium styling a
 
 | Item | Status |
 |---|---|
-| Logo in header/footer/landing | ✅ `/public/tradx-logo.png` |
+| Logo in header/footer/landing | ✅ `/public/tradx-logo.webp` |
 | Site title & metadata | ✅ `TRADX — Trade. Invest. Grow.` |
 | Emerald green color theme | ✅ CSS variables updated in `globals.css` |
 | Tagline on landing | ✅ "Trade. Invest. Grow." |
@@ -246,7 +246,7 @@ EMAIL_FROM=alerts@tradx.com
 2. Set all env vars in Vercel dashboard
 3. Deploy — `postinstall` runs `prisma generate`
 4. Configure cron: `POST /api/cron/ingest` every 5 minutes with `x-cron-secret` header
-5. Place logo at `/public/tradx-logo.png` (already included)
+5. Place logo at `/public/tradx-logo.webp` (already included)
 
 ---
 

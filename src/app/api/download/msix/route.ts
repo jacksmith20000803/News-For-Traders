@@ -1,9 +1,9 @@
-import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
+import { createWindowsPackageResponse } from "@/lib/download/windows-package-response";
 
 export const runtime = "nodejs";
 
-const DEFAULT_BUNDLE_NAME = "TradingBot.msixbundle";
+const DEFAULT_BUNDLE_NAME = "trading-bot-app.msix";
 
 function getBundleName() {
   const configuredUrl = process.env.NEXT_PUBLIC_MSIX_BUNDLE_URL;
@@ -18,25 +18,16 @@ function getBundleName() {
   }
 }
 
-export async function GET() {
+async function servePackage(request: Request) {
   const bundleName = getBundleName();
   const bundlePath = path.join(process.cwd(), "public", "downloads", bundleName);
 
   try {
-    const fileStat = await stat(bundlePath);
-    if (!fileStat.isFile()) {
-      return Response.json({ error: "MSIX bundle was not found." }, { status: 404 });
-    }
-
-    const file = await readFile(bundlePath);
-    return new Response(new Uint8Array(file), {
-      status: 200,
-      headers: {
-        "Content-Type": "application/vnd.ms-appxBundle",
-        "Content-Disposition": `attachment; filename="${bundleName}"`,
-        "Content-Length": String(fileStat.size),
-        "Cache-Control": "private, max-age=0, must-revalidate",
-      },
+    return await createWindowsPackageResponse({
+      request,
+      filePath: bundlePath,
+      fileName: bundleName,
+      cacheControl: "private, max-age=0, must-revalidate",
     });
   } catch (error) {
     const code = error && typeof error === "object" && "code" in error ? error.code : null;
@@ -44,35 +35,20 @@ export async function GET() {
       return Response.json(
         {
           error:
-            "MSIX bundle is not present yet. Place your signed bundle in public/downloads or set NEXT_PUBLIC_MSIX_BUNDLE_URL.",
+            "MSIX package is not present yet. Place your signed package in public/downloads or set NEXT_PUBLIC_MSIX_BUNDLE_URL.",
         },
         { status: 404 }
       );
     }
 
-    return Response.json({ error: "Failed to read MSIX bundle." }, { status: 500 });
+    return Response.json({ error: "Failed to read MSIX package." }, { status: 500 });
   }
 }
 
-export async function HEAD() {
-  const bundleName = getBundleName();
-  const bundlePath = path.join(process.cwd(), "public", "downloads", bundleName);
+export async function GET(request: Request) {
+  return servePackage(request);
+}
 
-  try {
-    const fileStat = await stat(bundlePath);
-    if (!fileStat.isFile()) {
-      return new Response(null, { status: 404 });
-    }
-
-    return new Response(null, {
-      status: 200,
-      headers: {
-        "Content-Type": "application/vnd.ms-appxBundle",
-        "Content-Length": String(fileStat.size),
-        "Cache-Control": "private, max-age=0, must-revalidate",
-      },
-    });
-  } catch {
-    return new Response(null, { status: 404 });
-  }
+export async function HEAD(request: Request) {
+  return servePackage(request);
 }

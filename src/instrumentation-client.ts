@@ -26,3 +26,17 @@ function cleanExtensionAttributes() {
 }
 
 cleanExtensionAttributes();
+
+try {
+  const observer = new MutationObserver(() => cleanExtensionAttributes());
+  observer.observe(document.documentElement, {
+    subtree: true,
+    childList: true,
+    attributes: true,
+    attributeFilter: EXTENSION_ATTRIBUTES,
+  });
+
+  window.setTimeout(() => observer.disconnect(), 10_000);
+} catch {
+  // Browser extension cleanup must never block startup.
+}

@@ -4,6 +4,8 @@ export interface AppInstallerXmlOptions {
   mainPackageName: string;
   publisher: string;
   appinstallerUrl?: string;
+  mainPackageKind?: "package" | "bundle";
+  processorArchitecture?: string;
 }
 
 const VERSION_PATTERN = /^\d+\.\d+\.\d+\.\d+$/;
@@ -34,6 +36,8 @@ export function generateAppInstallerXml({
   mainPackageName,
   publisher,
   appinstallerUrl,
+  mainPackageKind = "package",
+  processorArchitecture,
 }: AppInstallerXmlOptions) {
   if (!VERSION_PATTERN.test(version)) {
     throw new Error('MSIX version must use four numeric parts, for example "1.0.0.0".');
@@ -45,15 +49,20 @@ export function generateAppInstallerXml({
   if (appinstallerUrl) assertAbsoluteUrl(appinstallerUrl, "appinstallerUrl");
 
   const uriAttribute = appinstallerUrl ? ` Uri="${escapeXml(appinstallerUrl)}"` : "";
+  const mainElement = mainPackageKind === "bundle" ? "MainBundle" : "MainPackage";
+  const architectureAttribute =
+    processorArchitecture && mainPackageKind === "package"
+      ? `\n    ProcessorArchitecture="${escapeXml(processorArchitecture)}"`
+      : "";
 
   return `<?xml version="1.0" encoding="utf-8"?>
 <AppInstaller
   xmlns="http://schemas.microsoft.com/appx/appinstaller/2018"
   Version="${escapeXml(version)}"${uriAttribute}>
-  <MainBundle
+  <${mainElement}
     Name="${escapeXml(mainPackageName)}"
     Publisher="${escapeXml(publisher)}"
-    Version="${escapeXml(version)}"
+    Version="${escapeXml(version)}"${architectureAttribute}
     Uri="${escapeXml(mainPackageUrl)}" />
   <UpdateSettings>
     <OnLaunch HoursBetweenUpdateChecks="0" ShowPrompt="true" UpdateBlocksActivation="false" />

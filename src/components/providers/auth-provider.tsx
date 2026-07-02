@@ -31,13 +31,21 @@ export function AuthProvider({
   const [isLoading, setIsLoading] = useState(true);
   const initialUserRef = useRef(initialUser);
   const didInitialRefreshRef = useRef(false);
+  const authVersionRef = useRef(0);
 
-  const setAuthenticatedUser = useCallback((nextUser: SafeUser | null) => {
+  const applyAuthenticatedUser = useCallback((nextUser: SafeUser | null) => {
     setUser(nextUser);
     initialUserRef.current = nextUser;
+    setIsLoading(false);
   }, []);
 
+  const setAuthenticatedUser = useCallback((nextUser: SafeUser | null) => {
+    authVersionRef.current += 1;
+    applyAuthenticatedUser(nextUser);
+  }, [applyAuthenticatedUser]);
+
   const updateAuthenticatedUser = useCallback((patch: Partial<SafeUser>) => {
+    authVersionRef.current += 1;
     setUser((currentUser) => {
       if (!currentUser) return currentUser;
       const nextUser = { ...currentUser, ...patch };
@@ -47,6 +55,7 @@ export function AuthProvider({
   }, []);
 
   const refresh = useCallback(async () => {
+    const requestVersion = authVersionRef.current;
     setIsLoading(true);
     try {
       const res = await fetch("/api/auth/me", {
@@ -54,18 +63,26 @@ export function AuthProvider({
         credentials: "same-origin",
       });
       const json = await readJsonResponse<{ success: boolean; data?: { user?: SafeUser | null } }>(res);
-      setAuthenticatedUser(json.success ? json.data?.user ?? null : null);
+      if (authVersionRef.current === requestVersion) {
+        applyAuthenticatedUser(json.success ? json.data?.user ?? null : null);
+      }
     } catch {
-      setAuthenticatedUser(null);
+      if (authVersionRef.current === requestVersion) {
+        applyAuthenticatedUser(null);
+      }
     } finally {
-      setIsLoading(false);
+      if (authVersionRef.current === requestVersion) {
+        setIsLoading(false);
+      }
     }
-  }, [setAuthenticatedUser]);
+  }, [applyAuthenticatedUser]);
 
   useEffect(() => {
     if (initialUserRef.current !== initialUser) {
+      authVersionRef.current += 1;
       setUser(initialUser);
       initialUserRef.current = initialUser;
+      setIsLoading(false);
     }
   }, [initialUser]);
 

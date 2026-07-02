@@ -1,28 +1,31 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { loginSchema, type LoginInput } from "@/lib/validations/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { AuthOAuthButtons, type OAuthAvailability } from "@/components/auth/oauth-buttons";
 import { useAuth } from "@/components/providers/auth-provider";
 import { readJsonResponse, setCsrfToken } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
 
 interface LoginFormProps {
-  googleEnabled?: boolean;
-  githubEnabled?: boolean;
+  oauthAvailability?: OAuthAvailability;
 }
 
-export function LoginForm({ googleEnabled, githubEnabled }: LoginFormProps) {
+type LoginStep = "credentials" | "mfa" | "recovery";
+
+export function LoginForm({ oauthAvailability }: LoginFormProps) {
+  const router = useRouter();
   const { setAuthenticatedUser, user } = useAuth();
   const searchParams = useSearchParams();
-  const [error, setError] = useState("");
+  const [error, setError] = useState(() => getOauthErrorMessage(searchParams));
   const [isLoading, setIsLoading] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
   const [requiresTwoFactor, setRequiresTwoFactor] = useState(false);
@@ -33,20 +36,25 @@ export function LoginForm({ googleEnabled, githubEnabled }: LoginFormProps) {
   const [twoFactorInvalid, setTwoFactorInvalid] = useState(false);
   const redirectTo = getSafeRedirect(searchParams.get("redirect"));
   const twoFactorWarning = twoFactorInvalid;
+  const isTwoFactorStep = requiresTwoFactor && !!challengeToken;
+  const activeStep: LoginStep = isTwoFactorStep ? (recoveryMode ? "recovery" : "mfa") : "credentials";
 
   const {
+    control,
     register,
     handleSubmit,
     formState: { errors },
   } = useForm<LoginInput>({
     resolver: zodResolver(loginSchema),
+    shouldUnregister: false,
   });
+  const emailValue = useWatch({ control, name: "email" }) ?? "";
 
   useEffect(() => {
     if (user) {
-      window.location.replace(redirectTo);
+      router.replace(redirectTo);
     }
-  }, [redirectTo, user]);
+  }, [redirectTo, router, user]);
 
   const onSubmit = async (data: LoginInput) => {
     setIsLoading(true);
@@ -55,22 +63,29 @@ export function LoginForm({ googleEnabled, githubEnabled }: LoginFormProps) {
     let didRedirect = false;
 
     try {
-      if (requiresTwoFactor && recoveryMode) {
+      if (isTwoFactorStep && recoveryMode) {
         await recoverWithCode(data.email);
         return;
       }
 
-      const isMfaStep = requiresTwoFactor && challengeToken;
-      const res = await fetch(isMfaStep ? "/api/auth/login/mfa" : "/api/auth/login", {
+      const mfaToken = (data.twoFactorCode ?? "").trim();
+
+      if (isTwoFactorStep && !/^\d{6}$/.test(mfaToken)) {
+        setTwoFactorInvalid(false);
+        setError("Enter the 6-digit code from your authenticator app.");
+        return;
+      }
+
+      const res = await fetch(isTwoFactorStep ? "/api/auth/login/mfa" : "/api/auth/login", {
         method: "POST",
         cache: "no-store",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
-          isMfaStep
+          isTwoFactorStep
             ? {
                 challengeToken,
-                token: data.twoFactorCode ?? "",
+                token: mfaToken,
                 rememberDevice,
                 deviceName: navigator.userAgent.slice(0, 255),
               }
@@ -93,20 +108,29 @@ export function LoginForm({ googleEnabled, githubEnabled }: LoginFormProps) {
 
       if (!json.success) {
         if (json.code === "TWO_FACTOR_REQUIRED") {
+          const token = json.data?.challengeToken ?? "";
+          if (!token) {
+            setError("Two-factor verification could not be started. Please try again.");
+            return;
+          }
           setRequiresTwoFactor(true);
+          setChallengeToken(token);
           setTwoFactorInvalid(false);
-          setError("Enter your authenticator code to finish signing in.");
+          setError("");
           return;
         }
         if (json.code === "INVALID_CHALLENGE") {
-          setChallengeToken("");
-          setRequiresTwoFactor(false);
-          setRecoveryMode(false);
+          resetTwoFactorStep();
           setError("Your two-factor challenge expired. Please sign in again.");
           return;
         }
+        if (isTwoFactorStep && json.code === "VALIDATION_ERROR") {
+          setTwoFactorInvalid(false);
+          setError(json.error ?? "Enter the 6-digit code from your authenticator app.");
+          return;
+        }
         if (
-          isMfaStep ||
+          isTwoFactorStep ||
           json.code === "INVALID_MFA_TOKEN" ||
           json.code === "INVALID_TWO_FACTOR_CODE" ||
           json.code === "INVALID_TOKEN"
@@ -120,11 +144,15 @@ export function LoginForm({ googleEnabled, githubEnabled }: LoginFormProps) {
       }
 
       if (json.data?.mfaRequired) {
+        const token = json.data.challengeToken ?? "";
+        if (!token) {
+          setError("Two-factor verification could not be started. Please try again.");
+          return;
+        }
         setRequiresTwoFactor(true);
-        setChallengeToken(json.data.challengeToken ?? "");
-        setRecoveryMode(false);
+        setChallengeToken(token);
         setTwoFactorInvalid(false);
-        setError(json.data.message ?? "Enter your authenticator code to finish signing in.");
+        setError("");
         return;
       }
 
@@ -132,7 +160,7 @@ export function LoginForm({ googleEnabled, githubEnabled }: LoginFormProps) {
       setCsrfToken(json.data?.csrfToken);
       didRedirect = true;
       setRedirecting(true);
-      window.location.replace(redirectTo);
+      router.replace(redirectTo);
     } catch {
       setError("An unexpected error occurred");
     } finally {
@@ -189,182 +217,215 @@ export function LoginForm({ googleEnabled, githubEnabled }: LoginFormProps) {
     setAuthenticatedUser(resetJson.data?.user ?? null);
     setCsrfToken(resetJson.data?.csrfToken);
     setRedirecting(true);
-    window.location.replace(redirectTo);
+    router.replace(redirectTo);
+  };
+
+  const resetTwoFactorStep = () => {
+    setChallengeToken("");
+    setRequiresTwoFactor(false);
+    setRecoveryMode(false);
+    setRecoveryCode("");
+    setTwoFactorInvalid(false);
   };
 
   if (redirecting || user) {
     return (
-      <Card className="w-full max-w-md border-gray-200 bg-white dark:border-white/10 dark:bg-[#0a0c0c]">
+      <Card className="relative w-full max-w-5xl overflow-hidden border-gray-200 bg-white dark:border-white/10 dark:bg-[#0a0c0c]">
+        <AuthTopLoading active />
         <CardContent className="p-8 text-center">
-          <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent" />
-          <p className="mt-4 text-sm font-semibold text-muted-foreground">Opening your dashboard...</p>
+          <p className="text-sm font-semibold text-muted-foreground">Opening your dashboard...</p>
         </CardContent>
       </Card>
     );
   }
 
   return (
-    <Card className="w-full max-w-md bg-white dark:bg-[#0a0c0c] border-gray-200 dark:border-white/10">
+    <Card className="relative w-full max-w-5xl overflow-hidden border-gray-200 bg-white dark:border-white/10 dark:bg-[#0a0c0c]">
+      <AuthTopLoading active={isLoading} />
       <CardHeader className="text-center">
         <Image
-          src="/tradx-logo.png"
+          src="/tradx-logo.webp"
           alt="TRADX"
           width={180}
           height={180}
-          style={{width: "180px", height: "180px"}}
+          style={{ width: "180px", height: "180px" }}
           className="mx-auto mb-3 h-24 w-24 object-contain"
           priority
         />
         <CardTitle className="text-2xl text-gray-900 dark:text-white">Welcome back</CardTitle>
         <CardDescription className="text-gray-600 dark:text-gray-400">Sign in to your TRADX account</CardDescription>
       </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          {error && (
-            <div
-              role="alert"
-              className={cn(
-                "rounded-lg border p-3 text-sm font-semibold",
-                twoFactorWarning
-                  ? "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-200"
-                  : "border-destructive/30 bg-destructive/10 text-destructive"
-              )}
+      <CardContent className="px-5 pb-6 sm:px-6">
+        <div className="grid gap-6 lg:grid-cols-[minmax(240px,0.95fr)_1px_minmax(320px,1fr)] lg:items-start">
+          <AuthOAuthButtons mode="signin" availability={oauthAvailability} />
+          <div className="hidden h-full min-h-80 w-px bg-border lg:block" />
+          <div>
+            <form
+              onSubmit={handleSubmit(onSubmit)}
+              className="relative overflow-hidden p-1"
             >
-              {error}
-            </div>
-          )}
-          <Input
-            label="Email"
-            type="email"
-            id="email"
-            placeholder="you@example.com"
-            error={errors.email?.message}
-            {...register("email")}
-          />
-          <Input
-            label="Password"
-            type="password"
-            id="password"
-            placeholder="••••••••"
-            error={errors.password?.message}
-            {...register("password")}
-          />
-          {requiresTwoFactor && !recoveryMode && (
-            <div className="space-y-3 rounded-2xl border border-primary/20 bg-primary/5 p-3">
-              <Input
-                label="Authenticator code"
-                id="twoFactorCode"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                placeholder="123456"
-                error={errors.twoFactorCode?.message}
-                {...register("twoFactorCode")}
-              />
-              {twoFactorWarning && (
-                <p
-                  role="alert"
-                  className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-700 dark:text-amber-200"
-                >
-                  Warning: incorrect two-factor authentication code.
-                </p>
-              )}
-              <label className="flex items-center gap-2 text-sm text-muted-foreground">
-                <input
-                  type="checkbox"
-                  checked={rememberDevice}
-                  onChange={(event) => setRememberDevice(event.target.checked)}
-                  className="h-4 w-4 rounded border-border accent-primary"
-                />
-                Remember this device for 30 days
-              </label>
-              <button
-                type="button"
-                className="text-sm font-medium text-primary hover:underline"
-                onClick={() => {
-                  setRecoveryMode(true);
-                  setError("");
-                }}
-              >
-                Use a recovery code instead
-              </button>
-            </div>
-          )}
-          {requiresTwoFactor && recoveryMode && (
-            <div className="space-y-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3">
-              <Input
-                label="Recovery code"
-                id="recoveryCode"
-                placeholder="xxxx-xxxx-xxxx-xxxx"
-                value={recoveryCode}
-                onChange={(event) => setRecoveryCode(event.target.value)}
-              />
-              <button
-                type="button"
-                className="text-sm font-medium text-primary hover:underline"
-                onClick={() => {
-                  setRecoveryMode(false);
-                  setError("");
-                }}
-              >
-                Use authenticator code instead
-              </button>
-            </div>
-          )}
-          <div className="flex justify-end">
-            <Link href="/forgot-password" className="text-sm text-primary hover:underline">
-              Forgot password?
-            </Link>
-          </div>
-          <Button type="submit" className="w-full" isLoading={isLoading}>
-            {requiresTwoFactor ? "Verify and sign in" : "Sign in"}
-          </Button>
-        </form>
+              <div key={activeStep} className="auth-page-turn space-y-4">
+                {activeStep === "credentials" ? (
+                  <>
+                    {error && <AuthAlert message={error} warning={false} />}
+                    <Input
+                      label="Email"
+                      type="email"
+                      id="email"
+                      placeholder="you@example.com"
+                      error={errors.email?.message}
+                      {...register("email")}
+                    />
+                    <Input
+                      label="Password"
+                      type="password"
+                      id="password"
+                      placeholder="Password"
+                      error={errors.password?.message}
+                      {...register("password")}
+                    />
+                    <div className="flex justify-end">
+                      <Link href="/forgot-password" className="text-sm text-primary hover:underline">
+                        Forgot password?
+                      </Link>
+                    </div>
+                    <Button type="submit" className="w-full" disabled={isLoading}>
+                      Log In
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+                        Two-factor verification
+                      </p>
+                      <h3 className="mt-2 text-xl font-semibold text-foreground">Confirm it is you</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Enter the verification code for {emailValue || "your account"}.
+                      </p>
+                    </div>
 
-        {(googleEnabled || githubEnabled) && (
-          <div className="mt-6 space-y-3">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-border" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-card px-2 text-muted-foreground">Or continue with</span>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              {googleEnabled ? (
-                <Link href="/api/auth/oauth/google">
-                  <Button variant="outline" className="w-full" type="button">
-                    Google
-                  </Button>
-                </Link>
-              ) : (
-                <Button variant="outline" disabled title="Configure GOOGLE_CLIENT_ID">
-                  Google
-                </Button>
-              )}
-              {githubEnabled ? (
-                <Link href="/api/auth/oauth/github">
-                  <Button variant="outline" className="w-full" type="button">
-                    GitHub
-                  </Button>
-                </Link>
-              ) : (
-                <Button variant="outline" disabled title="Configure GITHUB_CLIENT_ID">
-                  GitHub
-                </Button>
-              )}
-            </div>
-          </div>
-        )}
+                    {error && <AuthAlert message={error} warning={twoFactorWarning} />}
 
-        <p className="mt-6 text-center text-sm text-muted-foreground">
-          Don&apos;t have an account?{" "}
-          <Link href="/register" className="text-primary hover:underline">
-            Sign up
-          </Link>
-        </p>
+                    {activeStep === "mfa" ? (
+                      <>
+                        <Input
+                          label="Authenticator code"
+                          id="twoFactorCode"
+                          inputMode="numeric"
+                          autoComplete="one-time-code"
+                          placeholder="123456"
+                          error={errors.twoFactorCode?.message}
+                          {...register("twoFactorCode")}
+                        />
+                        <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <input
+                            type="checkbox"
+                            checked={rememberDevice}
+                            onChange={(event) => setRememberDevice(event.target.checked)}
+                            className="h-4 w-4 rounded border-border accent-primary"
+                          />
+                          Remember this device for 30 days
+                        </label>
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <button
+                            type="button"
+                            className="text-sm font-medium text-primary hover:underline"
+                            onClick={() => {
+                              setRecoveryMode(true);
+                              setTwoFactorInvalid(false);
+                              setError("");
+                            }}
+                          >
+                            Use a recovery code instead
+                          </button>
+                          <button
+                            type="button"
+                            className="text-sm font-medium text-muted-foreground hover:text-foreground"
+                            onClick={resetTwoFactorStep}
+                          >
+                            Use a different account
+                          </button>
+                        </div>
+                        <Button type="submit" className="w-full" disabled={isLoading}>
+                          Next
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Input
+                          label="Recovery code"
+                          id="recoveryCode"
+                          placeholder="xxxx-xxxx-xxxx-xxxx"
+                          value={recoveryCode}
+                          onChange={(event) => setRecoveryCode(event.target.value)}
+                        />
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <button
+                            type="button"
+                            className="text-sm font-medium text-primary hover:underline"
+                            onClick={() => {
+                              setRecoveryMode(false);
+                              setRecoveryCode("");
+                              setTwoFactorInvalid(false);
+                              setError("");
+                            }}
+                          >
+                            Use authenticator code instead
+                          </button>
+                          <button
+                            type="button"
+                            className="text-sm font-medium text-muted-foreground hover:text-foreground"
+                            onClick={resetTwoFactorStep}
+                          >
+                            Use a different account
+                          </button>
+                        </div>
+                        <Button type="submit" className="w-full" disabled={isLoading}>
+                          Recover and sign in
+                        </Button>
+                      </>
+                    )}
+                  </>
+                )}
+              </div>
+            </form>
+
+            <p className="mt-6 text-center text-sm text-muted-foreground">
+              Don&apos;t have an account?{" "}
+              <Link href="/register" className="text-primary hover:underline">
+                Sign up
+              </Link>
+            </p>
+          </div>
+        </div>
       </CardContent>
     </Card>
+  );
+}
+
+function AuthTopLoading({ active }: { active: boolean }) {
+  if (!active) return null;
+  return (
+    <div className="pointer-events-none absolute inset-x-0 top-0 z-20 h-1 overflow-hidden bg-transparent">
+      <span className="auth-loading-line block h-full w-1/3 rounded-full bg-gradient-to-r from-cyan-300 via-emerald-300 to-blue-500" />
+    </div>
+  );
+}
+
+function AuthAlert({ message, warning }: { message: string; warning: boolean }) {
+  return (
+    <div
+      role="alert"
+      className={cn(
+        "rounded-lg border p-3 text-sm font-semibold",
+        warning
+          ? "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-200"
+          : "border-destructive/30 bg-destructive/10 text-destructive"
+      )}
+    >
+      {message}
+    </div>
   );
 }
 
@@ -372,4 +433,11 @@ function getSafeRedirect(value: string | null) {
   if (!value || !value.startsWith("/") || value.startsWith("//")) return "/dashboard";
   if (value.startsWith("/login") || value.startsWith("/register")) return "/dashboard";
   return value;
+}
+
+function getOauthErrorMessage(searchParams: ReturnType<typeof useSearchParams>) {
+  if (searchParams.get("error") !== "oauth_not_configured") return "";
+  const provider = searchParams.get("provider");
+  const label = provider ? provider[0]?.toUpperCase() + provider.slice(1) : "This provider";
+  return `${label} sign-in is not configured yet. Add its OAuth client ID and secret to enable it.`;
 }

@@ -769,6 +769,13 @@ model VisitorActivity {
   os         String?
   deviceType String?
   userAgent  String?
+  vpnDetected Boolean  @default(false)
+  vpnProvider String?
+  ipAsn      String?
+  ipCompany  String?
+  ipRiskSource String?
+  ipRiskCheckedAt DateTime?
+  ipRisk     Json?
   metadata   Json?
   createdAt  DateTime @default(now())
 
@@ -778,6 +785,10 @@ model VisitorActivity {
   @@index([userId])
   @@index([createdAt])
   @@index([visitorId, createdAt])
+  @@index([userId, createdAt])
+  @@index([visitorId, action])
+  @@index([userId, action])
+  @@index([vpnDetected])
 }
 
 model Badge {
@@ -948,6 +959,13 @@ model RegistrationAudit {
   deviceType   String?
   os           String?
   userAgent    String?
+  vpnDetected Boolean  @default(false)
+  vpnProvider String?
+  ipAsn       String?
+  ipCompany   String?
+  ipRiskSource String?
+  ipRiskCheckedAt DateTime?
+  ipRisk      Json?
   adminViewed  Boolean  @default(false)
   registeredAt DateTime @default(now())
 
@@ -956,6 +974,7 @@ model RegistrationAudit {
   @@index([registeredAt])
   @@index([adminViewed])
   @@index([country])
+  @@index([vpnDetected])
 }
 
 model FeedbackSubmission {

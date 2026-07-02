@@ -42,12 +42,14 @@ export function SecuritySettings({
   const [regenerateCode, setRegenerateCode] = useState("");
   const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
   const [message, setMessage] = useState("");
+  const [warning, setWarning] = useState("");
   const [error, setError] = useState("");
   const [loadingAction, setLoadingAction] = useState<"email" | "2fa" | null>(null);
 
   const requestVerification = async () => {
     setLoadingAction("email");
     setMessage("");
+    setWarning("");
     setError("");
 
     try {
@@ -77,6 +79,7 @@ export function SecuritySettings({
   const confirmEmailVerification = async () => {
     setLoadingAction("email");
     setMessage("");
+    setWarning("");
     setError("");
 
     try {
@@ -110,7 +113,14 @@ export function SecuritySettings({
   const startTwoFactorSetup = async () => {
     setLoadingAction("2fa");
     setMessage("");
+    setWarning("");
     setError("");
+
+    if (!verified) {
+      setWarning("Verify your email before enabling two-factor authentication.");
+      setLoadingAction(null);
+      return;
+    }
 
     try {
       const response = await secureFetch("/api/auth/mfa/generate-qr", {
@@ -123,7 +133,11 @@ export function SecuritySettings({
       }>(response);
 
       if (!json.success) {
-        setError(json.error ?? "Could not start two-factor setup");
+        if (json.error?.toLowerCase().includes("verify")) {
+          setWarning(json.error);
+        } else {
+          setError(json.error ?? "Could not start two-factor setup");
+        }
         return;
       }
 
@@ -141,7 +155,14 @@ export function SecuritySettings({
   const confirmTwoFactor = async () => {
     setLoadingAction("2fa");
     setMessage("");
+    setWarning("");
     setError("");
+
+    if (!verified) {
+      setWarning("Verify your email before confirming two-factor authentication.");
+      setLoadingAction(null);
+      return;
+    }
 
     try {
       const response = await secureFetch("/api/user/security", {
@@ -155,7 +176,7 @@ export function SecuritySettings({
       }>(response);
 
       if (!json.success) {
-        setError(
+        setWarning(
           json.error?.toLowerCase().includes("two-factor") || json.error?.toLowerCase().includes("authenticator")
             ? "Warning: incorrect two-factor authentication code."
             : json.error ?? "Could not confirm two-factor code"
@@ -185,10 +206,11 @@ export function SecuritySettings({
   const disableTwoFactor = async () => {
     setLoadingAction("2fa");
     setMessage("");
+    setWarning("");
     setError("");
 
     if (!disableCode.trim()) {
-      setError("Enter your authenticator code before disabling two-factor authentication.");
+      setWarning("Enter your authenticator code before disabling two-factor authentication.");
       setLoadingAction(null);
       return;
     }
@@ -205,7 +227,7 @@ export function SecuritySettings({
       }>(response);
 
       if (!json.success) {
-        setError(
+        setWarning(
           json.error?.toLowerCase().includes("two-factor") || json.error?.toLowerCase().includes("authenticator")
             ? "Warning: incorrect two-factor authentication code."
             : json.error ?? "Could not update two-factor authentication"
@@ -229,10 +251,11 @@ export function SecuritySettings({
   const regenerateRecoveryCodes = async () => {
     setLoadingAction("2fa");
     setMessage("");
+    setWarning("");
     setError("");
 
     if (!regenerateCode.trim()) {
-      setError("Enter your authenticator code before regenerating recovery codes.");
+      setWarning("Enter your authenticator code before regenerating recovery codes.");
       setLoadingAction(null);
       return;
     }
@@ -249,7 +272,7 @@ export function SecuritySettings({
       }>(response);
 
       if (!json.success) {
-        setError(
+        setWarning(
           json.error?.toLowerCase().includes("two-factor") || json.error?.toLowerCase().includes("authenticator")
             ? "Warning: incorrect two-factor authentication code."
             : json.error ?? "Could not regenerate recovery codes"
@@ -443,7 +466,7 @@ export function SecuritySettings({
                   <div className="mx-auto rounded-2xl border border-border bg-white p-3 shadow-lg sm:mx-0">
                     <BrandedQRCode
                       qrDataUrl={setupQrCode}
-                      logoSrc="/tradx-logo.png"
+                      logoSrc="/tradx-logo.webp"
                       size={180}
                       logoSizePercent={20}
                       showDownload={false}
@@ -513,15 +536,20 @@ export function SecuritySettings({
           )}
         </div>
 
-        {(message || error) && (
+        {(message || warning || error) && (
           <div className="space-y-2 lg:col-span-2">
             {message && (
               <p role="status" className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm font-semibold text-emerald-600 dark:text-emerald-300">
                 {message}
               </p>
             )}
-            {error && (
+            {warning && (
               <p role="alert" className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm font-semibold text-amber-700 dark:text-amber-200">
+                {warning}
+              </p>
+            )}
+            {error && (
+              <p role="alert" className="rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm font-semibold text-red-700 dark:text-red-200">
                 {error}
               </p>
             )}

@@ -2,8 +2,11 @@ import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth/session";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { connection } from "next/server";
 
 export default async function WatchlistPage() {
+  await connection();
+
   const user = await getCurrentUser();
   
   if (!user) {
