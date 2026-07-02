@@ -1,57 +1,58 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createHash } from "node:crypto";
 import {
-  getAppleAuthUrl,
+  getDiscordAuthUrl,
   getGitHubAuthUrl,
   getGoogleAuthUrl,
-  getMicrosoftAuthUrl,
-  handleAppleCallback,
+  getTelegramAuthUrl,
+  handleDiscordCallback,
   handleGitHubCallback,
   handleGoogleCallback,
-  handleMicrosoftCallback,
-  isAppleOAuthConfigured,
+  handleTelegramCallback,
+  isDiscordOAuthConfigured,
   isGitHubOAuthConfigured,
   isGoogleOAuthConfigured,
-  isMicrosoftOAuthConfigured,
+  isTelegramOAuthConfigured,
 } from "@/lib/auth/oauth";
 import { generateToken } from "@/lib/security/csrf";
 import { db } from "@/lib/db";
 import { config as appConfig } from "@/lib/config";
 
-export type OAuthProvider = "google" | "github" | "microsoft" | "apple";
+export type OAuthProvider = "google" | "github" | "discord" | "telegram";
 const VISITOR_COOKIE = "tradx_visitor_id";
 
 const providers: Record<
   OAuthProvider,
   {
     configured: () => boolean;
-    getUrl: (state: string, baseUrl?: string) => string;
-    callback: (code: string, appleUserJson?: string | null, baseUrl?: string) => Promise<unknown>;
+    getUrl: (state: string, baseUrl?: string, codeChallenge?: string) => string;
+    callback: (code: string, codeVerifier: string | undefined, baseUrl?: string) => Promise<unknown>;
   }
 > = {
   google: {
     configured: isGoogleOAuthConfigured,
     getUrl: getGoogleAuthUrl,
-    callback: (code, _appleUserJson, baseUrl) => handleGoogleCallback(code, baseUrl),
+    callback: (code, _codeVerifier, baseUrl) => handleGoogleCallback(code, baseUrl),
   },
   github: {
     configured: isGitHubOAuthConfigured,
     getUrl: getGitHubAuthUrl,
-    callback: (code, _appleUserJson, baseUrl) => handleGitHubCallback(code, baseUrl),
+    callback: (code, _codeVerifier, baseUrl) => handleGitHubCallback(code, baseUrl),
   },
-  microsoft: {
-    configured: isMicrosoftOAuthConfigured,
-    getUrl: getMicrosoftAuthUrl,
-    callback: (code, _appleUserJson, baseUrl) => handleMicrosoftCallback(code, baseUrl),
+  discord: {
+    configured: isDiscordOAuthConfigured,
+    getUrl: getDiscordAuthUrl,
+    callback: (code, _codeVerifier, baseUrl) => handleDiscordCallback(code, baseUrl),
   },
-  apple: {
-    configured: isAppleOAuthConfigured,
-    getUrl: getAppleAuthUrl,
-    callback: (code, appleUserJson, baseUrl) => handleAppleCallback(code, appleUserJson, baseUrl),
+  telegram: {
+    configured: isTelegramOAuthConfigured,
+    getUrl: getTelegramAuthUrl,
+    callback: (code, codeVerifier, baseUrl) => handleTelegramCallback(code, codeVerifier, baseUrl),
   },
 };
 
 export function isOAuthProvider(value: string): value is OAuthProvider {
-  return value === "google" || value === "github" || value === "microsoft" || value === "apple";
+  return value === "google" || value === "github" || value === "discord" || value === "telegram";
 }
 
 export function startOAuth(request: NextRequest, provider: OAuthProvider) {
@@ -65,8 +66,10 @@ export function startOAuth(request: NextRequest, provider: OAuthProvider) {
   }
 
   const state = generateToken();
+  const codeVerifier = provider === "telegram" ? generateToken() : undefined;
+  const codeChallenge = codeVerifier ? createCodeChallenge(codeVerifier) : undefined;
   const baseUrl = requestBaseUrl(request);
-  const response = NextResponse.redirect(providerConfig.getUrl(state, baseUrl));
+  const response = NextResponse.redirect(providerConfig.getUrl(state, baseUrl, codeChallenge));
   const cookieOptions = {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
@@ -77,6 +80,9 @@ export function startOAuth(request: NextRequest, provider: OAuthProvider) {
 
   response.cookies.set(`oauth_state_${provider}`, state, cookieOptions);
   response.cookies.set(`oauth_auth_page_${provider}`, authPage, cookieOptions);
+  if (codeVerifier) {
+    response.cookies.set(`oauth_code_verifier_${provider}`, codeVerifier, cookieOptions);
+  }
   if (returnTo) {
     response.cookies.set(`oauth_return_to_${provider}`, returnTo, cookieOptions);
   }
@@ -88,6 +94,7 @@ export async function finishOAuthGetCallback(request: NextRequest, provider: OAu
   const code = request.nextUrl.searchParams.get("code");
   const state = request.nextUrl.searchParams.get("state");
   const storedState = request.cookies.get(`oauth_state_${provider}`)?.value;
+  const codeVerifier = request.cookies.get(`oauth_code_verifier_${provider}`)?.value;
   const returnTo = sanitizeReturnTo(request.cookies.get(`oauth_return_to_${provider}`)?.value ?? null);
   const authPage = sanitizeAuthPage(request.cookies.get(`oauth_auth_page_${provider}`)?.value ?? null);
 
@@ -97,6 +104,7 @@ export async function finishOAuthGetCallback(request: NextRequest, provider: OAu
     code,
     state,
     storedState,
+    codeVerifier,
     returnTo,
     authPage,
   });
@@ -106,8 +114,8 @@ export async function finishOAuthPostCallback(request: NextRequest, provider: OA
   const form = await request.formData();
   const code = readFormValue(form.get("code"));
   const state = readFormValue(form.get("state"));
-  const userJson = readFormValue(form.get("user"));
   const storedState = request.cookies.get(`oauth_state_${provider}`)?.value;
+  const codeVerifier = request.cookies.get(`oauth_code_verifier_${provider}`)?.value;
   const returnTo = sanitizeReturnTo(request.cookies.get(`oauth_return_to_${provider}`)?.value ?? null);
   const authPage = sanitizeAuthPage(request.cookies.get(`oauth_auth_page_${provider}`)?.value ?? null);
 
@@ -117,9 +125,9 @@ export async function finishOAuthPostCallback(request: NextRequest, provider: OA
     code,
     state,
     storedState,
+    codeVerifier,
     returnTo,
     authPage,
-    appleUserJson: userJson,
   });
 }
 
@@ -129,18 +137,18 @@ async function finishOAuthCallback({
   code,
   state,
   storedState,
+  codeVerifier,
   returnTo,
   authPage,
-  appleUserJson,
 }: {
   request: NextRequest;
   provider: OAuthProvider;
   code: string | null;
   state: string | null;
   storedState: string | undefined;
+  codeVerifier: string | undefined;
   returnTo: string;
   authPage: string;
-  appleUserJson?: string | null;
 }) {
   const loginError = (message: string) =>
     NextResponse.redirect(
@@ -157,13 +165,14 @@ async function finishOAuthCallback({
       return loginError("OAuth provider not configured");
     }
 
-    const user = await providerConfig.callback(code, appleUserJson, requestBaseUrl(request));
+    const user = await providerConfig.callback(code, codeVerifier, requestBaseUrl(request));
     await linkVisitorActivityToUser(request.cookies.get(VISITOR_COOKIE)?.value, readUserId(user));
 
     const response = NextResponse.redirect(new URL(returnTo || "/dashboard", requestBaseUrl(request)));
     response.cookies.delete(`oauth_state_${provider}`);
     response.cookies.delete(`oauth_return_to_${provider}`);
     response.cookies.delete(`oauth_auth_page_${provider}`);
+    response.cookies.delete(`oauth_code_verifier_${provider}`);
     return response;
   } catch (error) {
     const message = error instanceof Error ? error.message : "OAuth failed";
@@ -182,6 +191,10 @@ function sanitizeAuthPage(value: string | null) {
 
 function readFormValue(value: FormDataEntryValue | null) {
   return typeof value === "string" ? value : null;
+}
+
+function createCodeChallenge(value: string) {
+  return createHash("sha256").update(value).digest("base64url");
 }
 
 function readUserId(value: unknown) {

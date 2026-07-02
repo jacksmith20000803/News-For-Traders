@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { createUserSession, setCsrfCookie } from "@/lib/auth/session";
 import { createSignedCsrfToken } from "@/lib/security/csrf";
 import { config } from "@/lib/config";
+import { decodeJwt, jwtVerify, createRemoteJWKSet } from "jose";
 
 const GOOGLE_AUTH = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN = "https://oauth2.googleapis.com/token";
@@ -12,12 +13,13 @@ const GITHUB_TOKEN = "https://github.com/login/oauth/access_token";
 const GITHUB_USER = "https://api.github.com/user";
 const GITHUB_EMAIL = "https://api.github.com/user/emails";
 
-const APPLE_AUTH = "https://appleid.apple.com/auth/authorize";
-const APPLE_TOKEN = "https://appleid.apple.com/auth/token";
+const DISCORD_AUTH = "https://discord.com/oauth2/authorize";
+const DISCORD_TOKEN = "https://discord.com/api/oauth2/token";
+const DISCORD_USER = "https://discord.com/api/users/@me";
 
-function microsoftAuthBase() {
-  return `https://login.microsoftonline.com/${encodeURIComponent(config.oauth.microsoft.tenant)}/oauth2/v2.0`;
-}
+const TELEGRAM_AUTH = "https://oauth.telegram.org/auth";
+const TELEGRAM_TOKEN = "https://oauth.telegram.org/token";
+const TELEGRAM_JWKS = createRemoteJWKSet(new URL("https://oauth.telegram.org/.well-known/jwks.json"));
 
 export function isGoogleOAuthConfigured() {
   return !!(config.oauth.google.clientId && config.oauth.google.clientSecret);
@@ -27,12 +29,12 @@ export function isGitHubOAuthConfigured() {
   return !!(config.oauth.github.clientId && config.oauth.github.clientSecret);
 }
 
-export function isMicrosoftOAuthConfigured() {
-  return !!(config.oauth.microsoft.clientId && config.oauth.microsoft.clientSecret);
+export function isDiscordOAuthConfigured() {
+  return !!(config.oauth.discord.clientId && config.oauth.discord.clientSecret);
 }
 
-export function isAppleOAuthConfigured() {
-  return !!(config.oauth.apple.clientId && config.oauth.apple.clientSecret);
+export function isTelegramOAuthConfigured() {
+  return !!(config.oauth.telegram.clientId && config.oauth.telegram.clientSecret);
 }
 
 function redirectUri(provider: string, baseUrl = config.app.url) {
@@ -66,28 +68,30 @@ export function getGitHubAuthUrl(state: string, baseUrl?: string) {
   return `${GITHUB_AUTH}?${params}`;
 }
 
-export function getMicrosoftAuthUrl(state: string, baseUrl?: string) {
+export function getDiscordAuthUrl(state: string, baseUrl?: string) {
   const params = new URLSearchParams({
-    client_id: config.oauth.microsoft.clientId,
-    redirect_uri: redirectUri("microsoft", baseUrl),
+    client_id: config.oauth.discord.clientId,
+    redirect_uri: redirectUri("discord", baseUrl),
     response_type: "code",
-    scope: "openid profile email User.Read",
+    scope: "identify email",
     state,
-    prompt: "select_account",
   });
-  return `${microsoftAuthBase()}/authorize?${params}`;
+  return `${DISCORD_AUTH}?${params}`;
 }
 
-export function getAppleAuthUrl(state: string, baseUrl?: string) {
+export function getTelegramAuthUrl(state: string, baseUrl?: string, codeChallenge?: string) {
   const params = new URLSearchParams({
-    client_id: config.oauth.apple.clientId,
-    redirect_uri: redirectUri("apple", baseUrl),
+    client_id: config.oauth.telegram.clientId,
+    redirect_uri: redirectUri("telegram", baseUrl),
     response_type: "code",
-    response_mode: "form_post",
-    scope: "name email",
+    scope: "openid profile",
     state,
   });
-  return `${APPLE_AUTH}?${params}`;
+  if (codeChallenge) {
+    params.set("code_challenge", codeChallenge);
+    params.set("code_challenge_method", "S256");
+  }
+  return `${TELEGRAM_AUTH}?${params}`;
 }
 
 async function linkOAuthUser(params: {
@@ -249,101 +253,98 @@ export async function handleGitHubCallback(code: string, baseUrl?: string) {
   });
 }
 
-export async function handleMicrosoftCallback(code: string, baseUrl?: string) {
-  const tokenRes = await fetch(`${microsoftAuthBase()}/token`, {
+export async function handleDiscordCallback(code: string, baseUrl?: string) {
+  const tokenRes = await fetch(DISCORD_TOKEN, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       code,
-      client_id: config.oauth.microsoft.clientId,
-      client_secret: config.oauth.microsoft.clientSecret,
-      redirect_uri: redirectUri("microsoft", baseUrl),
+      client_id: config.oauth.discord.clientId,
+      client_secret: config.oauth.discord.clientSecret,
+      redirect_uri: redirectUri("discord", baseUrl),
       grant_type: "authorization_code",
     }),
   });
 
-  if (!tokenRes.ok) throw new Error("Failed to exchange Microsoft token");
+  if (!tokenRes.ok) throw new Error("Failed to exchange Discord token");
   const tokens = (await tokenRes.json()) as { access_token: string };
 
-  const profileRes = await fetch("https://graph.microsoft.com/v1.0/me?$select=id,displayName,mail,userPrincipalName", {
+  const profileRes = await fetch(DISCORD_USER, {
     headers: { Authorization: `Bearer ${tokens.access_token}` },
   });
-  if (!profileRes.ok) throw new Error("Failed to fetch Microsoft profile");
+  if (!profileRes.ok) throw new Error("Failed to fetch Discord profile");
 
   const profile = (await profileRes.json()) as {
     id: string;
-    displayName?: string;
-    mail?: string;
-    userPrincipalName?: string;
+    username?: string;
+    global_name?: string | null;
+    email?: string | null;
+    avatar?: string | null;
   };
-  const email = profile.mail ?? profile.userPrincipalName;
-  if (!email) throw new Error("Microsoft account has no email");
+  if (!profile.email) throw new Error("Discord account has no verified email");
+  const avatar = profile.avatar
+    ? `https://cdn.discordapp.com/avatars/${profile.id}/${profile.avatar}.png?size=256`
+    : null;
 
   return linkOAuthUser({
-    email,
-    name: profile.displayName ?? email.split("@")[0],
-    provider: "microsoft",
+    email: profile.email,
+    name: profile.global_name ?? profile.username ?? profile.email.split("@")[0],
+    avatar,
+    provider: "discord",
     providerAccountId: profile.id,
     accessToken: tokens.access_token,
   });
 }
 
-export async function handleAppleCallback(code: string, userJson?: string | null, baseUrl?: string) {
-  const tokenRes = await fetch(APPLE_TOKEN, {
+export async function handleTelegramCallback(code: string, codeVerifier: string | undefined, baseUrl?: string) {
+  const tokenRes = await fetch(TELEGRAM_TOKEN, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       code,
-      client_id: config.oauth.apple.clientId,
-      client_secret: config.oauth.apple.clientSecret,
-      redirect_uri: redirectUri("apple", baseUrl),
+      client_id: config.oauth.telegram.clientId,
+      client_secret: config.oauth.telegram.clientSecret,
+      redirect_uri: redirectUri("telegram", baseUrl),
       grant_type: "authorization_code",
+      ...(codeVerifier ? { code_verifier: codeVerifier } : {}),
     }),
   });
 
-  if (!tokenRes.ok) throw new Error("Failed to exchange Apple token");
+  if (!tokenRes.ok) throw new Error("Failed to exchange Telegram token");
   const tokens = (await tokenRes.json()) as {
     access_token?: string;
     id_token?: string;
   };
+  if (!tokens.id_token) throw new Error("Telegram did not return an identity token");
 
-  const claims = decodeJwtPayload(tokens.id_token);
-  const email = typeof claims.email === "string" ? claims.email : null;
+  const claims = await verifyTelegramIdToken(tokens.id_token);
   const providerAccountId = typeof claims.sub === "string" ? claims.sub : null;
+  if (!providerAccountId) throw new Error("Telegram account has no stable identifier");
 
-  if (!email || !providerAccountId) throw new Error("Apple account has no email");
-
-  const appleUser = parseAppleUser(userJson);
-  const name = [appleUser?.name?.firstName, appleUser?.name?.lastName].filter(Boolean).join(" ");
+  const username = typeof claims.preferred_username === "string" ? claims.preferred_username : null;
+  const name = typeof claims.name === "string" ? claims.name : username;
+  const picture = typeof claims.picture === "string" ? claims.picture : null;
+  const email =
+    typeof claims.email === "string"
+      ? claims.email
+      : `telegram-${providerAccountId}@telegram.tradx.local`;
 
   return linkOAuthUser({
     email,
-    name: name || email.split("@")[0],
-    provider: "apple",
+    name: name || username || `Telegram ${providerAccountId}`,
+    avatar: picture,
+    provider: "telegram",
     providerAccountId,
     accessToken: tokens.access_token,
   });
 }
 
-function decodeJwtPayload(token: string | null | undefined): Record<string, unknown> {
-  if (!token) return {};
-  const [, payload] = token.split(".");
-  if (!payload) return {};
-
-  try {
-    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
-    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
-    return JSON.parse(Buffer.from(padded, "base64").toString("utf8")) as Record<string, unknown>;
-  } catch {
-    return {};
-  }
-}
-
-function parseAppleUser(value: string | null | undefined): { name?: { firstName?: string; lastName?: string } } | null {
-  if (!value) return null;
-  try {
-    return JSON.parse(value) as { name?: { firstName?: string; lastName?: string } };
-  } catch {
-    return null;
-  }
+async function verifyTelegramIdToken(idToken: string) {
+  const unsafeClaims = decodeJwt(idToken);
+  const issuer = typeof unsafeClaims.iss === "string" ? unsafeClaims.iss : "https://oauth.telegram.org";
+  const { payload } = await jwtVerify(idToken, TELEGRAM_JWKS, {
+    issuer,
+    audience: config.oauth.telegram.clientId,
+  });
+  return payload;
 }

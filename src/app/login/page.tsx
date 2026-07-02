@@ -1,9 +1,9 @@
 import { LoginForm } from "@/components/auth/login-form";
 import {
-  isAppleOAuthConfigured,
+  isDiscordOAuthConfigured,
   isGitHubOAuthConfigured,
   isGoogleOAuthConfigured,
-  isMicrosoftOAuthConfigured,
+  isTelegramOAuthConfigured,
 } from "@/auth";
 
 export const metadata = {
@@ -18,8 +18,8 @@ export default function LoginPage() {
           oauthAvailability={{
             google: isGoogleOAuthConfigured(),
             github: isGitHubOAuthConfigured(),
-            microsoft: isMicrosoftOAuthConfigured(),
-            apple: isAppleOAuthConfigured(),
+            discord: isDiscordOAuthConfigured(),
+            telegram: isTelegramOAuthConfigured(),
           }}
         />
       </div>

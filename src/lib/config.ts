@@ -55,14 +55,13 @@ export const config = {
       clientId: process.env.GITHUB_CLIENT_ID ?? "",
       clientSecret: process.env.GITHUB_CLIENT_SECRET ?? "",
     },
-    microsoft: {
-      clientId: process.env.MICROSOFT_CLIENT_ID ?? "",
-      clientSecret: process.env.MICROSOFT_CLIENT_SECRET ?? "",
-      tenant: process.env.MICROSOFT_TENANT_ID ?? "common",
+    discord: {
+      clientId: process.env.DISCORD_CLIENT_ID ?? "",
+      clientSecret: process.env.DISCORD_CLIENT_SECRET ?? "",
     },
-    apple: {
-      clientId: process.env.APPLE_CLIENT_ID ?? "",
-      clientSecret: process.env.APPLE_CLIENT_SECRET ?? "",
+    telegram: {
+      clientId: process.env.TELEGRAM_CLIENT_ID ?? process.env.TELEGRAM_BOT_ID ?? "",
+      clientSecret: process.env.TELEGRAM_CLIENT_SECRET ?? "",
     },
   },
   features: {

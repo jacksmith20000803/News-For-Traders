@@ -2,14 +2,14 @@ import { NextRequest } from "next/server";
 import { apiSuccess } from "@/lib/api/response";
 import {
   getOAuthCallbackUrl,
-  isAppleOAuthConfigured,
+  isDiscordOAuthConfigured,
   isGitHubOAuthConfigured,
   isGoogleOAuthConfigured,
-  isMicrosoftOAuthConfigured,
+  isTelegramOAuthConfigured,
 } from "@/lib/auth/oauth";
 import { config as appConfig } from "@/lib/config";
 
-const providers = ["google", "github", "microsoft", "apple"] as const;
+const providers = ["google", "github", "discord", "telegram"] as const;
 
 export function GET(request: NextRequest) {
   const baseUrl = requestBaseUrl(request);
@@ -28,8 +28,8 @@ export function GET(request: NextRequest) {
 function isConfigured(provider: (typeof providers)[number]) {
   if (provider === "google") return isGoogleOAuthConfigured();
   if (provider === "github") return isGitHubOAuthConfigured();
-  if (provider === "microsoft") return isMicrosoftOAuthConfigured();
-  return isAppleOAuthConfigured();
+  if (provider === "discord") return isDiscordOAuthConfigured();
+  return isTelegramOAuthConfigured();
 }
 
 function requestBaseUrl(request: NextRequest) {

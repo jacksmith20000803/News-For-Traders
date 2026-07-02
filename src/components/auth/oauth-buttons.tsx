@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
-export type OAuthProviderId = "google" | "github" | "microsoft" | "apple";
+export type OAuthProviderId = "google" | "github" | "discord" | "telegram";
 
 export type OAuthAvailability = Partial<Record<OAuthProviderId, boolean>>;
 
@@ -14,8 +14,8 @@ const oauthProviders: Array<{
   icon: string;
 }> = [
   { id: "google", name: "Google", icon: "/oauth/oauth-google.svg" },
-  { id: "apple", name: "Apple", icon: "/oauth/oauth-apple.svg" },
-  { id: "microsoft", name: "Microsoft", icon: "/oauth/oauth-microsoft.svg" },
+  { id: "telegram", name: "Telegram", icon: "/oauth/oauth-telegram.svg" },
+  { id: "discord", name: "Discord", icon: "/oauth/oauth-discord.svg" },
   { id: "github", name: "GitHub", icon: "/oauth/oauth-github.svg" },
 ];
 

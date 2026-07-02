@@ -1,10 +1,10 @@
 export {
   isGoogleOAuthConfigured,
   isGitHubOAuthConfigured,
-  isMicrosoftOAuthConfigured,
-  isAppleOAuthConfigured,
+  isDiscordOAuthConfigured,
+  isTelegramOAuthConfigured,
   getGoogleAuthUrl,
   getGitHubAuthUrl,
-  getMicrosoftAuthUrl,
-  getAppleAuthUrl,
+  getDiscordAuthUrl,
+  getTelegramAuthUrl,
 } from "@/lib/auth/oauth";

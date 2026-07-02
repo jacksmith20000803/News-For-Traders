@@ -1,15 +1,15 @@
 import "dotenv/config";
 import nodemailer from "nodemailer";
 
-type Provider = "google" | "github" | "microsoft" | "apple";
+type Provider = "google" | "github" | "discord" | "telegram";
 
-const providers: Provider[] = ["google", "github", "microsoft", "apple"];
+const providers: Provider[] = ["google", "github", "discord", "telegram"];
 
 const providerEnv: Record<Provider, { clientId: string; clientSecret: string }> = {
   google: { clientId: "GOOGLE_CLIENT_ID", clientSecret: "GOOGLE_CLIENT_SECRET" },
   github: { clientId: "GITHUB_CLIENT_ID", clientSecret: "GITHUB_CLIENT_SECRET" },
-  microsoft: { clientId: "MICROSOFT_CLIENT_ID", clientSecret: "MICROSOFT_CLIENT_SECRET" },
-  apple: { clientId: "APPLE_CLIENT_ID", clientSecret: "APPLE_CLIENT_SECRET" },
+  discord: { clientId: "DISCORD_CLIENT_ID", clientSecret: "DISCORD_CLIENT_SECRET" },
+  telegram: { clientId: "TELEGRAM_CLIENT_ID", clientSecret: "TELEGRAM_CLIENT_SECRET" },
 };
 
 const argUrl = process.argv.find((arg) => arg.startsWith("http://") || arg.startsWith("https://"));
@@ -146,8 +146,8 @@ function isProviderLocation(provider: Provider, location: string) {
   if (!location) return false;
   if (provider === "google") return location.startsWith("https://accounts.google.com/");
   if (provider === "github") return location.startsWith("https://github.com/login/oauth/");
-  if (provider === "microsoft") return location.startsWith("https://login.microsoftonline.com/");
-  if (provider === "apple") return location.startsWith("https://appleid.apple.com/");
+  if (provider === "discord") return location.startsWith("https://discord.com/oauth2/");
+  if (provider === "telegram") return location.startsWith("https://oauth.telegram.org/");
   return false;
 }
 
