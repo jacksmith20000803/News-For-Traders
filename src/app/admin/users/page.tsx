@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireAdminPage } from "@/lib/auth/admin-guard";
 import { db } from "@/lib/db";
 import { AdminUsersTable } from "@/components/admin/admin-users-table";
+import { AdminDownloadReportsPanel } from "@/components/admin/admin-download-reports-panel";
 
 export const metadata = { title: "User Management" };
 
@@ -31,6 +32,7 @@ export default async function AdminUsersPage() {
         </Link>
       </div>
 
+      <AdminDownloadReportsPanel />
       <AdminUsersTable />
     </div>
   );

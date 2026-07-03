@@ -195,7 +195,6 @@ const TRADING_BOT_APP_DOWNLOAD_FILENAME = "TradX-Bot.exe";
 // MSIX download filename retained for future use:
 // const TRADING_BOT_APP_DOWNLOAD_FILENAME = "trading-bot-app.msix";
 const INSTALL_NUDGE_DELAY_MS = 180_000;
-const INSTALL_DOWNLOAD_CLICKED_KEY = "tradx-trading-bot-app-download-clicked";
 const INSTALL_DOWNLOAD_CLICKED_SESSION_KEY = "tradx-trading-bot-app-download-clicked-session";
 const VISITOR_STORAGE_KEY = "tradx_visitor_id";
 const PROMO_BUTTON_VARIANTS = {
@@ -296,27 +295,19 @@ export function TradingBotPromo() {
     if (typeof window === "undefined") return;
 
     try {
-      downloadClickedRef.current =
-        window.sessionStorage.getItem(INSTALL_DOWNLOAD_CLICKED_SESSION_KEY) === "1" ||
-        window.localStorage.getItem(INSTALL_DOWNLOAD_CLICKED_KEY) === "1";
+      downloadClickedRef.current = window.sessionStorage.getItem(INSTALL_DOWNLOAD_CLICKED_SESSION_KEY) === "1";
     } catch {
       downloadClickedRef.current = false;
     }
 
-    const eligibleAt = Date.now() + INSTALL_NUDGE_DELAY_MS;
-    const showNudge = () => {
-      if (Date.now() < eligibleAt) return;
+    const timer = window.setTimeout(() => {
       if (!downloadClickedRef.current) {
         setInstallNudgeStage((current) => (current === "hidden" ? "offer" : current));
       }
-    };
-
-    const timer = window.setTimeout(showNudge, INSTALL_NUDGE_DELAY_MS);
-    const repeatTimer = window.setInterval(showNudge, 60_000);
+    }, INSTALL_NUDGE_DELAY_MS);
 
     return () => {
       window.clearTimeout(timer);
-      window.clearInterval(repeatTimer);
     };
   }, []);
 
@@ -324,7 +315,6 @@ export function TradingBotPromo() {
     downloadClickedRef.current = true;
     try {
       window.sessionStorage.setItem(INSTALL_DOWNLOAD_CLICKED_SESSION_KEY, "1");
-      window.localStorage.setItem(INSTALL_DOWNLOAD_CLICKED_KEY, "1");
     } catch {
       // Storage can be unavailable in strict/private browser modes.
     }
@@ -673,7 +663,6 @@ function markTradingBotInstallClickedInStorage() {
 
   try {
     window.sessionStorage.setItem(INSTALL_DOWNLOAD_CLICKED_SESSION_KEY, "1");
-    window.localStorage.setItem(INSTALL_DOWNLOAD_CLICKED_KEY, "1");
   } catch {
     // Storage can be unavailable in strict/private browser modes.
   }

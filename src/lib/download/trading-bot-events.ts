@@ -224,6 +224,7 @@ async function notifyAdminsAboutBotEvent({
           deviceType: device.deviceType,
           platform: device.platform,
           eventType: `trading_bot_${kind}`,
+          forceSystemNotification: true,
         },
       })
     )

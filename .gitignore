@@ -43,6 +43,9 @@ yarn-error.log*
 .history/
 temp-app/
 
+# generated admin text reports
+/storage/download-reports/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

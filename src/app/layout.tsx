@@ -13,6 +13,7 @@ import { PriceTicker } from "@/components/layout/price-ticker";
 import { PageLoader } from "@/components/loading/page-loader";
 import { AIChatEntry } from "@/components/layout/ai-chat-entry";
 import { HydrationCleanup } from "@/components/layout/hydration-cleanup";
+import { AdminDownloadSystemAlerts } from "@/components/admin/admin-download-system-alerts";
 import "./globals.css";
 
 const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://tradx.app";
@@ -104,12 +105,15 @@ export default async function RootLayout({
                   <PriceTicker />
                   <div className="flex min-w-0 flex-1" suppressHydrationWarning>
                     <SidebarGate />
-                    <RouteMain>
-                      {children}
-                    </RouteMain>
+                    <div className="flex min-w-0 flex-1 flex-col">
+                      <RouteMain>
+                        {children}
+                      </RouteMain>
+                      <Footer />
+                    </div>
                   </div>
-                  <Footer />
                   <AIChatEntry />
+                  <AdminDownloadSystemAlerts />
                   <Suspense fallback={null}>
                     <ActivityTracker />
                   </Suspense>

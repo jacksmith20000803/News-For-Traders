@@ -621,9 +621,9 @@ function UserRecord({
         {view === "grid" ? "Select" : null}
       </label>
 
-      <div className="flex min-w-0 items-center gap-3">
+      <div className="flex min-w-0 items-center gap-3 overflow-hidden">
         <Avatar name={user.name} src={user.avatar} />
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1 overflow-hidden">
           <p className="truncate text-base font-semibold text-foreground">{user.name}</p>
           <p className="truncate text-xs text-muted-foreground">
             {user.username ? `@${user.username}` : "No username"}
@@ -720,11 +720,11 @@ function VisitorRecord({
         {view === "grid" ? "Select" : null}
       </label>
 
-      <div className="flex min-w-0 items-center gap-3">
+      <div className="flex min-w-0 items-center gap-3 overflow-hidden">
         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-sky-500/10 text-sky-500 ring-1 ring-sky-500/20">
           <Globe2 className="h-5 w-5" />
         </div>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1 overflow-hidden">
           <p className="truncate text-base font-semibold text-foreground">Visitor {visitor.visitorId.slice(0, 8)}</p>
           <p className="truncate text-xs text-muted-foreground">{visitor.ipAddress ?? "IP unavailable"}</p>
           <VpnRiskBadge risk={visitor.ipRisk} ipAddress={visitor.ipAddress} location={location} />
@@ -768,9 +768,9 @@ function VpnRiskBadge({ risk, ipAddress, location }: { risk: IpRiskRow | null | 
   if (!label) return null;
 
   return (
-    <span className="mt-2 inline-flex w-fit items-center gap-1.5 rounded-full bg-red-600/10 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.08em] text-red-600 ring-1 ring-red-500/30 dark:bg-red-500/15 dark:text-red-300">
-      <ShieldAlert className="h-3.5 w-3.5" />
-      {label}
+    <span className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-full bg-red-600/10 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.08em] text-red-600 ring-1 ring-red-500/30 dark:bg-red-500/15 dark:text-red-300">
+      <ShieldAlert className="h-3.5 w-3.5 shrink-0" />
+      <span className="min-w-0 truncate">{label}</span>
     </span>
   );
 }

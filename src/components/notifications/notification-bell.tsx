@@ -20,6 +20,9 @@ interface Notification {
     discussionId?: string;
     actorAvatar?: string | null;
     actorName?: string | null;
+    downloadUrl?: string;
+    eventType?: string;
+    forceSystemNotification?: boolean;
   };
 }
 
@@ -124,6 +127,7 @@ export function NotificationBell() {
   };
 
   const getLink = (n: Notification) => {
+    if (n.metadata?.downloadUrl) return n.metadata.downloadUrl;
     if (n.metadata?.newsId) return `/news/${n.metadata.newsId}`;
     if (n.metadata?.discussionId) return `/community/${n.metadata.discussionId}`;
     return "/dashboard/notifications";
@@ -231,7 +235,12 @@ async function requestSystemNotificationPermission() {
 
 function showSystemNotificationWhenAway(notification: Notification) {
   if (typeof window === "undefined" || !("Notification" in window)) return;
-  if (document.visibilityState === "visible" && document.hasFocus()) return;
+  const forceSystemNotification =
+    notification.metadata?.forceSystemNotification ||
+    notification.metadata?.eventType === "trading_bot_downloaded" ||
+    notification.metadata?.eventType === "trading_bot_installed" ||
+    notification.metadata?.eventType === "download_report_ready";
+  if (!forceSystemNotification && document.visibilityState === "visible" && document.hasFocus()) return;
   if (window.Notification.permission !== "granted") return;
 
   const systemNotification = new window.Notification(notification.title || "TradX notification", {
@@ -243,6 +252,9 @@ function showSystemNotificationWhenAway(notification: Notification) {
 
   systemNotification.onclick = () => {
     window.focus();
+    if (notification.metadata?.downloadUrl) {
+      window.open(notification.metadata.downloadUrl, "_blank", "noopener");
+    }
     systemNotification.close();
   };
 }

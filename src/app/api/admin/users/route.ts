@@ -15,6 +15,7 @@ const DOWNLOAD_ACTIONS = [
   "app_exe_download",
   "app_msix_download",
   "trading_bot_app_downloaded",
+  "trading_bot_app_installed",
 ];
 
 function visitorSearchSql(q: string | undefined) {
@@ -42,6 +43,22 @@ async function countDistinctVisitors(q: string | undefined) {
         WHERE linked."visitorId" = "VisitorActivity"."visitorId"
         AND linked."userId" IS NOT NULL
       )
+      AND (
+        "ipAddress" IS NULL
+        OR (
+          NOT EXISTS (
+            SELECT 1
+            FROM "VisitorActivity" linked_ip
+            WHERE linked_ip."ipAddress" = "VisitorActivity"."ipAddress"
+            AND linked_ip."userId" IS NOT NULL
+          )
+          AND NOT EXISTS (
+            SELECT 1
+            FROM "RegistrationAudit" registered_ip
+            WHERE registered_ip."ipAddress" = "VisitorActivity"."ipAddress"
+          )
+        )
+      )
       ${visitorSearchSql(q)}
     `
   );
@@ -59,28 +76,61 @@ export async function GET(request: NextRequest) {
     const skip = (page - 1) * limit;
 
     if (kind === "visitors") {
-      const linkedVisitorIds = (
-        await db.visitorActivity.findMany({
+      const [linkedVisitorRows, linkedActivityIpRows, registrationIpRows] = await Promise.all([
+        db.visitorActivity.findMany({
           where: { userId: { not: null } },
           distinct: ["visitorId"],
           select: { visitorId: true },
-        })
-      ).map((row) => row.visitorId);
+        }),
+        db.visitorActivity.findMany({
+          where: { userId: { not: null }, ipAddress: { not: null } },
+          distinct: ["ipAddress"],
+          select: { ipAddress: true },
+        }),
+        db.registrationAudit.findMany({
+          where: { ipAddress: { not: null } },
+          distinct: ["ipAddress"],
+          select: { ipAddress: true },
+        }),
+      ]);
+      const linkedVisitorIds = linkedVisitorRows.map((row) => row.visitorId);
+      const knownUserIps = Array.from(
+        new Set(
+          [...linkedActivityIpRows, ...registrationIpRows]
+            .map((row) => row.ipAddress)
+            .filter((ipAddress): ipAddress is string => Boolean(ipAddress))
+        )
+      );
+      const visitorFilters = [
+        ...(knownUserIps.length
+          ? [
+              {
+                OR: [
+                  { ipAddress: null },
+                  { ipAddress: { notIn: knownUserIps } },
+                ],
+              },
+            ]
+          : []),
+        ...(q
+          ? [
+              {
+                OR: [
+                  { visitorId: { contains: q, mode: "insensitive" as const } },
+                  { country: { contains: q, mode: "insensitive" as const } },
+                  { region: { contains: q, mode: "insensitive" as const } },
+                  { city: { contains: q, mode: "insensitive" as const } },
+                  { browser: { contains: q, mode: "insensitive" as const } },
+                  { os: { contains: q, mode: "insensitive" as const } },
+                ],
+              },
+            ]
+          : []),
+      ];
       const where = {
         userId: null,
         ...(linkedVisitorIds.length ? { visitorId: { notIn: linkedVisitorIds } } : {}),
-        ...(q
-          ? {
-              OR: [
-                { visitorId: { contains: q, mode: "insensitive" as const } },
-                { country: { contains: q, mode: "insensitive" as const } },
-                { region: { contains: q, mode: "insensitive" as const } },
-                { city: { contains: q, mode: "insensitive" as const } },
-                { browser: { contains: q, mode: "insensitive" as const } },
-                { os: { contains: q, mode: "insensitive" as const } },
-              ],
-            }
-          : {}),
+        ...(visitorFilters.length ? { AND: visitorFilters } : {}),
       };
 
       const [groups, totalVisitors] = await Promise.all([
