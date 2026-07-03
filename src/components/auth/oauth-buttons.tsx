@@ -1,7 +1,6 @@
 "use client";
 
 import type { ComponentType } from "react";
-import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 export type OAuthProviderId = "google" | "github" | "discord" | "telegram";
@@ -59,14 +58,14 @@ export function AuthOAuthButtons({
         );
 
         return (
-          <Link
+          <a
             key={provider.id}
             href={`/api/auth/oauth/${provider.id}?returnTo=${encodeURIComponent(returnTo)}&authPage=${encodeURIComponent(authPage)}`}
             className={buttonClassName}
-            prefetch={false}
+            rel="nofollow"
           >
             {content}
-          </Link>
+          </a>
         );
       })}
     </div>

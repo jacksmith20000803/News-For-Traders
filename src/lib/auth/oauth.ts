@@ -112,7 +112,7 @@ async function linkOAuthUser(params: {
   });
   let user = linkedAccount?.user ?? (await db.user.findUnique({ where: { email } }));
 
-  if (user?.isBanned || user?.isSuspended) {
+  if (user?.isBanned) {
     throw new Error("Account is not available");
   }
 
@@ -125,11 +125,12 @@ async function linkOAuthUser(params: {
         emailVerified: new Date(),
       },
     });
-  } else if (user.deletedAt || !user.emailVerified || user.avatar === null) {
+  } else if (user.deletedAt || user.isSuspended || !user.emailVerified || user.avatar === null) {
     user = await db.user.update({
       where: { id: user.id },
       data: {
         deletedAt: null,
+        isSuspended: false,
         emailVerified: user.emailVerified ?? new Date(),
         avatar: user.avatar ?? params.avatar,
         name: user.name || params.name,
