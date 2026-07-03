@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { InstallSuccessRecorder } from "@/components/install/install-success-recorder";
 
 const backgroundImage = "/promo/tradx-wall-street-partner-placeholder.webp";
 
@@ -29,6 +30,7 @@ const galleryImages = [
 export default function InstallSuccessPage() {
   return (
     <main className="relative min-h-screen overflow-hidden bg-black text-white">
+      <InstallSuccessRecorder />
       <div className="absolute inset-0">
         <Image
           src={backgroundImage}
@@ -67,7 +69,7 @@ export default function InstallSuccessPage() {
 
           <Link
             href="/dashboard"
-            className="mt-8 inline-flex min-h-14 items-center justify-center rounded-full bg-white px-9 text-base font-extrabold text-black shadow-[0_26px_70px_rgba(255,255,255,0.22)] transition-all hover:-translate-y-1 hover:bg-white/90 active:translate-y-0.5 active:scale-95"
+            className="mb-14 mt-8 inline-flex min-h-14 items-center justify-center rounded-full bg-white px-9 text-base font-extrabold text-black shadow-[0_26px_70px_rgba(255,255,255,0.22)] transition-all hover:-translate-y-1 hover:bg-white/90 active:translate-y-0.5 active:scale-95"
           >
             Explore your bot
           </Link>

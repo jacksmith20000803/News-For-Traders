@@ -15,5 +15,5 @@ export async function GET(request: NextRequest) {
     return apiSuccess({ recorded: true, redirectTo: "/install-success" });
   }
 
-  return NextResponse.redirect(new URL("/install-success", request.url));
+  return NextResponse.redirect(new URL("/install-success?recorded=1", request.url));
 }

@@ -379,6 +379,7 @@ export function AIChatModal() {
       <button
         onClick={openModal}
         aria-label="Open AI assistant"
+        data-tooltip="false"
         style={{position: "fixed"}}
         className="ask-ai-launcher fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-2xl border border-emerald-300/40 bg-emerald-600 px-5 py-3 text-sm font-bold text-white shadow-[0_18px_48px_rgba(16,185,129,0.35)] transition-all duration-300 hover:-translate-y-1 hover:bg-emerald-500 hover:shadow-[0_22px_56px_rgba(16,185,129,0.48)]"
       >
@@ -459,7 +460,7 @@ export function AIChatModal() {
                         : "border-emerald-300/60 bg-white/70 text-emerald-800 hover:bg-emerald-50 dark:border-emerald-200/20 dark:bg-emerald-950/50 dark:text-emerald-100"
                     }`}
                     aria-label={copiedMessageId === msg.id ? "Message copied" : "Copy message"}
-                    title={copiedMessageId === msg.id ? "Copied" : "Copy"}
+                    data-tooltip="false"
                   >
                     {copiedMessageId === msg.id ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
                   </button>
@@ -473,7 +474,7 @@ export function AIChatModal() {
                         : "border-emerald-300/60 bg-white/70 text-emerald-800 hover:bg-red-50 hover:text-red-600 dark:border-emerald-200/20 dark:bg-emerald-950/50 dark:text-emerald-100"
                     }`}
                     aria-label="Delete message"
-                    title="Delete"
+                    data-tooltip="false"
                   >
                     {deletingMessageId === msg.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                   </button>
@@ -551,6 +552,7 @@ export function AIChatModal() {
                     onClick={() => removeAttachment(attachment.id)}
                     className="absolute right-1.5 top-1.5 rounded-full bg-black/55 p-1 text-white shadow-sm hover:bg-red-500"
                     aria-label={`Remove ${attachment.file.name || "attachment"}`}
+                    data-tooltip="false"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
@@ -572,6 +574,7 @@ export function AIChatModal() {
               onClick={() => fileInputRef.current?.click()}
               className="rounded-lg border border-border bg-background/80 px-3 py-2 text-muted-foreground transition-colors hover:text-emerald-500"
               aria-label="Upload attachment"
+              data-tooltip="false"
             >
               <Paperclip className="h-4 w-4" />
             </button>

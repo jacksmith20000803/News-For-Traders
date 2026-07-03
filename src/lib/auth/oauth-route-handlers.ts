@@ -257,6 +257,10 @@ async function linkVisitorActivityToUser(visitorId: string | undefined, userId: 
 }
 
 function requestBaseUrl(request: NextRequest) {
+  if (process.env.NODE_ENV === "production" && !/localhost|127\.0\.0\.1|0\.0\.0\.0/i.test(appConfig.app.url)) {
+    return appConfig.app.url;
+  }
+
   const forwardedProto = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
   const forwardedHost = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
   if (forwardedHost) {

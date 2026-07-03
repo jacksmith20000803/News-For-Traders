@@ -144,6 +144,7 @@ function GeneratedImageBlock({
       onClick={() => onOpen(state.url!)}
       className="group block w-full overflow-hidden rounded-2xl border border-emerald-300/30 bg-black/10 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-emerald-300/70 hover:shadow-lg"
       aria-label="Open generated image viewer"
+      data-tooltip="false"
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
@@ -175,6 +176,7 @@ function GeneratedImageViewer({
       role="dialog"
       aria-modal="true"
       aria-label="Generated image viewer"
+      data-tooltip="false"
       onClick={onClose}
     >
       <div
@@ -198,7 +200,7 @@ function GeneratedImageViewer({
               rel="noreferrer"
               className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/10 text-white transition-colors hover:bg-emerald-500"
               aria-label="Download generated image"
-              title="Download"
+              data-tooltip="false"
             >
               <Download className="h-4 w-4" />
             </a>
@@ -239,7 +241,7 @@ function IconButton({
         "hover:bg-emerald-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
       )}
       aria-label={label}
-      title={label}
+      data-tooltip="false"
     >
       {children}
     </button>

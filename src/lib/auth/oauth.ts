@@ -101,9 +101,18 @@ async function linkOAuthUser(params: {
   accessToken?: string;
 }) {
   const email = params.email.toLowerCase();
-  let user = await db.user.findUnique({ where: { email } });
+  const linkedAccount = await db.oAuthAccount.findUnique({
+    where: {
+      provider_providerAccountId: {
+        provider: params.provider,
+        providerAccountId: params.providerAccountId,
+      },
+    },
+    include: { user: true },
+  });
+  let user = linkedAccount?.user ?? (await db.user.findUnique({ where: { email } }));
 
-  if (user?.isBanned || user?.deletedAt) {
+  if (user?.isBanned || user?.isSuspended) {
     throw new Error("Account is not available");
   }
 
@@ -116,10 +125,15 @@ async function linkOAuthUser(params: {
         emailVerified: new Date(),
       },
     });
-  } else if (!user.emailVerified) {
+  } else if (user.deletedAt || !user.emailVerified || user.avatar === null) {
     user = await db.user.update({
       where: { id: user.id },
-      data: { emailVerified: new Date(), avatar: user.avatar ?? params.avatar },
+      data: {
+        deletedAt: null,
+        emailVerified: user.emailVerified ?? new Date(),
+        avatar: user.avatar ?? params.avatar,
+        name: user.name || params.name,
+      },
     });
   }
 

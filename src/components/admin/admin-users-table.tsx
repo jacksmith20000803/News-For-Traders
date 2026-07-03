@@ -205,10 +205,11 @@ function userStatus(user: AdminUserRow) {
   return { label: "Active", variant: "success" as const };
 }
 
-function vpnRiskLabel(risk: IpRiskRow | null | undefined) {
+function vpnRiskLabel(risk: IpRiskRow | null | undefined, ipAddress?: string | null, location?: string | null) {
   if (!risk?.vpnDetected) return null;
   const provider = risk.vpnProvider || risk.ipCompany || risk.ipAsn || "Unknown";
-  return `${provider} VPN USING`;
+  const detail = [ipAddress, location].filter(Boolean).join(", ");
+  return detail ? `${provider} USING (${detail})` : `${provider} USING`;
 }
 
 function isRowActionTarget(target: EventTarget | null) {
@@ -627,7 +628,7 @@ function UserRecord({
           <p className="truncate text-xs text-muted-foreground">
             {user.username ? `@${user.username}` : "No username"}
           </p>
-          <VpnRiskBadge risk={user.ipRisk} />
+          <VpnRiskBadge risk={user.ipRisk} ipAddress={userIpAddress(user)} location={location} />
         </div>
       </div>
 
@@ -726,7 +727,7 @@ function VisitorRecord({
         <div className="min-w-0">
           <p className="truncate text-base font-semibold text-foreground">Visitor {visitor.visitorId.slice(0, 8)}</p>
           <p className="truncate text-xs text-muted-foreground">{visitor.ipAddress ?? "IP unavailable"}</p>
-          <VpnRiskBadge risk={visitor.ipRisk} />
+          <VpnRiskBadge risk={visitor.ipRisk} ipAddress={visitor.ipAddress} location={location} />
         </div>
       </div>
 
@@ -762,8 +763,8 @@ function VisitorRecord({
   );
 }
 
-function VpnRiskBadge({ risk }: { risk: IpRiskRow | null | undefined }) {
-  const label = vpnRiskLabel(risk);
+function VpnRiskBadge({ risk, ipAddress, location }: { risk: IpRiskRow | null | undefined; ipAddress?: string | null; location?: string | null }) {
+  const label = vpnRiskLabel(risk, ipAddress, location);
   if (!label) return null;
 
   return (

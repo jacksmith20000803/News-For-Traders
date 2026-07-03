@@ -106,11 +106,15 @@ export async function POST(request: NextRequest) {
     const headerCountry =
       pickHeader(request, ["x-vercel-ip-country", "cf-ipcountry", "x-country"]) ??
       null;
-    const region = pickHeader(request, ["x-vercel-ip-country-region", "x-region"]);
-    const city = pickHeader(request, ["x-vercel-ip-city", "x-city"]);
+    const headerRegion = pickHeader(request, ["x-vercel-ip-country-region", "x-region"]);
+    const headerCity = pickHeader(request, ["x-vercel-ip-city", "x-city"]);
+    const headerTimezone = body.client?.timezone ?? pickHeader(request, ["x-vercel-ip-timezone", "x-timezone"]) ?? undefined;
     const ipRisk = await checkVpnStatus(ip);
     const ipRiskFields = toIpRiskDbFields(ipRisk);
     const country = headerCountry ?? ipRisk.countryName ?? ipRisk.countryCode ?? null;
+    const region = headerRegion ?? ipRisk.regionName ?? null;
+    const city = headerCity ?? ipRisk.city ?? null;
+    const timezone = headerTimezone ?? ipRisk.timezone ?? undefined;
 
     const clientMetadata = compactMetadata({
       ...body.metadata,
@@ -126,27 +130,41 @@ export async function POST(request: NextRequest) {
       webrtcIps: webrtcIps.join(", "),
     });
 
+    const visitorData = {
+      visitorId,
+      userId: user?.id ?? null,
+      action: body.action,
+      path: body.path,
+      target: body.target,
+      ipAddress: ip,
+      country,
+      region,
+      city,
+      timezone,
+      browser: body.client?.browser ?? parsedAgent.browser,
+      os: body.client?.os ?? parsedAgent.os,
+      deviceType: body.client?.deviceType ?? parsedAgent.deviceType,
+      userAgent: userAgent.slice(0, 1000),
+      ...ipRiskFields,
+      metadata: clientMetadata,
+    };
+
+    const existingAnonymousVisitor =
+      user || !ip
+        ? null
+        : await db.visitorActivity.findFirst({
+            where: { ipAddress: ip, userId: null },
+            orderBy: { createdAt: "desc" },
+            select: { id: true },
+          });
+
     await db.$transaction([
-      db.visitorActivity.create({
-        data: {
-          visitorId,
-          userId: user?.id ?? null,
-          action: body.action,
-          path: body.path,
-          target: body.target,
-          ipAddress: ip,
-          country,
-          region,
-          city,
-          timezone: body.client?.timezone,
-          browser: body.client?.browser ?? parsedAgent.browser,
-          os: body.client?.os ?? parsedAgent.os,
-          deviceType: body.client?.deviceType ?? parsedAgent.deviceType,
-          userAgent: userAgent.slice(0, 1000),
-          ...ipRiskFields,
-          metadata: clientMetadata,
-        },
-      }),
+      existingAnonymousVisitor
+        ? db.visitorActivity.update({
+            where: { id: existingAnonymousVisitor.id },
+            data: { ...visitorData, createdAt: new Date() },
+          })
+        : db.visitorActivity.create({ data: visitorData }),
       ...(user
         ? [
             db.userActivity.create({

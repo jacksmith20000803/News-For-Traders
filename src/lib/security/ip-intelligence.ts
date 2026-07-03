@@ -9,6 +9,9 @@ export type IpRiskInfo = {
   provider: string | null;
   countryCode: string | null;
   countryName: string | null;
+  regionName: string | null;
+  city: string | null;
+  timezone: string | null;
   asn: string | null;
   organization: string | null;
   source: string;
@@ -88,6 +91,9 @@ export function toIpRiskDbFields(risk: IpRiskInfo): {
       provider: risk.provider,
       countryCode: risk.countryCode,
       countryName: risk.countryName,
+      regionName: risk.regionName,
+      city: risk.city,
+      timezone: risk.timezone,
       asn: risk.asn,
       organization: risk.organization,
       source: risk.source,
@@ -152,6 +158,14 @@ function parseIpApiResponse(ipAddress: string, json: Record<string, unknown>): I
     provider,
     countryCode: readString(locationObject?.country_code) || readString(json.country_code) || readString(json.countryCode),
     countryName: readString(locationObject?.country) || readString(json.country_name) || readString(json.countryName),
+    regionName:
+      readString(locationObject?.state) ||
+      readString(locationObject?.region) ||
+      readString(locationObject?.region_name) ||
+      readString(json.regionName) ||
+      readString(json.region),
+    city: readString(locationObject?.city) || readString(json.city),
+    timezone: readString(locationObject?.timezone) || readString(json.timezone),
     asn: asnNumber ? (asnNumber.toUpperCase().startsWith("AS") ? asnNumber : `AS${asnNumber}`) : null,
     organization: company,
     source: IPAPI_SOURCE,
@@ -191,6 +205,9 @@ function emptyRisk(ipAddress: string, error?: string): IpRiskInfo {
     provider: null,
     countryCode: null,
     countryName: null,
+    regionName: null,
+    city: null,
+    timezone: null,
     asn: null,
     organization: null,
     source: IPAPI_SOURCE,
