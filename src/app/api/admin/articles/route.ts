@@ -51,7 +51,22 @@ export async function GET(request: NextRequest) {
         skip: (params.page - 1) * params.limit,
         take: params.limit,
         include: {
-          author: { select: { id: true, name: true, email: true, avatar: true } },
+          author: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              avatar: true,
+              country: true,
+              timezone: true,
+              registrationAudit: { select: { country: true, city: true, deviceType: true, browser: true, os: true } },
+              visitorActivities: {
+                orderBy: { createdAt: "desc" },
+                take: 1,
+                select: { country: true, region: true, city: true, timezone: true },
+              },
+            },
+          },
           tags: { include: { tag: true } },
           _count: { select: { likes: true, comments: true } },
         },

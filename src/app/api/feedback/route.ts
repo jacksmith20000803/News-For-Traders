@@ -3,6 +3,7 @@ import { apiSuccess, handleApiError, parseJsonBody } from "@/lib/api/response";
 import { getCurrentUser } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
+import { logUserActivity } from "@/lib/audit";
 import { z } from "zod";
 
 const feedbackSchema = z.object({
@@ -22,6 +23,10 @@ export async function POST(request: NextRequest) {
     const submission = await db.feedbackSubmission.create({
       data: { ...data, userId: user?.id },
     });
+
+    if (user?.id) {
+      await logUserActivity(user.id, "FEEDBACK_SUBMIT", { feedbackId: submission.id, type: data.type });
+    }
 
     const admins = await db.user.findMany({
       where: { role: "ADMIN", deletedAt: null, isSuspended: false, isBanned: false },

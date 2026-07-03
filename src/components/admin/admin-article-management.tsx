@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { readJsonResponse, secureFetch } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
+import { CountryFlag, countryDisplayName } from "@/components/ui/country-flag";
 
 type ArticleItem = {
   id: string;
@@ -23,6 +24,21 @@ type ArticleItem = {
     name: string;
     email: string;
     avatar: string | null;
+    country: string | null;
+    timezone: string | null;
+    registrationAudit: {
+      country: string | null;
+      city: string | null;
+      deviceType: string | null;
+      browser: string | null;
+      os: string | null;
+    } | null;
+    visitorActivities: Array<{
+      country: string | null;
+      region: string | null;
+      city: string | null;
+      timezone: string | null;
+    }>;
   };
   tags: Array<{ tag: { name: string } }>;
   _count: { likes: number; comments: number };
@@ -297,6 +313,15 @@ function ArticleRow({
   onToggle: () => void;
 }) {
   const preview = item.excerpt ?? item.content.slice(0, 180);
+  const latestLocation = item.author.visitorActivities[0];
+  const country = latestLocation?.country ?? item.author.country ?? item.author.registrationAudit?.country ?? null;
+  const location = [
+    countryDisplayName(country),
+    latestLocation?.region,
+    latestLocation?.city ?? item.author.registrationAudit?.city,
+  ]
+    .filter(Boolean)
+    .join(", ");
   return (
     <article
       className={cn(
@@ -330,8 +355,24 @@ function ArticleRow({
         </div>
       </div>
       <div className="rounded-2xl border border-border bg-background/80 p-3 text-sm">
-        <p className="font-semibold text-foreground">{item.author.name}</p>
-        <p className="truncate text-xs text-muted-foreground">{item.author.email}</p>
+        <div className="flex items-center gap-3">
+          {item.author.avatar ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={item.author.avatar} alt={item.author.name} className="h-10 w-10 rounded-2xl object-cover" />
+          ) : (
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 text-sm font-bold text-primary">
+              {item.author.name.slice(0, 2).toUpperCase()}
+            </div>
+          )}
+          <div className="min-w-0">
+            <p className="truncate font-semibold text-foreground">{item.author.name}</p>
+            <p className="truncate text-xs text-muted-foreground">{item.author.email}</p>
+          </div>
+        </div>
+        <p className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
+          <CountryFlag countryCode={country} className="h-4 w-4" />
+          <span className="truncate">{location || "Location unavailable"}</span>
+        </p>
         <p className="mt-3 text-xs text-muted-foreground">
           {new Date(item.createdAt).toLocaleString()} - {item._count.likes} likes - {item._count.comments} comments
         </p>

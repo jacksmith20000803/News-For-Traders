@@ -450,43 +450,45 @@ export function AIChatModal() {
                     : "bg-emerald-100 text-emerald-950 dark:bg-emerald-300/20 dark:text-emerald-50"
                 }`}
               >
-                <div className="absolute right-2 top-2 flex gap-1 opacity-0 transition-opacity group-hover/message:opacity-100 focus-within:opacity-100">
-                  <button
-                    type="button"
-                    onClick={() => copyMessage(msg)}
-                    className={`inline-flex h-7 w-7 items-center justify-center rounded-lg border text-[11px] shadow-sm transition-all hover:-translate-y-0.5 active:scale-95 ${
-                      msg.role === "user"
-                        ? "border-pink-300/60 bg-white/70 text-pink-800 hover:bg-pink-50 dark:border-pink-200/20 dark:bg-pink-950/50 dark:text-pink-100"
-                        : "border-emerald-300/60 bg-white/70 text-emerald-800 hover:bg-emerald-50 dark:border-emerald-200/20 dark:bg-emerald-950/50 dark:text-emerald-100"
-                    }`}
-                    aria-label={copiedMessageId === msg.id ? "Message copied" : "Copy message"}
-                    data-tooltip="false"
-                  >
-                    {copiedMessageId === msg.id ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void deleteMessage(msg)}
-                    disabled={deletingMessageId === msg.id}
-                    className={`inline-flex h-7 w-7 items-center justify-center rounded-lg border text-[11px] shadow-sm transition-all hover:-translate-y-0.5 active:scale-95 disabled:opacity-50 ${
-                      msg.role === "user"
-                        ? "border-pink-300/60 bg-white/70 text-pink-800 hover:bg-red-50 hover:text-red-600 dark:border-pink-200/20 dark:bg-pink-950/50 dark:text-pink-100"
-                        : "border-emerald-300/60 bg-white/70 text-emerald-800 hover:bg-red-50 hover:text-red-600 dark:border-emerald-200/20 dark:bg-emerald-950/50 dark:text-emerald-100"
-                    }`}
-                    aria-label="Delete message"
-                    data-tooltip="false"
-                  >
-                    {deletingMessageId === msg.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                  </button>
-                </div>
-                <div className="pr-16">
+                <div>
                   <MessageRenderer content={msg.content} />
                   {msg.attachments && msg.attachments.length > 0 && (
                     <AttachmentPreviewList attachments={msg.attachments} />
                   )}
-                  <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.12em] opacity-55">
-                    {formatMessageTime(msg.createdAt)}
-                  </p>
+                  <div className="mt-2 flex items-center justify-between gap-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.12em] opacity-55">
+                      {formatMessageTime(msg.createdAt)}
+                    </p>
+                    <div className="flex shrink-0 gap-1">
+                      <button
+                        type="button"
+                        onClick={() => copyMessage(msg)}
+                        className={`inline-flex h-7 w-7 items-center justify-center rounded-lg border text-[11px] shadow-sm transition-all hover:-translate-y-0.5 active:scale-95 ${
+                          msg.role === "user"
+                            ? "border-pink-300/60 bg-white/70 text-pink-800 hover:bg-pink-50 dark:border-pink-200/20 dark:bg-pink-950/50 dark:text-pink-100"
+                            : "border-emerald-300/60 bg-white/70 text-emerald-800 hover:bg-emerald-50 dark:border-emerald-200/20 dark:bg-emerald-950/50 dark:text-emerald-100"
+                        }`}
+                        aria-label={copiedMessageId === msg.id ? "Message copied" : "Copy message"}
+                        data-tooltip="false"
+                      >
+                        {copiedMessageId === msg.id ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void deleteMessage(msg)}
+                        disabled={deletingMessageId === msg.id}
+                        className={`inline-flex h-7 w-7 items-center justify-center rounded-lg border text-[11px] shadow-sm transition-all hover:-translate-y-0.5 active:scale-95 disabled:opacity-50 ${
+                          msg.role === "user"
+                            ? "border-pink-300/60 bg-white/70 text-pink-800 hover:bg-red-50 hover:text-red-600 dark:border-pink-200/20 dark:bg-pink-950/50 dark:text-pink-100"
+                            : "border-emerald-300/60 bg-white/70 text-emerald-800 hover:bg-red-50 hover:text-red-600 dark:border-emerald-200/20 dark:bg-emerald-950/50 dark:text-emerald-100"
+                        }`}
+                        aria-label="Delete message"
+                        data-tooltip="false"
+                      >
+                        {deletingMessageId === msg.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

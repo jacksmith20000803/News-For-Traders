@@ -1,50 +1,54 @@
+import Link from "next/link";
 import { requireAdminPage } from "@/lib/auth/admin-guard";
 import { db } from "@/lib/db";
-import { Badge } from "@/components/ui/badge";
-import { formatRelative } from "@/lib/utils";
-import Link from "next/link";
+import { AdminFeedbackManagement } from "@/components/admin/admin-feedback-management";
 
 export const metadata = { title: "Feedback Inbox" };
 
 export default async function AdminFeedbackPage() {
   await requireAdminPage();
 
-  const submissions = await db.feedbackSubmission.findMany({
-    orderBy: { createdAt: "desc" },
-    take: 50,
-    include: { user: { select: { name: true, email: true } } },
-  });
+  const limit = 12;
+  const [items, total] = await Promise.all([
+    db.feedbackSubmission.findMany({
+      orderBy: { createdAt: "desc" },
+      take: limit,
+      include: { user: { select: { id: true, name: true, email: true, avatar: true, username: true } } },
+    }),
+    db.feedbackSubmission.count(),
+  ]);
+
+  const serializedItems = items.map((item) => ({
+    ...item,
+    createdAt: item.createdAt.toISOString(),
+    repliedAt: item.repliedAt?.toISOString() ?? null,
+  }));
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Feedback Inbox</h1>
-        <Link href="/admin" className="text-sm text-emerald-400 hover:underline">← Dashboard</Link>
+    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">Feedback Inbox</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Reply to users, delete handled feedback, and track all admin actions.
+          </p>
+        </div>
+        <Link href="/admin" className="inline-flex rounded-2xl border border-border bg-card/95 px-4 py-2 text-sm font-semibold text-primary shadow-sm transition hover:bg-primary hover:text-primary-foreground">
+          Back to Dashboard
+        </Link>
       </div>
 
-      <div className="space-y-3">
-        {submissions.length === 0 ? (
-          <p className="text-muted-foreground text-center py-12">No submissions yet</p>
-        ) : (
-          submissions.map((s) => (
-            <div key={s.id} className="dash-panel rounded-xl p-4">
-              <div className="flex flex-wrap items-center gap-2 mb-2">
-                <Badge variant="outline">{s.type}</Badge>
-                <Badge variant={s.status === "NEW" ? "warning" : "outline"}>{s.status}</Badge>
-                <span className="ml-auto text-xs text-muted-foreground">{formatRelative(s.createdAt)}</span>
-              </div>
-              <p className="font-medium">{s.subject}</p>
-              <p className="text-xs text-muted-foreground mb-2">{s.name} · {s.email}</p>
-              <p className="text-sm text-muted-foreground">{s.message}</p>
-              {s.adminReply && (
-                <p className="mt-2 text-sm border-t border-white/5 pt-2 text-emerald-400">
-                  Reply: {s.adminReply}
-                </p>
-              )}
-            </div>
-          ))
-        )}
-      </div>
+      <AdminFeedbackManagement
+        initialData={{
+          items: serializedItems,
+          pagination: {
+            page: 1,
+            limit,
+            total,
+            totalPages: Math.max(1, Math.ceil(total / limit)),
+          },
+        }}
+      />
     </div>
   );
 }

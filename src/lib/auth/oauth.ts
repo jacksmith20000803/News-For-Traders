@@ -85,6 +85,7 @@ export function getTelegramAuthUrl(state: string, baseUrl?: string, codeChalleng
     response_type: "code",
     scope: "openid profile",
     state,
+    nonce: state,
   });
   if (codeChallenge) {
     params.set("code_challenge", codeChallenge);
@@ -300,13 +301,19 @@ export async function handleDiscordCallback(code: string, baseUrl?: string) {
 }
 
 export async function handleTelegramCallback(code: string, codeVerifier: string | undefined, baseUrl?: string) {
+  const basicAuth = Buffer.from(
+    `${config.oauth.telegram.clientId}:${config.oauth.telegram.clientSecret}`,
+    "utf8"
+  ).toString("base64");
   const tokenRes = await fetch(TELEGRAM_TOKEN, {
     method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      Authorization: `Basic ${basicAuth}`,
+    },
     body: new URLSearchParams({
       code,
       client_id: config.oauth.telegram.clientId,
-      client_secret: config.oauth.telegram.clientSecret,
       redirect_uri: redirectUri("telegram", baseUrl),
       grant_type: "authorization_code",
       ...(codeVerifier ? { code_verifier: codeVerifier } : {}),

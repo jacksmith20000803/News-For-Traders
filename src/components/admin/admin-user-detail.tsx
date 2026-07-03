@@ -662,28 +662,30 @@ export function AdminUserDetail({ id, kind }: { id: string; kind: DetailKind }) 
               </div>
             </div>
 
-            <div className={cn("grid gap-3", activityView === "grid" && "md:grid-cols-2")}>
-              {activityItems.map((activity) => (
-                <ActivityRow
-                  key={activity.id}
-                  activity={activity}
-                  view={activityView}
-                  selected={selectedActivityIds.has(activity.id)}
-                  onToggle={() => toggleActivity(activity.id)}
-                />
-              ))}
+            <div className="max-h-[620px] overflow-y-auto rounded-3xl border border-border bg-background/45 p-3 pr-2 shadow-inner">
+              <div className={cn("grid gap-3", activityView === "grid" && "md:grid-cols-2")}>
+                {activityItems.map((activity) => (
+                  <ActivityRow
+                    key={activity.id}
+                    activity={activity}
+                    view={activityView}
+                    selected={selectedActivityIds.has(activity.id)}
+                    onToggle={() => toggleActivity(activity.id)}
+                  />
+                ))}
+              </div>
+              {!activityItems.length && !activityLoading ? (
+                <div className="rounded-2xl border border-dashed border-border bg-muted/20 p-8 text-center text-sm text-muted-foreground">
+                  No activity recorded for this date.
+                </div>
+              ) : null}
+              <div ref={sentinelRef} className="h-8" />
+              {activityLoading ? (
+                <div className="flex justify-center py-3">
+                  <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                </div>
+              ) : null}
             </div>
-            {!activityItems.length && !activityLoading ? (
-              <div className="rounded-2xl border border-dashed border-border bg-muted/20 p-8 text-center text-sm text-muted-foreground">
-                No activity recorded for this date.
-              </div>
-            ) : null}
-            <div ref={sentinelRef} className="h-8" />
-            {activityLoading ? (
-              <div className="flex justify-center py-3">
-                <Loader2 className="h-5 w-5 animate-spin text-primary" />
-              </div>
-            ) : null}
           </div>
         </div>
       </section>
