@@ -36,6 +36,14 @@ const publicNavItems = [
   { href: "/ai", label: "AI", icon: Bot },
 ];
 
+const landingSectionItems = [
+  { href: "/#home", label: "Home" },
+  { href: "/#prices", label: "Prices" },
+  { href: "/#best-bot", label: "Best Bot" },
+  { href: "/#news", label: "News" },
+  { href: "/#contact", label: "Contact" },
+];
+
 const authenticatedNavItems = [
   { href: "/charts", label: "Markets", icon: TrendingUp },
   { href: "/calendar", label: "Calendar", icon: Calendar },
@@ -53,6 +61,7 @@ export function Header() {
   const [accountOpen, setAccountOpen] = useState(false);
   const accountMenuRef = useRef<HTMLDivElement>(null);
   const mounted = useMounted();
+  const isLandingPage = pathname === "/";
 
   const navItems = user ? authenticatedNavItems : publicNavItems;
   const accountName = user?.name?.trim() || "Trader";
@@ -211,8 +220,21 @@ export function Header() {
             </div>
           </div>
         ) : (
-          <div className="hidden flex-1 items-center justify-center md:flex" suppressHydrationWarning>
-            <GlobalSearchBar className="max-w-[480px]" />
+          <div className="hidden min-w-0 flex-1 items-center gap-4 md:flex" suppressHydrationWarning>
+            <GlobalSearchBar className="w-[min(30vw,360px)] max-w-[360px]" />
+            {isLandingPage && (
+              <nav className="ml-auto flex items-center gap-1 rounded-2xl border border-gray-200/70 bg-white/60 p-1 shadow-sm backdrop-blur dark:border-white/10 dark:bg-white/[0.04]">
+                {landingSectionItems.map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className="rounded-xl px-3 py-2 text-sm font-semibold text-gray-600 transition-all hover:bg-emerald-500/10 hover:text-emerald-600 active:scale-95 dark:text-gray-300 dark:hover:text-emerald-300 lg:px-3.5"
+                  >
+                    {item.label}
+                  </Link>
+                ))}
+              </nav>
+            )}
           </div>
         )}
 
@@ -314,6 +336,20 @@ export function Header() {
                 >
                   Get started
                 </Link>
+              </div>
+            )}
+            {!user && isLandingPage && (
+              <div className="grid grid-cols-2 gap-2 pb-3">
+                {landingSectionItems.map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setMobileOpen(false)}
+                    className="inline-flex h-10 items-center justify-center rounded-xl border border-emerald-500/20 bg-emerald-500/10 text-sm font-semibold text-emerald-700 transition active:scale-95 dark:text-emerald-200"
+                  >
+                    {item.label}
+                  </Link>
+                ))}
               </div>
             )}
             {navItems.map(({ href, label, icon: Icon }) => (

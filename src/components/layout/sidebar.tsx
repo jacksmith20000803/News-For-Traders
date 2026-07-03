@@ -105,12 +105,20 @@ export function Sidebar() {
         />
       )}
 
+      <div
+        aria-hidden="true"
+        className={cn(
+          "hidden shrink-0 transition-[width] duration-300 lg:block",
+          isCollapsed ? "w-16" : "w-64"
+        )}
+      />
+
       {/* Sidebar */}
       <aside
         aria-label="Signed-in navigation"
         className={cn(
-          "fixed left-0 top-16 bottom-0 z-50 border-r border-gray-200 bg-white/95 shadow-2xl backdrop-blur-xl transition-all duration-300 dark:border-white/10 dark:bg-[#111418]/95",
-          "lg:relative lg:top-auto lg:bottom-auto lg:z-20 lg:min-h-[calc(100vh-6.5rem)] lg:translate-x-0 lg:shadow-none",
+          "fixed left-0 top-16 bottom-0 z-50 flex h-[calc(100vh-4rem)] flex-col overflow-hidden border-r border-gray-200 bg-white/95 shadow-2xl backdrop-blur-xl transition-all duration-300 dark:border-white/10 dark:bg-[#111418]/95",
+          "lg:z-30 lg:translate-x-0 lg:shadow-none",
           isCollapsed ? "w-16" : "w-64",
           isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         )}
@@ -118,7 +126,6 @@ export function Sidebar() {
         {/* Toggle button */}
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
-          style={{position: "absolute", background: "none"}}
           className="absolute -right-3 top-4 z-30 hidden h-7 w-7 items-center justify-center rounded-full border border-emerald-400/40 bg-emerald-500 text-white shadow-lg shadow-emerald-500/25 transition-all hover:scale-105 hover:bg-emerald-400 lg:flex"
           aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
@@ -189,7 +196,7 @@ export function Sidebar() {
         </div>
 
         {/* Navigation */}
-        <nav className="space-y-1 p-3 pb-24">
+        <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto p-3 pb-24">
           {navItems.map((item) => {
             const isSettingsItem = item.href === "/dashboard/settings";
             const isActive = isSettingsItem ? isSettingsRoute : isRouteActive(item.href);

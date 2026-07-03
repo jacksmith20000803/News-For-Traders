@@ -773,61 +773,68 @@ function ExtensionInstallNudge({
       role="dialog"
       aria-live="polite"
       aria-label={isConfirming ? "Confirm trading bot app download choice" : "Download TradX trading bot app prompt"}
-      className="fixed right-3 top-20 z-[2147483000] w-[min(calc(100vw-1.5rem),360px)] overflow-hidden rounded-[1.35rem] border border-emerald-300/35 bg-slate-950 text-white shadow-[0_24px_80px_rgba(2,6,23,0.72)] ring-1 ring-white/10 backdrop-blur-2xl sm:right-5 sm:top-24"
+      className="fixed inset-0 z-[2147483000] flex items-center justify-center bg-slate-950/72 px-4 py-6 text-slate-950 backdrop-blur-md dark:bg-black/78 dark:text-white"
       style={{ pointerEvents: "auto", isolation: "isolate" }}
     >
-      <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_18%_8%,rgba(52,211,153,0.28),transparent_36%),radial-gradient(circle_at_92%_0%,rgba(59,130,246,0.2),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.98),rgba(2,6,23,0.98))]" />
-      <div className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-emerald-300/80 to-transparent" />
-      <div className="relative flex gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-emerald-400/18 text-emerald-200 shadow-[0_0_30px_rgba(52,211,153,0.26)]">
-          <PlugZap className="h-4.5 w-4.5" />
+      <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_50%_25%,rgba(16,185,129,0.22),transparent_34%),radial-gradient(circle_at_25%_75%,rgba(59,130,246,0.18),transparent_34%),radial-gradient(circle_at_78%_70%,rgba(236,72,153,0.18),transparent_30%)]" />
+      <div className="relative w-[min(calc(100vw-2rem),460px)] overflow-hidden rounded-[1.6rem] border border-white/70 bg-white/96 p-7 text-center shadow-[0_35px_120px_rgba(0,0,0,0.45)] ring-1 ring-emerald-300/35 dark:border-white/12 dark:bg-[#090f12]/96">
+        <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_18%_12%,rgba(16,185,129,0.18),transparent_34%),radial-gradient(circle_at_88%_18%,rgba(59,130,246,0.16),transparent_30%),linear-gradient(145deg,rgba(255,255,255,0.92),rgba(240,253,250,0.96))] dark:bg-[radial-gradient(circle_at_18%_12%,rgba(16,185,129,0.24),transparent_34%),radial-gradient(circle_at_88%_18%,rgba(168,85,247,0.2),transparent_30%),linear-gradient(145deg,rgba(2,6,23,0.98),rgba(6,20,18,0.98))]" />
+        <div className="pointer-events-none absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-emerald-300 to-transparent" />
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute right-4 top-4 z-10 rounded-full bg-slate-900/5 px-2 py-1 text-xs font-bold text-slate-500 transition hover:bg-slate-900/10 hover:text-slate-800 active:scale-95 dark:bg-white/10 dark:text-white/70 dark:hover:text-white"
+          aria-label="Dismiss trading bot app prompt"
+        >
+          x
+        </button>
+
+        <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-emerald-300 via-cyan-300 to-fuchsia-300 p-1 shadow-[0_20px_60px_rgba(16,185,129,0.28)]">
+          <div className="relative h-full w-full overflow-hidden rounded-full bg-slate-950">
+            <Image
+              src="/promo/tradx-bot-extension-preview.webp"
+              alt="TradX trading bot app"
+              fill
+              sizes="96px"
+              className="object-cover"
+            />
+          </div>
         </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-3">
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-200">
-              {isConfirming ? "Confirm choice" : "TradX app"}
-            </p>
-            <button
-              type="button"
-              onClick={onClose}
-              className="relative z-10 rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-bold text-white/75 transition hover:bg-white/20 hover:text-white active:scale-95"
-              aria-label="Dismiss trading bot app prompt"
-            >
-              x
-            </button>
-          </div>
-          <p className="mt-1.5 text-[13px] font-semibold leading-5 text-white/95">
-            {isConfirming
-              ? "Are you sure?"
-              : "Would you like to download the newly released free version of the trading bot app (tradx)?"}
-          </p>
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={isConfirming ? onConfirmYes : onOfferYes}
-              data-track-event={isConfirming ? "promo_nudge_confirm_yes" : "promo_nudge_offer_yes"}
-              data-track-label="Yes"
-              data-track-component="trading-bot-promo"
-              className="relative z-10 min-h-9 rounded-xl bg-gradient-to-r from-emerald-300 to-lime-300 px-3 py-2 text-[11px] font-black text-slate-950 shadow-[0_12px_28px_rgba(52,211,153,0.28)] transition hover:brightness-110 active:translate-y-0.5 active:scale-95"
-            >
-              Yes
-            </button>
-            <button
-              type="button"
-              onClick={isConfirming ? onConfirmNo : onOfferNo}
-              data-track-event={isConfirming ? "promo_nudge_confirm_no" : "promo_nudge_offer_no"}
-              data-track-label="No"
-              data-track-component="trading-bot-promo"
-              className="relative z-10 min-h-9 rounded-xl bg-gradient-to-r from-rose-400 to-red-500 px-3 py-2 text-[11px] font-black text-white shadow-[0_12px_28px_rgba(244,63,94,0.28)] transition hover:brightness-110 active:translate-y-0.5 active:scale-95"
-            >
-              No
-            </button>
-          </div>
-          <p className="mt-2 text-[10px] leading-4 text-slate-300/85">
-            {isConfirming
-              ? "You can customize these confirmation handlers in the promo component later."
-              : "Clicking Yes downloads the signed Windows package as a single file."}
-          </p>
+
+        <p className="mt-5 text-xs font-black uppercase tracking-[0.2em] text-emerald-500 dark:text-emerald-300">
+          {isConfirming ? "Confirm download" : "TradX app release"}
+        </p>
+        <h2 className="mt-2 text-balance text-2xl font-black tracking-tight text-slate-950 dark:text-white sm:text-3xl">
+          {isConfirming ? "Are you sure?" : "A new and excellent trading bot has been developed"}
+        </h2>
+        <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-slate-600 dark:text-slate-300">
+          {isConfirming
+            ? "Confirm to begin the download, or choose Not now to dismiss this reminder."
+            : "This is a 100% free version, so please feel free to try it out!"}
+        </p>
+
+        <div className="mt-7 space-y-3">
+          <button
+            type="button"
+            onClick={isConfirming ? onConfirmYes : onOfferYes}
+            data-track-event={isConfirming ? "promo_nudge_confirm_download" : "promo_nudge_download_app"}
+            data-track-label="Download app"
+            data-track-component="trading-bot-promo"
+            className="group relative z-10 flex min-h-12 w-full items-center justify-center overflow-hidden rounded-xl bg-gradient-to-r from-emerald-500 via-green-500 to-lime-400 px-4 text-sm font-black text-white shadow-[0_20px_45px_rgba(34,197,94,0.34)] transition hover:-translate-y-0.5 hover:brightness-110 active:translate-y-0.5 active:scale-95"
+          >
+            <span className="pointer-events-none absolute inset-0 bg-[linear-gradient(110deg,transparent_0%,rgba(255,255,255,0.35)_45%,transparent_65%)] opacity-0 transition group-hover:opacity-100" />
+            Download app
+          </button>
+          <button
+            type="button"
+            onClick={isConfirming ? onConfirmNo : onOfferNo}
+            data-track-event={isConfirming ? "promo_nudge_confirm_not_now" : "promo_nudge_not_now"}
+            data-track-label="Not now"
+            data-track-component="trading-bot-promo"
+            className="relative z-10 flex min-h-11 w-full items-center justify-center rounded-xl bg-gradient-to-r from-red-500 to-rose-500 px-4 text-sm font-black text-white shadow-[0_18px_38px_rgba(239,68,68,0.26)] transition hover:-translate-y-0.5 hover:brightness-110 active:translate-y-0.5 active:scale-95"
+          >
+            Not now
+          </button>
         </div>
       </div>
     </div>,

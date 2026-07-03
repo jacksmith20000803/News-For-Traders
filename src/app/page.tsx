@@ -11,11 +11,21 @@ export default function HomePage() {
   return (
     <>
       <HomeAuthRedirect />
-      <ModernHero />
-      <CoinPricesSection />
-      <TradingBotPromo />
-      <NewsSection coinSymbols={DISPLAYED_COINS} />
-      <ContactSection />
+      <div id="home" className="scroll-mt-20">
+        <ModernHero />
+      </div>
+      <div id="prices" className="scroll-mt-20">
+        <CoinPricesSection />
+      </div>
+      <div id="best-bot" className="scroll-mt-20">
+        <TradingBotPromo />
+      </div>
+      <div id="news" className="scroll-mt-20">
+        <NewsSection coinSymbols={DISPLAYED_COINS} />
+      </div>
+      <div id="contact" className="scroll-mt-20">
+        <ContactSection />
+      </div>
     </>
   );
 }
