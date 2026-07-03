@@ -23,18 +23,36 @@ export default function PromotionsPage() {
             </p>
           </div>
           <div className="flex flex-wrap items-start gap-3">
+            {/*
+            MSIX/App Installer button retained for future use:
             <AppInstallButton
               appName="Trading Bot"
               msixDirectUrl="/api/download/msix"
               directFallbackUrl="/api/download/trading-bot-app"
               directFallbackFileName="trading-bot-app.msix"
             />
+            */}
+            <AppInstallButton
+              appName="Trading Bot"
+              directFallbackUrl="/api/download/trading-bot-app"
+              directFallbackFileName="TradX-Bot.exe"
+            />
+            {/*
+            MSIX direct package link retained for future use:
             <a
               href="/api/download/trading-bot-app"
               download="trading-bot-app.msix"
               className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-gradient-to-r from-sky-400 via-blue-500 to-indigo-500 px-5 text-sm font-bold text-white shadow-[0_18px_48px_rgba(59,130,246,0.28)] transition hover:-translate-y-1 hover:brightness-110 active:translate-y-0.5 active:scale-95"
             >
               Download MSIX package
+            </a>
+            */}
+            <a
+              href="/api/download/trading-bot-app"
+              download="TradX-Bot.exe"
+              className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-gradient-to-r from-sky-400 via-blue-500 to-indigo-500 px-5 text-sm font-bold text-white shadow-[0_18px_48px_rgba(59,130,246,0.28)] transition hover:-translate-y-1 hover:brightness-110 active:translate-y-0.5 active:scale-95"
+            >
+              Download EXE installer
             </a>
             <a
               href="/api/download/trading-bot-app/manifest"
@@ -43,8 +61,14 @@ export default function PromotionsPage() {
               Version manifest
             </a>
           </div>
+          {/*
+          MSIX/App Installer note retained for future use:
           <p className="max-w-xl text-xs leading-6 text-slate-400">
             Browsers cannot silently install apps after download. Store-like installation requires a signed MSIX/App Installer package and still asks the user to approve installation.
+          </p>
+          */}
+          <p className="max-w-xl text-xs leading-6 text-slate-400">
+            Browsers cannot silently run installers after download. Open the downloaded EXE and approve the Windows prompts to continue installation.
           </p>
         </div>
 

@@ -76,8 +76,12 @@ export function RegisterForm({ oauthAvailability }: RegisterFormProps) {
       didRedirect = true;
       setRedirecting(true);
       setAuthenticatedUser(json.data?.user ?? null);
-      const redirectTo = json.data?.redirectTo?.startsWith("/") ? json.data.redirectTo : "/dashboard";
-      window.location.replace(redirectTo);
+      const redirectTo =
+        json.data?.redirectTo?.startsWith("/") && !json.data.redirectTo.startsWith("//")
+          ? json.data.redirectTo
+          : "/dashboard";
+      router.replace(redirectTo);
+      router.refresh();
     } catch {
       setError("An unexpected error occurred");
     } finally {

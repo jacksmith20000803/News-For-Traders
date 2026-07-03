@@ -9,7 +9,9 @@ type InstallStatus = "idle" | "checking" | "downloaded" | "unsupported" | "error
 export interface AppInstallButtonProps {
   appName: string;
   appinstallerPath?: string;
-  msixDirectUrl?: string;
+  installerCheckUrl?: string;
+  // MSIX/App Installer flow retained for future use:
+  // msixDirectUrl?: string;
   directFallbackUrl?: string;
   directFallbackFileName?: string;
   className?: string;
@@ -49,7 +51,9 @@ function getServerPlatformSnapshot() {
 
 export function AppInstallButton({
   appName,
-  msixDirectUrl = process.env.NEXT_PUBLIC_MSIX_BUNDLE_URL || "/api/download/msix",
+  installerCheckUrl,
+  // MSIX/App Installer availability check retained for future use:
+  // msixDirectUrl = process.env.NEXT_PUBLIC_MSIX_BUNDLE_URL || "/api/download/msix",
   directFallbackUrl,
   directFallbackFileName,
   className,
@@ -62,7 +66,8 @@ export function AppInstallButton({
   const effectiveStatus: InstallStatus = platform !== "unknown" && !isWindows && status === "idle" ? "unsupported" : status;
 
   const fallbackUrl = directFallbackUrl ?? "/api/download/trading-bot-app";
-  const fallbackFileName = directFallbackFileName ?? "trading-bot-app.msix";
+  const fallbackFileName = directFallbackFileName ?? "TradX-Bot.exe";
+  const availabilityUrl = installerCheckUrl ?? fallbackUrl;
 
   const downloadDirectFallback = () => {
     const link = document.createElement("a");
@@ -86,10 +91,10 @@ export function AppInstallButton({
     setStatus("checking");
 
     try {
-      if (isSameOriginUrl(msixDirectUrl)) {
-        const availability = await fetch(msixDirectUrl, { method: "HEAD", cache: "no-store" });
+      if (isSameOriginUrl(availabilityUrl)) {
+        const availability = await fetch(availabilityUrl, { method: "HEAD", cache: "no-store" });
         if (!availability.ok) {
-          setError("The Windows package is not available yet.");
+          setError("The Windows EXE installer is not available yet.");
           setStatus("error");
           return;
         }
@@ -99,7 +104,7 @@ export function AppInstallButton({
       setStatus("downloaded");
     } catch {
       downloadDirectFallback();
-      setError("The package availability check failed, so the Windows package was downloaded directly.");
+      setError("The installer availability check failed, so the EXE was downloaded directly.");
       setStatus("downloaded");
     }
   };
@@ -135,10 +140,11 @@ export function AppInstallButton({
           <span className="relative z-10 whitespace-nowrap">{label}</span>
         </button>
       ) : (
+        /* MSIX analytics event retained for future use: data-track-event="app_msix_download" */
         <a
           href={fallbackUrl}
           download={fallbackFileName}
-          data-track-event="app_msix_download"
+          data-track-event="app_exe_download"
           data-track-label={appName}
           data-track-component="app-install-button"
           data-track-kind="download"
@@ -162,7 +168,7 @@ export function AppInstallButton({
       {effectiveStatus === "unsupported" || effectiveStatus === "downloaded" ? (
         <p className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
           <CheckCircle2 className="h-3.5 w-3.5" />
-          The Windows MSIX package was downloaded. Open it to continue installation.
+          The Windows EXE installer was downloaded. Open it to continue installation.
         </p>
       ) : null}
 

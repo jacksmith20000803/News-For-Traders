@@ -117,7 +117,7 @@ export function Sidebar() {
       <aside
         aria-label="Signed-in navigation"
         className={cn(
-          "fixed left-0 top-16 bottom-0 z-50 flex h-[calc(100vh-4rem)] flex-col overflow-hidden border-r border-gray-200 bg-white/95 shadow-2xl backdrop-blur-xl transition-all duration-300 dark:border-white/10 dark:bg-[#111418]/95",
+          "fixed left-0 top-16 bottom-0 z-50 flex h-[calc(100vh-4rem)] flex-col overflow-visible border-r border-gray-200 bg-white/95 shadow-2xl backdrop-blur-xl transition-all duration-300 dark:border-white/10 dark:bg-[#111418]/95",
           "lg:z-30 lg:translate-x-0 lg:shadow-none",
           isCollapsed ? "w-16" : "w-64",
           isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
@@ -126,7 +126,7 @@ export function Sidebar() {
         {/* Toggle button */}
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
-          className="absolute -right-3 top-4 z-30 hidden h-7 w-7 items-center justify-center rounded-full border border-emerald-400/40 bg-emerald-500 text-white shadow-lg shadow-emerald-500/25 transition-all hover:scale-105 hover:bg-emerald-400 lg:flex"
+          className="absolute -right-3 top-4 z-[120] hidden h-7 w-7 items-center justify-center rounded-full border border-emerald-400/40 text-white shadow-lg shadow-emerald-500/25 transition-all hover:scale-105 hover:bg-emerald-400 lg:flex"
           aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
           {isCollapsed ? (
@@ -149,13 +149,14 @@ export function Sidebar() {
           {isCollapsed ? (
             <div className="flex items-center gap-3 justify-center">
               <div
-                className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-primary text-sm font-bold text-primary-foreground"
+                className="flex h-9 w-9 shrink-0 items-center rounded-full justify-center overflow-hidden rounded-lg bg-primary text-sm font-bold text-primary-foreground"
                 style={
                   user?.avatar
                     ? {
                       backgroundImage: `url(${user.avatar})`,
                       backgroundPosition: "center",
                       backgroundSize: "cover",
+                      borderRadius: "50%",
                     }
                     : undefined
                 }
@@ -179,6 +180,7 @@ export function Sidebar() {
                       backgroundImage: `url(${user.avatar})`,
                       backgroundPosition: "center",
                       backgroundSize: "cover",
+                      borderRadius: "50%",
                     }
                     : undefined
                 }

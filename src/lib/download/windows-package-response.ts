@@ -15,6 +15,8 @@ export function getWindowsPackageContentType(fileName: string) {
       return "application/appxbundle";
     case ".appinstaller":
       return "application/appinstaller";
+    case ".exe":
+      return "application/vnd.microsoft.portable-executable";
     default:
       return "application/octet-stream";
   }

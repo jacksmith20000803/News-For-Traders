@@ -28,8 +28,7 @@ type Hotspot = {
 };
 
 type LonLat = [number, number];
-type InstallNudgeStage = "hidden" | "offer" | "confirm";
-type InstallNudgeChoice = "yes" | "no";
+type InstallNudgeStage = "hidden" | "offer";
 
 const LAND_POLYGONS: LonLat[][] = [
   [
@@ -149,7 +148,7 @@ const FEATURE_CARDS = [
     copy: "Tracks volatility, volume, and trend alignment so traders see actionable entries faster.",
     why: "It removes the slowest part of research: comparing scattered signals while the market is already moving.",
     advantages: ["Ranks setups by momentum quality", "Highlights entry pressure before the crowd reacts", "Keeps alerts inside the browser workflow"],
-    review: "I stopped jumping between tabs. The extension shows the setup and the reason in one place.",
+    review: "I stopped jumping between tabs. The Bot app shows the setup and the reason in one place.",
     buttonVariant: "blue",
   },
   {
@@ -173,39 +172,39 @@ const FEATURE_CARDS = [
 ];
 
 const TESTIMONIALS = [
-  { name: "Mina K.", role: "Options trader", quote: "The extension caught reversals I usually miss.", result: "Faster confirmation before opening bell.", rating: 5, buttonVariant: "rose" },
+  { name: "Mina K.", role: "Options trader", quote: "The bot caught reversals I usually miss.", result: "Faster confirmation before opening bell.", rating: 5, buttonVariant: "rose" },
   { name: "Leo S.", role: "Crypto analyst", quote: "Cleaner alerts, fewer distractions, better timing.", result: "Less noise during volatile crypto sessions.", rating: 5, buttonVariant: "blue" },
   { name: "Aria P.", role: "Swing trader", quote: "Feels like a research desk sitting inside my browser.", result: "Better watchlist focus all week.", rating: 5, buttonVariant: "amber" },
 ];
 
 const PROMO_DETAILS: Record<string, { why: string; advantages: string[]; review: string }> = {
-  "Bot Edge Preview": {
+  "Bot App Preview": {
     why: "It turns the first glance at a market into a structured decision: what moved, why it matters, and whether the entry has enough support.",
     advantages: ["AI-ranked entry score", "Risk prompt beside the chart", "Fast preview before opening full analysis"],
-    review: "The Bot Edge preview makes me curious enough to open the full setup every time.",
+    review: "The trading-bot-app preview makes the next setup clear enough to act faster.",
   },
-  "Browser Extension Panel": {
+  "Tradx Bot App Panel": {
     why: "It lives where traders already work, so the signal panel feels immediate instead of buried in another dashboard.",
-    advantages: ["Context-aware alerts", "Compact browser-side panel", "Signal notes tied to the active symbol"],
-    review: "It feels like the missing sidebar my trading browser always needed.",
+    advantages: ["Context-aware alerts", "Compact window-side overview", "Signal notes tied to the active symbol"],
+    review: "It feels like the missing overview my trading-bot-app always needed.",
   },
 };
 
 const TRADING_BOT_APP_DOWNLOAD_URL = "/api/download/trading-bot-app";
-const TRADING_BOT_APP_DOWNLOAD_FILENAME = "trading-bot-app.msix";
+const TRADING_BOT_APP_DOWNLOAD_FILENAME = "TradX-Bot.exe";
+// MSIX download filename retained for future use:
+// const TRADING_BOT_APP_DOWNLOAD_FILENAME = "trading-bot-app.msix";
 const INSTALL_NUDGE_DELAY_MS = 180_000;
 const INSTALL_DOWNLOAD_CLICKED_KEY = "tradx-trading-bot-app-download-clicked";
 const INSTALL_DOWNLOAD_CLICKED_SESSION_KEY = "tradx-trading-bot-app-download-clicked-session";
-const INSTALL_NUDGE_DISMISSED_KEY = "tradx-trading-bot-app-nudge-dismissed";
-const INSTALL_NUDGE_DISMISSED_SESSION_KEY = "tradx-trading-bot-app-nudge-dismissed-session";
 const VISITOR_STORAGE_KEY = "tradx_visitor_id";
 const PROMO_BUTTON_VARIANTS = {
-  green: "bg-gradient-to-r from-emerald-300 via-lime-300 to-emerald-500 text-[#03110d] shadow-emerald-500/30 hover:from-emerald-200 hover:to-lime-300",
-  purple: "bg-gradient-to-r from-blue-500 via-violet-500 to-fuchsia-500 text-white shadow-violet-500/35 hover:from-blue-400 hover:to-fuchsia-400",
-  blue: "bg-gradient-to-r from-sky-400 via-blue-500 to-indigo-500 text-white shadow-blue-500/35 hover:from-sky-300 hover:to-indigo-400",
-  amber: "bg-gradient-to-r from-amber-300 via-orange-400 to-rose-500 text-[#211006] shadow-orange-500/30 hover:from-amber-200 hover:to-rose-400",
-  cyan: "bg-gradient-to-r from-cyan-300 via-teal-400 to-emerald-400 text-[#03110d] shadow-cyan-500/30 hover:from-cyan-200 hover:to-emerald-300",
-  rose: "bg-gradient-to-r from-pink-400 via-rose-500 to-orange-400 text-white shadow-rose-500/35 hover:from-pink-300 hover:to-orange-300",
+  green: "bg-gradient-to-r from-emerald-300 via-lime-300 to-emerald-500 text-[#03110d] shadow-emerald-500/30",
+  purple: "bg-gradient-to-r from-blue-500 via-violet-500 to-fuchsia-500 text-white shadow-violet-500/35",
+  blue: "bg-gradient-to-r from-sky-400 via-blue-500 to-indigo-500 text-white shadow-blue-500/35",
+  amber: "bg-gradient-to-r from-amber-300 via-orange-400 to-rose-500 text-[#211006] shadow-orange-500/30",
+  cyan: "bg-gradient-to-r from-cyan-300 via-teal-400 to-emerald-400 text-[#03110d] shadow-cyan-500/30",
+  rose: "bg-gradient-to-r from-pink-400 via-rose-500 to-orange-400 text-white shadow-rose-500/35",
 } as const;
 
 type PromoButtonVariant = keyof typeof PROMO_BUTTON_VARIANTS;
@@ -291,7 +290,6 @@ function latLonPoint(lat: number, lon: number) {
 
 export function TradingBotPromo() {
   const [installNudgeStage, setInstallNudgeStage] = useState<InstallNudgeStage>("hidden");
-  const installNudgeChoiceRef = useRef<InstallNudgeChoice | null>(null);
   const downloadClickedRef = useRef(false);
 
   useEffect(() => {
@@ -300,9 +298,7 @@ export function TradingBotPromo() {
     try {
       downloadClickedRef.current =
         window.sessionStorage.getItem(INSTALL_DOWNLOAD_CLICKED_SESSION_KEY) === "1" ||
-        window.localStorage.getItem(INSTALL_DOWNLOAD_CLICKED_KEY) === "1" ||
-        window.sessionStorage.getItem(INSTALL_NUDGE_DISMISSED_SESSION_KEY) === "1" ||
-        window.localStorage.getItem(INSTALL_NUDGE_DISMISSED_KEY) === "1";
+        window.localStorage.getItem(INSTALL_DOWNLOAD_CLICKED_KEY) === "1";
     } catch {
       downloadClickedRef.current = false;
     }
@@ -335,57 +331,27 @@ export function TradingBotPromo() {
   };
 
   const dismissInstallNudge = () => {
-    downloadClickedRef.current = true;
-    try {
-      window.sessionStorage.setItem(INSTALL_DOWNLOAD_CLICKED_SESSION_KEY, "1");
-      window.sessionStorage.setItem(INSTALL_NUDGE_DISMISSED_SESSION_KEY, "1");
-      window.localStorage.setItem(INSTALL_NUDGE_DISMISSED_KEY, "1");
-    } catch {
-      // ignore
-    }
     setInstallNudgeStage("hidden");
   };
 
-  const triggerExtensionDownload = (source = "manual") => {
+  const triggerBotAppDownload = (source = "manual") => {
     startTradingBotAppInstall(source);
     markDownloadClicked();
   };
 
   const handleInstallOfferYes = () => {
-    installNudgeChoiceRef.current = "yes";
     postPromoActivity("promo_nudge_offer_yes", "Trading bot app prompt yes", {
       clientClickedAt: new Date().toISOString(),
-      previousChoice: installNudgeChoiceRef.current,
     });
-    triggerExtensionDownload("nudge_yes");
-    setInstallNudgeStage("confirm");
+    triggerBotAppDownload("nudge_yes");
+    setInstallNudgeStage("hidden");
   };
 
   const handleInstallOfferNo = () => {
-    installNudgeChoiceRef.current = "no";
     postPromoActivity("promo_nudge_offer_no", "Trading bot app prompt no", {
       clientClickedAt: new Date().toISOString(),
     });
-    // Placeholder: customize this first-step "No" behavior if you want a different decline flow later.
-    setInstallNudgeStage("confirm");
-  };
-
-  const handleInstallConfirmYes = () => {
-    postPromoActivity("promo_nudge_confirm_yes", "Trading bot app confirmation yes", {
-      clientClickedAt: new Date().toISOString(),
-      previousChoice: installNudgeChoiceRef.current,
-    });
-    // Placeholder: customize this follow-up "Yes" behavior when the production install flow is ready.
-    dismissInstallNudge();
-  };
-
-  const handleInstallConfirmNo = () => {
-    postPromoActivity("promo_nudge_confirm_no", "Trading bot app confirmation no", {
-      clientClickedAt: new Date().toISOString(),
-      previousChoice: installNudgeChoiceRef.current,
-    });
-    // Placeholder: customize this follow-up "No" behavior when the production install flow is ready.
-    dismissInstallNudge();
+    setInstallNudgeStage("hidden");
   };
 
   const handlePromoClickCapture = (event: React.MouseEvent<HTMLElement>) => {
@@ -398,17 +364,16 @@ export function TradingBotPromo() {
       onClickCapture={handlePromoClickCapture}
       className="relative isolate overflow-hidden border-y border-slate-200/70 landing-section-surface py-20 text-slate-950 dark:border-white/10 dark:text-white"
     >
-      <div className="absolute inset-0 -z-10 landing-promo-orb-layer" />
       <div className="absolute inset-0 -z-10 landing-promo-star-layer" />
       <div className="mx-auto w-full max-w-[1800px] px-4 sm:px-6">
         <div className=" lg:items-center">
           <div className="space-y-8">
-            <div className="inline-flex items-center gap-2 rounded-full border border-fuchsia-400/30 bg-white/80 px-4 py-2 text-sm font-semibold text-fuchsia-700 shadow-[0_0_36px_rgba(217,70,239,0.14)] backdrop-blur dark:bg-white/8 dark:text-fuchsia-100 dark:shadow-[0_0_36px_rgba(217,70,239,0.22)]">
+            <div className="inline-flex items-center gap-2 rounded-full border border-fuchsia-400/30 bg-white/80 px-4 py-2 text-sm font-semibold text-fuchsia-700 shadow-[0_0_36px_rgba(217,70,239,0.14)] dark:bg-white/8 dark:text-fuchsia-100 dark:shadow-[0_0_36px_rgba(217,70,239,0.22)]">
               <Sparkles className="h-4 w-4 text-fuchsia-300" />
               Trading bot app launch - up to 80% off
             </div>
             <div className="space-y-5">
-              <h2 className="max-w-4xl text-5xl font-black leading-[0.96] tracking-tight sm:text-6xl lg:text-7xl">
+              <h2 className="max-w-4xl text-4xl font-black leading-[0.98] tracking-tight min-[380px]:text-5xl sm:text-6xl lg:text-7xl">
                 Autonomous signals.
                 <span className="block bg-gradient-to-r from-emerald-300 via-cyan-300 to-fuchsia-300 bg-clip-text text-transparent">
                   Human control.
@@ -419,20 +384,20 @@ export function TradingBotPromo() {
               </p>
             </div>
 
-            <div className="flex flex-wrap gap-3">
-              <PromoButton href={TRADING_BOT_APP_DOWNLOAD_URL} download icon={Download} variant="green">
+            <div className="flex flex-col gap-3 min-[430px]:flex-row min-[430px]:flex-wrap">
+              <PromoButton href={TRADING_BOT_APP_DOWNLOAD_URL} download icon={Download} variant="green" className="w-full min-[430px]:w-auto">
                 Download App
               </PromoButton>
-              <PromoButton href={TRADING_BOT_APP_DOWNLOAD_URL} download icon={PlugZap} variant="purple">
+              <PromoButton href={TRADING_BOT_APP_DOWNLOAD_URL} download icon={PlugZap} variant="purple" className="w-full min-[430px]:w-auto">
                 Download Trading Bot
               </PromoButton>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className="grid gap-3 md:grid-cols-3">
               {FEATURE_CARDS.map((feature) => (
                 <article
                   key={feature.title}
-                  className="group flex h-full flex-col rounded-3xl border border-slate-200 bg-white/75 p-5 shadow-[0_20px_70px_rgba(15,23,42,0.12)] backdrop-blur transition-all hover:-translate-y-1 hover:border-emerald-400/45 hover:bg-white/90 dark:border-white/10 dark:bg-white/[0.06] dark:shadow-[0_20px_70px_rgba(0,0,0,0.28)] dark:hover:border-emerald-300/45 dark:hover:bg-white/[0.09]"
+                  className="flex h-full min-w-0 flex-col rounded-3xl border border-transparent bg-white/75 p-5 shadow-[0_20px_70px_rgba(15,23,42,0.12)] dark:bg-white/[0.06] dark:shadow-[0_20px_70px_rgba(0,0,0,0.28)]"
                 >
                   <feature.icon className="mb-4 h-6 w-6 text-emerald-300" />
                   <h3 className="mb-2 text-lg font-bold text-slate-950 dark:text-white">{feature.title}</h3>
@@ -462,25 +427,26 @@ export function TradingBotPromo() {
         <div className="mt-12 grid gap-5 lg:grid-cols-[0.92fr_1.08fr]">
           <div className="grid gap-5">
             <PromoVisualCard
-              image="/promo/tradx-bot-extension-preview.webp"
-              title="Bot Edge Preview"
-              copy="Replace this image with your production product screenshot later."
+              image="/promo/tradx-bot-app-preview.webp"
+              title="Bot App Preview"
+              copy="Preview live signal quality, entry pressure, and risk prompts before opening a full setup."
               buttonVariant="blue"
             />
             <PromoVisualCard
-              image="/promo/tradx-extension-panel-preview.webp"
-              title="Browser Extension Panel"
-              copy="A compact signal desk that follows the trader inside the browser."
+              image="/promo/tradx-app-panel-overview.webp"
+              title="Tradx Bot App Panel"
+              copy="A compact trading desk that keeps alerts, context, and next actions visible while markets move."
               buttonVariant="amber"
             />
           </div>
-          <div className="rounded-[2rem] border border-slate-200 bg-white/75 p-5 shadow-[0_30px_90px_rgba(15,23,42,0.12)] backdrop-blur dark:border-white/10 dark:bg-white/[0.06] dark:shadow-[0_30px_100px_rgba(0,0,0,0.28)]">
+          <div className="rounded-[2rem] border border-slate-200 bg-white/75 p-5 shadow-[0_30px_90px_rgba(15,23,42,0.12)] dark:border-white/10 dark:bg-white/[0.06] dark:shadow-[0_30px_100px_rgba(0,0,0,0.28)]">
             <div className="relative overflow-hidden rounded-[1.5rem] border border-slate-200 dark:border-white/10">
               <Image
                 src="/promo/tradx-mobile-bot-preview.webp"
-                alt="TradX bot extension across devices"
+                alt="TradX bot app across devices"
                 width={820}
                 height={620}
+                sizes="(max-width: 1024px) 100vw, 52vw"
                 className="h-auto w-full"
               />
             </div>
@@ -521,12 +487,10 @@ export function TradingBotPromo() {
           </div>
         </div>
       </div>
-      <ExtensionInstallNudge
+      <BotAppInstallNudge
         stage={installNudgeStage}
         onOfferYes={handleInstallOfferYes}
         onOfferNo={handleInstallOfferNo}
-        onConfirmYes={handleInstallConfirmYes}
-        onConfirmNo={handleInstallConfirmNo}
         onClose={dismissInstallNudge}
       />
     </section>
@@ -536,23 +500,24 @@ export function TradingBotPromo() {
 function MarketCultureStrip() {
   return (
     <div className="mt-12 grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
-      <article className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white/80 shadow-[0_30px_90px_rgba(15,23,42,0.14)] backdrop-blur dark:border-white/10 dark:bg-white/[0.06] dark:shadow-[0_30px_100px_rgba(0,0,0,0.3)]">
+      <article className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white/80 shadow-[0_30px_90px_rgba(15,23,42,0.14)] dark:border-white/10 dark:bg-white/[0.06] dark:shadow-[0_30px_100px_rgba(0,0,0,0.3)]">
         <div className="relative h-64 overflow-hidden sm:h-80">
           <Image
             src="/promo/tradx-wall-street-partner-placeholder.webp"
             alt="Institutional trading partner placeholder"
             width={1440}
             height={620}
+            sizes="(max-width: 1024px) 100vw, 55vw"
             className="h-full w-full object-cover"
           />
         </div>
         <div className="grid gap-5 p-6 md:grid-cols-[0.85fr_1.15fr] md:items-end">
           <div>
-            <p className="mb-2 text-xs font-bold uppercase tracking-[0.24em] text-emerald-500">Partner network</p>
-            <h3 className="text-3xl font-black tracking-tight text-slate-950 dark:text-white">Say hello, Wall St.</h3>
+            <p className="mb-2 text-xs font-bold uppercase tracking-[0.24em] text-emerald-500">Market intelligence</p>
+            <h3 className="text-3xl font-black tracking-tight text-slate-950 dark:text-white">Built for serious trading decisions.</h3>
           </div>
           <p className="text-base leading-7 text-slate-600 dark:text-slate-300">
-            Top-grade information deserves a presentation layer that feels just as serious. Replace this temporary image with your final promotion artwork when ready.
+            The trading-bot-app brings fast market context, risk alerts, and session-aware signals into one focused workflow.
           </p>
         </div>
         <div className="flex justify-end px-6 pb-6">
@@ -562,12 +527,12 @@ function MarketCultureStrip() {
         </div>
       </article>
 
-      <article className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white/80 shadow-[0_30px_90px_rgba(15,23,42,0.14)] backdrop-blur dark:border-white/10 dark:bg-white/[0.06] dark:shadow-[0_30px_100px_rgba(0,0,0,0.3)]">
+      <article className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white/80 shadow-[0_30px_90px_rgba(15,23,42,0.14)] dark:border-white/10 dark:bg-white/[0.06] dark:shadow-[0_30px_100px_rgba(0,0,0,0.3)]">
         <div className="p-6 text-center">
-          <p className="mb-2 text-xs font-bold uppercase tracking-[0.24em] text-fuchsia-500">Community proof</p>
-          <h3 className="text-3xl font-black tracking-tight text-slate-950 dark:text-white">Love in every #TradX workflow</h3>
+          <p className="mb-2 text-xs font-bold uppercase tracking-[0.24em] text-fuchsia-500">Trader proof</p>
+          <h3 className="text-3xl font-black tracking-tight text-slate-950 dark:text-white">Trusted by focused traders.</h3>
           <p className="mx-auto mt-3 max-w-xl text-base leading-7 text-slate-600 dark:text-slate-300">
-            A visual slot for social proof, testimonials, and product lifestyle imagery.
+            Use this section to showcase real product screenshots, ratings, and trader results for the trading-bot-app.
           </p>
         </div>
         <div className="relative mx-4 mb-4 h-64 overflow-hidden rounded-[1.5rem] border border-slate-200 dark:border-white/10">
@@ -576,6 +541,7 @@ function MarketCultureStrip() {
             alt="TradX community gallery placeholder"
             width={1440}
             height={620}
+            sizes="(max-width: 1024px) 100vw, 45vw"
             className="h-full w-full object-cover"
           />
         </div>
@@ -608,12 +574,11 @@ function PromoButton({
     <>
       <Icon className="relative z-10 h-4 w-4" />
       <span className="relative z-10">{children}</span>
-      <ChevronRight className="relative z-10 h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+      <ChevronRight className="relative z-10 h-4 w-4" />
     </>
   );
   const classes = cn(
-    "group inline-flex min-h-12 items-center justify-center gap-2 overflow-hidden rounded-2xl px-5 text-sm font-bold shadow-[0_18px_48px_rgba(0,0,0,0.28)] transition-all hover:-translate-y-1 hover:brightness-110 active:translate-y-0.5 active:scale-95",
-    "before:pointer-events-none before:absolute before:inset-y-0 before:left-[-40%] before:w-1/3 before:skew-x-[-18deg] before:bg-white/35 before:opacity-0 before:transition-all hover:before:left-[120%] hover:before:opacity-100",
+    "inline-flex min-h-12 items-center justify-center gap-2 overflow-hidden rounded-2xl px-5 text-sm font-bold shadow-[0_18px_48px_rgba(0,0,0,0.28)] active:translate-y-0.5 active:scale-95",
     "relative whitespace-nowrap",
     PROMO_BUTTON_VARIANTS[variant],
     className
@@ -714,10 +679,32 @@ function markTradingBotInstallClickedInStorage() {
   }
 }
 
+/*
 function downloadTradingBotMsix(source: string) {
   if (typeof document === "undefined") return;
 
   postPromoActivity("promo_trading_bot_app_msix_download", "Trading bot app MSIX download", {
+    source,
+    downloadUrl: TRADING_BOT_APP_DOWNLOAD_URL,
+    filename: TRADING_BOT_APP_DOWNLOAD_FILENAME,
+    clientClickedAt: new Date().toISOString(),
+  });
+
+  const link = document.createElement("a");
+  link.href = TRADING_BOT_APP_DOWNLOAD_URL;
+  link.download = TRADING_BOT_APP_DOWNLOAD_FILENAME;
+  link.rel = "noopener";
+  link.style.display = "none";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
+*/
+
+function downloadTradingBotExe(source: string) {
+  if (typeof document === "undefined") return;
+
+  postPromoActivity("promo_trading_bot_app_exe_download", "Trading bot app EXE download", {
     source,
     downloadUrl: TRADING_BOT_APP_DOWNLOAD_URL,
     filename: TRADING_BOT_APP_DOWNLOAD_FILENAME,
@@ -745,35 +732,30 @@ function startTradingBotAppInstall(source = "manual") {
     clientClickedAt: new Date().toISOString(),
   });
 
-  downloadTradingBotMsix(source);
+  // downloadTradingBotMsix(source);
+  downloadTradingBotExe(source);
 }
 
-function ExtensionInstallNudge({
+function BotAppInstallNudge({
   stage,
   onOfferYes,
   onOfferNo,
-  onConfirmYes,
-  onConfirmNo,
   onClose,
 }: {
   stage: InstallNudgeStage;
   onOfferYes: () => void;
   onOfferNo: () => void;
-  onConfirmYes: () => void;
-  onConfirmNo: () => void;
   onClose: () => void;
 }) {
   if (stage === "hidden") return null;
   if (typeof document === "undefined") return null;
 
-  const isConfirming = stage === "confirm";
-
   return createPortal(
     <div
       role="dialog"
       aria-live="polite"
-      aria-label={isConfirming ? "Confirm trading bot app download choice" : "Download TradX trading bot app prompt"}
-      className="fixed inset-0 z-[2147483000] flex items-center justify-center bg-slate-950/72 px-4 py-6 text-slate-950 backdrop-blur-md dark:bg-black/78 dark:text-white"
+      aria-label="Download TradX trading bot app prompt"
+      className="fixed inset-0 z-[2147483000] flex items-center justify-center bg-slate-950/72 px-4 py-6 text-slate-950 dark:bg-black/78 dark:text-white"
       style={{ pointerEvents: "auto", isolation: "isolate" }}
     >
       <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_50%_25%,rgba(16,185,129,0.22),transparent_34%),radial-gradient(circle_at_25%_75%,rgba(59,130,246,0.18),transparent_34%),radial-gradient(circle_at_78%_70%,rgba(236,72,153,0.18),transparent_30%)]" />
@@ -783,7 +765,7 @@ function ExtensionInstallNudge({
         <button
           type="button"
           onClick={onClose}
-          className="absolute right-4 top-4 z-10 rounded-full bg-slate-900/5 px-2 py-1 text-xs font-bold text-slate-500 transition hover:bg-slate-900/10 hover:text-slate-800 active:scale-95 dark:bg-white/10 dark:text-white/70 dark:hover:text-white"
+          className="absolute right-4 top-4 z-10 rounded-full bg-slate-900/5 px-2 py-1 text-xs font-bold text-slate-500 active:scale-95 dark:bg-white/10 dark:text-white/70"
           aria-label="Dismiss trading bot app prompt"
         >
           x
@@ -792,7 +774,7 @@ function ExtensionInstallNudge({
         <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-emerald-300 via-cyan-300 to-fuchsia-300 p-1 shadow-[0_20px_60px_rgba(16,185,129,0.28)]">
           <div className="relative h-full w-full overflow-hidden rounded-full bg-slate-950">
             <Image
-              src="/promo/tradx-bot-extension-preview.webp"
+              src="/promo/tradx-bot-app-preview.webp"
               alt="TradX trading bot app"
               fill
               sizes="96px"
@@ -802,36 +784,33 @@ function ExtensionInstallNudge({
         </div>
 
         <p className="mt-5 text-xs font-black uppercase tracking-[0.2em] text-emerald-500 dark:text-emerald-300">
-          {isConfirming ? "Confirm download" : "TradX app release"}
+          TradX app release
         </p>
         <h2 className="mt-2 text-balance text-2xl font-black tracking-tight text-slate-950 dark:text-white sm:text-3xl">
-          {isConfirming ? "Are you sure?" : "A new and excellent trading bot has been developed"}
+          A new and excellent trading bot has been developed
         </h2>
         <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-slate-600 dark:text-slate-300">
-          {isConfirming
-            ? "Confirm to begin the download, or choose Not now to dismiss this reminder."
-            : "This is a 100% free version, so please feel free to try it out!"}
+          This is a 100% free version, so please feel free to try it out!
         </p>
 
         <div className="mt-7 space-y-3">
           <button
             type="button"
-            onClick={isConfirming ? onConfirmYes : onOfferYes}
-            data-track-event={isConfirming ? "promo_nudge_confirm_download" : "promo_nudge_download_app"}
+            onClick={onOfferYes}
+            data-track-event="promo_nudge_download_app"
             data-track-label="Download app"
             data-track-component="trading-bot-promo"
-            className="group relative z-10 flex min-h-12 w-full items-center justify-center overflow-hidden rounded-xl bg-gradient-to-r from-emerald-500 via-green-500 to-lime-400 px-4 text-sm font-black text-white shadow-[0_20px_45px_rgba(34,197,94,0.34)] transition hover:-translate-y-0.5 hover:brightness-110 active:translate-y-0.5 active:scale-95"
+            className="relative z-10 flex min-h-12 w-full items-center justify-center overflow-hidden rounded-xl bg-gradient-to-r from-emerald-500 via-green-500 to-lime-400 px-4 text-sm font-black text-white shadow-[0_20px_45px_rgba(34,197,94,0.34)] active:translate-y-0.5 active:scale-95"
           >
-            <span className="pointer-events-none absolute inset-0 bg-[linear-gradient(110deg,transparent_0%,rgba(255,255,255,0.35)_45%,transparent_65%)] opacity-0 transition group-hover:opacity-100" />
             Download app
           </button>
           <button
             type="button"
-            onClick={isConfirming ? onConfirmNo : onOfferNo}
-            data-track-event={isConfirming ? "promo_nudge_confirm_not_now" : "promo_nudge_not_now"}
+            onClick={onOfferNo}
+            data-track-event="promo_nudge_not_now"
             data-track-label="Not now"
             data-track-component="trading-bot-promo"
-            className="relative z-10 flex min-h-11 w-full items-center justify-center rounded-xl bg-gradient-to-r from-red-500 to-rose-500 px-4 text-sm font-black text-white shadow-[0_18px_38px_rgba(239,68,68,0.26)] transition hover:-translate-y-0.5 hover:brightness-110 active:translate-y-0.5 active:scale-95"
+            className="relative z-10 flex min-h-11 w-full items-center justify-center rounded-xl bg-gradient-to-r from-red-500 to-rose-500 px-4 text-sm font-black text-white shadow-[0_18px_38px_rgba(239,68,68,0.26)] active:translate-y-0.5 active:scale-95"
           >
             Not now
           </button>
@@ -856,26 +835,27 @@ function PromoVisualCard({
   const details = PROMO_DETAILS[title];
 
   return (
-    <article className="group rounded-[2rem] border border-slate-200 bg-white/75 p-4 shadow-[0_28px_90px_rgba(15,23,42,0.12)] backdrop-blur transition-all hover:-translate-y-1 hover:border-cyan-400/40 dark:border-white/10 dark:bg-white/[0.06] dark:shadow-[0_28px_90px_rgba(0,0,0,0.28)] dark:hover:border-cyan-300/40">
+    <article className="min-w-0 rounded-[2rem] border border-transparent bg-white/75 p-4 shadow-[0_28px_90px_rgba(15,23,42,0.12)] dark:bg-white/[0.06] dark:shadow-[0_28px_90px_rgba(0,0,0,0.28)]">
       <div className="overflow-hidden rounded-[1.5rem] border border-slate-200 dark:border-white/10">
         <Image
           src={image}
           alt={title}
           width={960}
           height={620}
-          className="h-auto w-full transition-transform duration-500 group-hover:scale-[1.025]"
+          sizes="(max-width: 1024px) 100vw, 46vw"
+          className="h-auto w-full"
         />
       </div>
       <div className="p-3">
         <h3 className="text-xl font-bold text-slate-950 dark:text-white">{title}</h3>
         {title === "Bot Edge Preview" ? (
-          <ExtensionBanner copy={copy} />
+          <BotAppBanner copy={copy} />
         ) : (
           <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">{copy}</p>
         )}
         {details ? (
           <div className="mt-4 space-y-3">
-            <InfoBlock label="Why is this extension good?" text={details.why} />
+            <InfoBlock label="Why is this bot good?" text={details.why} />
             <AdvantageList items={details.advantages} />
             <ReviewQuote text={details.review} />
           </div>
@@ -903,6 +883,7 @@ function SignalNudgeMiniCard() {
           alt="Compact TradX live feedback preview"
           width={540}
           height={360}
+          sizes="(max-width: 1024px) 100vw, 220px"
           className="h-full w-full object-cover"
         />
       </div>
@@ -912,7 +893,7 @@ function SignalNudgeMiniCard() {
           Turn live feedback into better entries.
         </h4>
         <p className="mt-2 text-sm leading-7 text-slate-600 dark:text-slate-300">
-          When momentum changes, the extension explains what changed, shows the likely impact, and keeps the next action close enough to click before the setup fades.
+          When momentum changes, the bot explains what changed, shows the likely impact, and keeps the next action close enough to click before the setup fades.
         </p>
         <div className="mt-3 flex flex-wrap gap-2 text-xs font-bold">
           {["Instant context", "Cleaner timing", "Less second-guessing"].map((item) => (
@@ -935,9 +916,10 @@ function UserFeedbackExpansion() {
       <div className="relative min-h-56 overflow-hidden rounded-[1.25rem] border border-slate-200 dark:border-white/10">
         <Image
           src="/promo/feedback1.webp"
-          alt="TradX extension signal workflow"
+          alt="TradX bot app signal workflow"
           width={860}
           height={620}
+          sizes="(max-width: 1024px) 100vw, 38vw"
           className="h-full w-full object-cover"
         />
       </div>
@@ -948,7 +930,7 @@ function UserFeedbackExpansion() {
             Turn live feedback into better entries.
           </h4>
           <p className="mt-3 text-sm leading-7 text-slate-600 dark:text-slate-300">
-            The extension keeps chart context, watchlist momentum, and alert quality in one compact panel, so users can move from insight to action without losing focus.
+            The bot keeps chart context, watchlist momentum, and alert quality in one compact panel, so users can move from insight to action without losing focus.
           </p>
         </div>
         <div className="grid gap-3 sm:grid-cols-3">
@@ -1007,7 +989,7 @@ function ReviewQuote({ text }: { text: string }) {
   );
 }
 
-function ExtensionBanner({ copy }: { copy: string }) {
+function BotAppBanner({ copy }: { copy: string }) {
   return (
     <div className="mt-4 overflow-hidden rounded-2xl border border-white/10 bg-[linear-gradient(135deg,rgba(6,7,10,0.96),rgba(24,24,28,0.9))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1099,6 +1081,7 @@ function InteractiveGlobe() {
   const dragRef = useRef<{ active: boolean; x: number; y: number }>({ active: false, x: 0, y: 0 });
   const hoverRef = useRef(false);
   const hoveredHotspotRef = useRef<string | null>(null);
+  const hoveredStateKeyRef = useRef<string | null>(null);
   const zoomRef = useRef(1);
   const globeBoundsRef = useRef({ cx: 0, cy: 0, radius: 0 });
 
@@ -1110,6 +1093,24 @@ function InteractiveGlobe() {
       })),
     []
   );
+
+  useEffect(() => {
+    const flagImages = HOTSPOTS.map((hotspot) => countryFlagPath(hotspot.flag))
+      .filter((src): src is string => Boolean(src))
+      .map((src) => {
+        const image = new window.Image();
+        image.decoding = "sync";
+        image.src = src;
+        return image;
+      });
+
+    return () => {
+      flagImages.forEach((image) => {
+        image.onload = null;
+        image.onerror = null;
+      });
+    };
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -1280,9 +1281,13 @@ function InteractiveGlobe() {
         .filter((item) => item.distance < Math.max(18, rect.width * 0.024))
         .sort((a, b) => a.distance - b.distance)[0];
       const next = target ? { hotspot: target.hotspot, x: target.x, y: target.y, width: rect.width, height: rect.height } : null;
+      const nextName = next?.hotspot.fullName ?? null;
       hoverRef.current = Boolean(next);
-      hoveredHotspotRef.current = next?.hotspot.fullName ?? null;
-      setHovered(next);
+      hoveredHotspotRef.current = nextName;
+      if (hoveredStateKeyRef.current !== nextName) {
+        hoveredStateKeyRef.current = nextName;
+        setHovered(next);
+      }
     };
 
     const onPointerDown = (event: PointerEvent) => {
@@ -1298,6 +1303,7 @@ function InteractiveGlobe() {
       dragRef.current.active = false;
       hoverRef.current = false;
       hoveredHotspotRef.current = null;
+      hoveredStateKeyRef.current = null;
       setHovered(null);
     };
     const onWheel = (event: WheelEvent) => {
@@ -1349,22 +1355,24 @@ function InteractiveGlobe() {
         className="relative z-[2] h-full w-full cursor-grab touch-none active:cursor-grabbing"
         aria-label="Interactive globe showing TradX bot signal coverage"
       />
-      <div className="pointer-events-none absolute left-4 top-4 rounded-2xl border border-white/10 bg-white/8 px-4 py-3 text-white backdrop-blur max-[520px]:hidden">
+      <div className="pointer-events-none absolute left-4 top-4 rounded-2xl border border-white/10 bg-white/8 px-4 py-3 text-white max-[520px]:hidden">
         <p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-300">Live coverage</p>
         <p className="mt-1 text-2xl font-black">{HOTSPOTS.length} exchange hubs</p>
       </div>
       {hovered && tooltipPosition ? (
         <div
-          className="pointer-events-none absolute z-[99] rounded-[1.3rem] border border-white/40 bg-black/82 px-4 py-5 text-center text-sm text-white shadow-[0_24px_80px_rgba(0,0,0,0.55)] backdrop-blur-xl"
+          className="pointer-events-none absolute z-[99] rounded-[1.3rem] border border-white/40 bg-black/82 px-4 py-5 text-center text-sm text-white shadow-[0_24px_80px_rgba(0,0,0,0.55)]"
           style={{ left: tooltipPosition.left, top: tooltipPosition.top, width: tooltipPosition.width }}
         >
           <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-blue-400 to-blue-800 shadow-[0_0_30px_rgba(37,99,235,0.55)]">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
+              key={hovered.hotspot.flag}
               src={countryFlagPath(hovered.hotspot.flag) ?? "/tradx-logo.webp"}
               alt={`${hovered.hotspot.country} flag`}
               className="h-full w-full object-cover"
-              loading="lazy"
+              loading="eager"
+              decoding="sync"
             />
           </div>
           <p className="text-xs text-slate-400">{hovered.hotspot.shortName}</p>
@@ -1385,7 +1393,7 @@ function InteractiveGlobe() {
           />
         </div>
       ) : null}
-      <div className="pointer-events-none absolute bottom-4 right-4 rounded-2xl border border-white/10 bg-white/8 px-4 py-3 text-right text-xs text-slate-300 backdrop-blur max-[520px]:left-4 max-[520px]:right-4 max-[520px]:text-center">
+      <div className="pointer-events-none absolute bottom-4 right-4 rounded-2xl border border-white/10 bg-white/8 px-4 py-3 text-right text-xs text-slate-300 max-[520px]:left-4 max-[520px]:right-4 max-[520px]:text-center">
         Drag to rotate. Hover blue hubs.
       </div>
     </div>

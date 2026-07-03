@@ -221,9 +221,9 @@ export function Header() {
           </div>
         ) : (
           <div className="hidden min-w-0 flex-1 items-center gap-4 md:flex" suppressHydrationWarning>
-            <GlobalSearchBar className="w-[min(30vw,360px)] max-w-[360px]" />
+            <GlobalSearchBar className="w-[min(30vw,360px)] max-w-[360px] ml-5" />
             {isLandingPage && (
-              <nav className="ml-auto flex items-center gap-1 rounded-2xl border border-gray-200/70 bg-white/60 p-1 shadow-sm backdrop-blur dark:border-white/10 dark:bg-white/[0.04]">
+              <nav className="ml-auto flex items-center gap-2 p-1">
                 {landingSectionItems.map((item) => (
                   <Link
                     key={item.href}
@@ -317,8 +317,8 @@ export function Header() {
       </div>
 
       {mobileOpen && (
-        <nav className="border-t border-gray-200 dark:border-white/5 px-4 py-4 lg:hidden bg-white dark:bg-[#0a0c0c]" suppressHydrationWarning>
-          <GlobalSearchBar className="mb-4 md:hidden" />
+        <nav className="px-4 py-4 lg:hidden" suppressHydrationWarning>
+          <GlobalSearchBar className="mb-4" />
           <div className="space-y-1" suppressHydrationWarning>
             {!user && (
               <div className="grid grid-cols-2 gap-2 pb-3">
@@ -339,7 +339,7 @@ export function Header() {
               </div>
             )}
             {!user && isLandingPage && (
-              <div className="grid grid-cols-2 gap-2 pb-3">
+              <div className="grid grid-cols-2 gap-3 pb-3">
                 {landingSectionItems.map((item) => (
                   <Link
                     key={item.href}

@@ -40,6 +40,10 @@ type ManagementData = {
   pagination: Pagination;
 };
 
+type DeletePayload =
+  | { ids: string[] }
+  | { range: { start: number; end: number; q?: string } };
+
 type ViewMode = "list" | "grid";
 
 export function AdminNewsManagement({ initialData }: { initialData: ManagementData }) {
@@ -49,6 +53,8 @@ export function AdminNewsManagement({ initialData }: { initialData: ManagementDa
   const [query, setQuery] = useState("");
   const [activeQuery, setActiveQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [rangeStart, setRangeStart] = useState("1");
+  const [rangeEnd, setRangeEnd] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -104,19 +110,19 @@ export function AdminNewsManagement({ initialData }: { initialData: ManagementDa
     });
   }
 
-  async function deleteSelected() {
-    if (!selectedIds.size) {
-      setMessage("Select at least one news item first.");
+  async function deleteNews(payload: DeletePayload, label: string, count: number) {
+    if (count < 1) {
+      setMessage(`Select at least one news item for ${label}.`);
       return;
     }
-    if (!window.confirm(`Delete ${selectedIds.size} selected news item(s)?`)) return;
+    if (!window.confirm(`Delete ${count} ${label} news item(s)?`)) return;
 
     setLoading(true);
     setMessage("Processing... Please wait a moment.");
     try {
       const response = await secureFetch("/api/admin/news", {
         method: "DELETE",
-        body: JSON.stringify({ ids: Array.from(selectedIds) }),
+        body: JSON.stringify(payload),
       });
       const json = await readJsonResponse<ApiResponse<{ deleted: number }>>(response);
       if (!json.success) throw new Error(json.error ?? "Failed to delete news");
@@ -127,6 +133,48 @@ export function AdminNewsManagement({ initialData }: { initialData: ManagementDa
     } finally {
       setLoading(false);
     }
+  }
+
+  async function deleteNewsByIds(ids: string[], label: string) {
+    await deleteNews({ ids }, label, ids.length);
+  }
+
+  async function deleteSelected() {
+    await deleteNewsByIds(Array.from(selectedIds), "selected");
+  }
+
+  function previewPartialRange() {
+    const start = Number(rangeStart);
+    const end = Number(rangeEnd || rangeStart);
+    if (!Number.isInteger(start) || !Number.isInteger(end) || start < 1 || end < start) {
+      setMessage("Enter a valid partial deletion range. Example: start 3, end 8.");
+      return;
+    }
+    if (start > pagination.total) {
+      setMessage(`That range starts after the final news item. There are ${pagination.total} matching items.`);
+      return;
+    }
+    setSelectedIds(new Set());
+    setMessage(`Ready to delete matching news items ${start} through ${Math.min(end, pagination.total)} across all pages.`);
+  }
+
+  async function deletePartialRange() {
+    const start = Number(rangeStart);
+    const end = Number(rangeEnd || rangeStart);
+    if (!Number.isInteger(start) || !Number.isInteger(end) || start < 1 || end < start) {
+      setMessage("Enter a valid partial deletion range. Example: start 3, end 8.");
+      return;
+    }
+    if (start > pagination.total) {
+      setMessage(`That range starts after the final news item. There are ${pagination.total} matching items.`);
+      return;
+    }
+    const clampedEnd = Math.min(end, pagination.total);
+    await deleteNews(
+      { range: { start, end: clampedEnd, ...(activeQuery ? { q: activeQuery } : {}) } },
+      `range ${start}-${clampedEnd}`,
+      clampedEnd - start + 1
+    );
   }
 
   function submitSearch(event: React.FormEvent) {
@@ -177,6 +225,49 @@ export function AdminNewsManagement({ initialData }: { initialData: ManagementDa
               {message}
             </p>
           ) : null}
+
+          <div className="rounded-3xl border border-border bg-background/70 p-4">
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+              <div>
+                <p className="text-sm font-bold text-foreground">Partial Deletion</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  Delete by row number across all matching news items, not only the visible page. Search first to limit the dataset if needed.
+                </p>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-[110px_110px_auto_auto]">
+                <label className="text-xs font-semibold text-muted-foreground">
+                  Start
+                  <input
+                    type="number"
+                    min={1}
+                    max={Math.max(pagination.total, 1)}
+                    value={rangeStart}
+                    onChange={(event) => setRangeStart(event.target.value)}
+                    className="mt-1 h-10 w-full rounded-2xl border border-border bg-card px-3 text-sm text-foreground outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/15"
+                  />
+                </label>
+                <label className="text-xs font-semibold text-muted-foreground">
+                  End
+                  <input
+                    type="number"
+                    min={1}
+                    max={Math.max(pagination.total, 1)}
+                    value={rangeEnd}
+                    onChange={(event) => setRangeEnd(event.target.value)}
+                    placeholder={rangeStart}
+                    className="mt-1 h-10 w-full rounded-2xl border border-border bg-card px-3 text-sm text-foreground outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/15"
+                  />
+                </label>
+                <Button type="button" variant="outline" size="sm" onClick={previewPartialRange} disabled={loading || pagination.total < 1}>
+                  Preview range
+                </Button>
+                <Button type="button" variant="destructive" size="sm" onClick={() => void deletePartialRange()} disabled={loading || pagination.total < 1}>
+                  <Trash2 className="h-4 w-4" />
+                  Delete range
+                </Button>
+              </div>
+            </div>
+          </div>
         </CardContent>
       </Card>
 

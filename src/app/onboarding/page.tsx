@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { secureFetch } from "@/lib/api/client";
+import { readJsonResponse, secureFetch } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { INTEREST_LABELS } from "@/lib/constants";
 import type { InterestCategory } from "@prisma/client";
@@ -21,6 +21,7 @@ export default function OnboardingPage() {
   const [categories, setCategories] = useState<InterestCategory[]>([]);
   const [notif, setNotif] = useState({ email: true, push: true, priceAlerts: true, newsAlerts: true });
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const toggleCat = (cat: InterestCategory) => {
     setCategories((prev) =>
@@ -28,38 +29,38 @@ export default function OnboardingPage() {
     );
   };
 
-  const finish = async () => {
+  const completeOnboarding = async (selectedCategories: InterestCategory[]) => {
     setLoading(true);
-    await secureFetch("/api/onboarding", {
-      method: "POST",
-      body: JSON.stringify({
-        preferredMarket: market,
-        categories,
-        emailEnabled: notif.email,
-        pushEnabled: notif.push,
-        priceAlerts: notif.priceAlerts,
-        newsAlerts: notif.newsAlerts,
-      }),
-    });
-    router.push("/");
-    router.refresh();
+    setError("");
+
+    try {
+      const response = await secureFetch("/api/onboarding", {
+        method: "POST",
+        body: JSON.stringify({
+          preferredMarket: market,
+          categories: selectedCategories,
+          emailEnabled: notif.email,
+          pushEnabled: notif.push,
+          priceAlerts: notif.priceAlerts,
+          newsAlerts: notif.newsAlerts,
+        }),
+      });
+      const json = await readJsonResponse<{ success: boolean; error?: string }>(response);
+      if (!json.success) throw new Error(json.error ?? "Could not complete onboarding.");
+      router.replace("/dashboard");
+      router.refresh();
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : "Could not complete onboarding.");
+      setLoading(false);
+    }
+  };
+
+  const finish = async () => {
+    await completeOnboarding(categories);
   };
 
   const skip = async () => {
-    setLoading(true);
-    await secureFetch("/api/onboarding", {
-      method: "POST",
-      body: JSON.stringify({
-        preferredMarket: market,
-        categories: [],
-        emailEnabled: true,
-        pushEnabled: true,
-        priceAlerts: true,
-        newsAlerts: true,
-      }),
-    });
-    router.push("/dashboard");
-    router.refresh();
+    await completeOnboarding([]);
   };
 
   return (
@@ -73,8 +74,13 @@ export default function OnboardingPage() {
           disabled={loading}
           className="mt-3 rounded-full border border-border bg-card/90 px-4 py-1.5 text-xs font-semibold text-muted-foreground shadow-sm transition hover:border-emerald-400/50 hover:text-emerald-500 active:scale-95 disabled:opacity-60"
         >
-          Skip for now
+          {loading ? "Please wait..." : "Skip for now"}
         </button>
+        {error ? (
+          <p role="alert" className="mx-auto mt-3 max-w-sm rounded-xl border border-red-400/40 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-500 dark:text-red-200">
+            {error}
+          </p>
+        ) : null}
       </div>
 
       {step === 1 && (

@@ -8,9 +8,11 @@ import { getClientIp } from "@/lib/security/rate-limit";
 
 const DOWNLOAD_ACTIONS = [
   "promo_download_click",
+  "promo_trading_bot_app_exe_download",
   "promo_trading_bot_app_msix_download",
   "promo_trading_bot_app_install_start",
   "promo_trading_bot_app_appinstaller_open",
+  "app_exe_download",
   "app_msix_download",
   "trading_bot_app_downloaded",
 ];

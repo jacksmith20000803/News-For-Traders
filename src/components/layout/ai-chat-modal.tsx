@@ -615,9 +615,10 @@ export function AIChatModal() {
       <div className={`relative border-t px-4 py-3 ${
         currentTheme === "dark" ? "border-white/10 bg-black/20" : "border-gray-200 bg-white/70"
       }`}>
+        {/* MSIX download filename retained for future use: download="trading-bot-app.msix" */}
         <a
           href="/api/download/trading-bot-app"
-          download="trading-bot-app.msix"
+          download="TradX-Bot.exe"
           data-track-event="promo_download_click"
           data-track-label="Download Trading Bot"
           data-track-component="trading-bot-promo"

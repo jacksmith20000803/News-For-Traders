@@ -16,7 +16,6 @@ export function ContactSection() {
   const secondaryTextColor = currentTheme === "dark" ? "text-gray-400" : "text-gray-600";
   const gridColor = currentTheme === "dark" ? "rgba(255,255,255,0.02)" : "rgba(0,0,0,0.05)";
   const borderColor = currentTheme === "dark" ? "border-white/6" : "border-gray-200";
-  const hoverBorderColor = currentTheme === "dark" ? "hover:border-white/10" : "hover:border-gray-300";
   const inputBg = currentTheme === "dark" ? "bg-white/5" : "bg-gray-100";
   const inputBorder = currentTheme === "dark" ? "border-white/10" : "border-gray-300";
   const inputText = currentTheme === "dark" ? "text-white" : "text-gray-900";
@@ -53,7 +52,7 @@ export function ContactSection() {
           </p>
         </motion.div>
 
-        <div className="flex gap-8 sm:gap-12 md:justify-around mb-12" suppressHydrationWarning>
+        <div className="mx-auto mb-12 grid w-full max-w-[1240px] grid-cols-1 justify-items-center gap-4 min-[1020px]:grid-cols-3" suppressHydrationWarning>
           {[
             {
               icon: Mail,
@@ -80,20 +79,21 @@ export function ContactSection() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.4, delay: index * 0.1 }}
+              className="w-full max-w-[420px] min-w-0 min-[1020px]:max-w-none"
             >
               <ButtonLink
                 href={item.href}
-                className={cn("h-full p-6 rounded-2xl border transition-colors text-left", cardBg, borderColor, hoverBorderColor)}
+                className={cn("h-full w-full min-w-0 p-5 rounded-2xl border text-left", cardBg, borderColor)}
               >
-                <div className="flex items-start gap-4" suppressHydrationWarning>
+                <div className="flex min-w-0 items-start gap-4" suppressHydrationWarning>
                   <div className="w-12 h-12 rounded-lg flex items-center justify-center bg-emerald-500/10 shrink-0">
                     <item.icon className="w-6 h-6 text-emerald-400" />
                   </div>
-                  <div suppressHydrationWarning>
-                    <h3 className={cn("text-lg font-semibold mb-2", textColor)}>{item.title}</h3>
-                    <p className={cn("text-sm", secondaryTextColor)}>{item.description}</p>
+                  <div className="min-w-0" suppressHydrationWarning>
+                    <h3 className={cn("text-base font-semibold mb-2 sm:text-lg", textColor)}>{item.title}</h3>
+                    <p className={cn("text-sm break-words", secondaryTextColor)}>{item.description}</p>
                     {item.title === "Email Us" && (
-                      <p className={cn("text-sm mt-1", secondaryTextColor)}>smark.work.me@gmail.com</p>
+                      <p className={cn("text-sm mt-1 break-words", secondaryTextColor)}>smark.work.me@gmail.com</p>
                     )}
                   </div>
                 </div>
