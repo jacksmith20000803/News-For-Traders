@@ -276,8 +276,21 @@ export function Sidebar() {
         </nav>
 
         {/* Bottom section */}
-        <div className="absolute bottom-4 left-0 right-0 px-3">
-          <div className={cn("rounded-2xl border p-3 shadow-sm transition-colors", liveStatus.className)}>
+        <div
+          className={cn(
+            "px-3 transition-all",
+            isCollapsed
+              ? "fixed bottom-5 left-4 z-[99] w-auto p-0"
+              : "absolute bottom-4 left-0 right-0"
+          )}
+        >
+          <div
+            className={cn(
+              "rounded-2xl border p-3 shadow-sm transition-colors",
+              isCollapsed && "rounded-full p-2 shadow-[0_16px_44px_rgba(0,0,0,0.22)] backdrop-blur-xl",
+              liveStatus.className
+            )}
+          >
             <div className="flex items-center gap-2">
               <span className={cn("relative flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-background/70")}>
                 <span className={cn("absolute right-1 top-1 h-2 w-2 rounded-full", liveStatus.dotClassName, status !== "disconnected" && "animate-pulse")} />

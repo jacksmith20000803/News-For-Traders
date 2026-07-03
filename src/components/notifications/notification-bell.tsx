@@ -211,7 +211,7 @@ export function NotificationBell() {
           </div>
           <Link
             href="/dashboard/notifications"
-            className={`block px-4 py-2 text-center text-xs text-primary ${hoverBg} ${modalBg}`}
+            className={`block px-4 py-2 border-t ${borderColor} text-center text-xs text-primary ${hoverBg} ${modalBg}`}
             onClick={() => setOpen(false)}
           >
             View all

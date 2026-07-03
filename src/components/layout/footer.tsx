@@ -42,7 +42,7 @@ export function Footer() {
           <div suppressHydrationWarning>
             <h4 className="font-semibold mb-3">Contact</h4>
             <ul className="space-y-2 text-sm text-muted-foreground">
-              <li><Link href="/#contact" className="hover:text-foreground">Feedback</Link></li>
+              <li><Link href="/feedback" className="hover:text-foreground">Feedback</Link></li>
               <li>Verified sources only</li>
               <li>No financial advice</li>
             </ul>

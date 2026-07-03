@@ -45,11 +45,36 @@ export default function OnboardingPage() {
     router.refresh();
   };
 
+  const skip = async () => {
+    setLoading(true);
+    await secureFetch("/api/onboarding", {
+      method: "POST",
+      body: JSON.stringify({
+        preferredMarket: market,
+        categories: [],
+        emailEnabled: true,
+        pushEnabled: true,
+        priceAlerts: true,
+        newsAlerts: true,
+      }),
+    });
+    router.push("/dashboard");
+    router.refresh();
+  };
+
   return (
     <div className="mx-auto max-w-lg px-4 py-16 sm:px-6">
       <div className="mb-8 text-center">
         <h1 className="text-2xl font-bold gradient-text">Welcome to TRADX</h1>
         <p className="text-sm text-muted-foreground mt-2">Step {step} of 3 — personalize your terminal</p>
+        <button
+          type="button"
+          onClick={skip}
+          disabled={loading}
+          className="mt-3 rounded-full border border-border bg-card/90 px-4 py-1.5 text-xs font-semibold text-muted-foreground shadow-sm transition hover:border-emerald-400/50 hover:text-emerald-500 active:scale-95 disabled:opacity-60"
+        >
+          Skip for now
+        </button>
       </div>
 
       {step === 1 && (

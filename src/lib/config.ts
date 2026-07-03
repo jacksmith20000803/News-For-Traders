@@ -50,18 +50,22 @@ export const config = {
     google: {
       clientId: process.env.GOOGLE_CLIENT_ID ?? "",
       clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
+      redirectUri: normalizeOptionalUrl(process.env.GOOGLE_REDIRECT_URI),
     },
     github: {
       clientId: process.env.GITHUB_CLIENT_ID ?? "",
       clientSecret: process.env.GITHUB_CLIENT_SECRET ?? "",
+      redirectUri: normalizeOptionalUrl(process.env.GITHUB_REDIRECT_URI),
     },
     discord: {
       clientId: process.env.DISCORD_CLIENT_ID ?? "",
       clientSecret: process.env.DISCORD_CLIENT_SECRET ?? "",
+      redirectUri: normalizeOptionalUrl(process.env.DISCORD_REDIRECT_URI),
     },
     telegram: {
       clientId: process.env.TELEGRAM_CLIENT_ID ?? process.env.TELEGRAM_BOT_ID ?? "",
       clientSecret: process.env.TELEGRAM_CLIENT_SECRET ?? "",
+      redirectUri: normalizeOptionalUrl(process.env.TELEGRAM_REDIRECT_URI),
     },
   },
   features: {
@@ -83,4 +87,9 @@ export function requireEnv(key: string): string {
 
 function normalizeAppUrl(value: string) {
   return value.trim().replace(/\/+$/, "");
+}
+
+function normalizeOptionalUrl(value: string | undefined) {
+  const normalized = value?.trim();
+  return normalized ? normalized.replace(/\/+$/, "") : "";
 }

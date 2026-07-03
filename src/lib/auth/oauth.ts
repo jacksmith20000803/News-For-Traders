@@ -36,6 +36,8 @@ export function isTelegramOAuthConfigured() {
 }
 
 function redirectUri(provider: string, baseUrl = config.app.url) {
+  const configured = providerRedirectOverride(provider);
+  if (configured) return configured;
   return `${baseUrl.replace(/\/+$/, "")}/api/auth/oauth/${provider}/callback`;
 }
 
@@ -79,19 +81,19 @@ export function getDiscordAuthUrl(state: string, baseUrl?: string) {
 }
 
 export function getTelegramAuthUrl(state: string, baseUrl?: string, codeChallenge?: string) {
-  const params = new URLSearchParams({
-    client_id: config.oauth.telegram.clientId,
-    redirect_uri: redirectUri("telegram", baseUrl),
-    response_type: "code",
-    scope: "openid profile",
-    state,
-    nonce: state,
-  });
+  const params: Array<[string, string]> = [
+    ["client_id", config.oauth.telegram.clientId],
+    ["redirect_uri", redirectUri("telegram", baseUrl)],
+    ["response_type", "code"],
+    ["scope", "openid profile"],
+    ["state", state],
+    ["nonce", state],
+  ];
   if (codeChallenge) {
-    params.set("code_challenge", codeChallenge);
-    params.set("code_challenge_method", "S256");
+    params.push(["code_challenge", codeChallenge]);
+    params.push(["code_challenge_method", "S256"]);
   }
-  return `${TELEGRAM_AUTH}?${params}`;
+  return `${TELEGRAM_AUTH}?${encodeQuery(params)}`;
 }
 
 async function linkOAuthUser(params: {
@@ -357,4 +359,18 @@ async function verifyTelegramIdToken(idToken: string) {
     audience: config.oauth.telegram.clientId,
   });
   return payload;
+}
+
+function providerRedirectOverride(provider: string) {
+  if (provider === "google") return config.oauth.google.redirectUri;
+  if (provider === "github") return config.oauth.github.redirectUri;
+  if (provider === "discord") return config.oauth.discord.redirectUri;
+  if (provider === "telegram") return config.oauth.telegram.redirectUri;
+  return "";
+}
+
+function encodeQuery(params: Array<[string, string]>) {
+  return params
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+    .join("&");
 }
