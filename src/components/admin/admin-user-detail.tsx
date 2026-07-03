@@ -155,6 +155,7 @@ export function AdminUserDetail({ id, kind }: { id: string; kind: DetailKind }) 
   const [page, setPage] = useState(1);
   const [activityItems, setActivityItems] = useState<ActivityItem[]>([]);
   const [activityView, setActivityView] = useState<ActivityView>("list");
+  const [selectedActivityIds, setSelectedActivityIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [activityLoading, setActivityLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -188,6 +189,7 @@ export function AdminUserDetail({ id, kind }: { id: string; kind: DetailKind }) 
         setActivityItems((current) =>
           mode === "append" ? mergeActivity(current, json.data?.activity.items ?? []) : json.data?.activity.items ?? []
         );
+        if (mode === "replace") setSelectedActivityIds(new Set());
       } catch (error) {
         setMessage(error instanceof Error ? error.message : "Failed to load detail");
       } finally {
@@ -229,6 +231,9 @@ export function AdminUserDetail({ id, kind }: { id: string; kind: DetailKind }) 
   }, [activityLoading, data, loadDetail, page]);
 
   const canManageUser = data?.kind === "user";
+  const visibleActivityIds = useMemo(() => activityItems.map((item) => item.id), [activityItems]);
+  const allActivitySelected =
+    visibleActivityIds.length > 0 && visibleActivityIds.every((activityId) => selectedActivityIds.has(activityId));
   if (data) countryFlag(data.details.location.country);
   const location = data
       ? [
@@ -277,6 +282,70 @@ export function AdminUserDetail({ id, kind }: { id: string; kind: DetailKind }) 
       await loadDetail(1, "replace");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Failed to delete logs");
+    } finally {
+      setActionPending(false);
+    }
+  }
+
+  function toggleActivity(id: string) {
+    setSelectedActivityIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAllActivity() {
+    setSelectedActivityIds((current) => {
+      if (allActivitySelected) return new Set();
+      return new Set([...current, ...visibleActivityIds]);
+    });
+  }
+
+  async function deleteSelectedActivity() {
+    if (!selectedActivityIds.size) {
+      setMessage("Select at least one activity item first.");
+      return;
+    }
+    if (!confirm(`Delete ${selectedActivityIds.size} selected activity item(s)?`)) return;
+    setActionPending(true);
+    setMessage("Processing... Please wait a moment.");
+    try {
+      const res = await secureFetch(`/api/admin/users/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          action: "delete_activity",
+          kind,
+          ids: Array.from(selectedActivityIds),
+        }),
+      });
+      const json = await readJsonResponse<ApiResponse<{ deleted: number }>>(res);
+      if (!json.success) throw new Error(json.error ?? "Failed to delete selected activity");
+      setMessage(`Deleted ${json.data?.deleted ?? 0} activity item(s).`);
+      await loadDetail(1, "replace");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Failed to delete selected activity");
+    } finally {
+      setActionPending(false);
+    }
+  }
+
+  async function revokeSession(sessionId: string) {
+    if (!confirm("Revoke this session?")) return;
+    setActionPending(true);
+    setMessage("Processing... Please wait a moment.");
+    try {
+      const res = await secureFetch(`/api/admin/users/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        body: JSON.stringify({ action: "revoke_session", sessionId }),
+      });
+      const json = await readJsonResponse<ApiResponse<{ revoked: boolean }>>(res);
+      if (!json.success) throw new Error(json.error ?? "Failed to revoke session");
+      setMessage("Session revoked.");
+      await loadDetail(1, "replace");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Failed to revoke session");
     } finally {
       setActionPending(false);
     }
@@ -492,9 +561,21 @@ export function AdminUserDetail({ id, kind }: { id: string; kind: DetailKind }) 
             <div className="max-h-48 space-y-2 overflow-y-auto pr-1">
               {data.details.sessions.length ? (
                 data.details.sessions.map((session) => (
-                  <div key={session.id} className="rounded-xl border border-border bg-card/85 px-3 py-2 text-sm">
-                    <p className="font-medium">{formatDateTime(session.createdAt, data.details.location.timezone)}</p>
-                    <p className="truncate text-xs text-muted-foreground">{session.ipAddress ?? "No IP"} - {session.userAgent ?? "No user agent"}</p>
+                  <div key={session.id} className="flex items-start justify-between gap-3 rounded-xl border border-border bg-card/85 px-3 py-2 text-sm">
+                    <div className="min-w-0">
+                      <p className="font-medium">{formatDateTime(session.createdAt, data.details.location.timezone)}</p>
+                      <p className="truncate text-xs text-muted-foreground">{session.ipAddress ?? "No IP"} - {session.userAgent ?? "No user agent"}</p>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="destructive"
+                      disabled={actionPending}
+                      onClick={() => void revokeSession(session.id)}
+                      className="shrink-0 bg-red-700 text-white hover:bg-red-600"
+                    >
+                      Revoke
+                    </Button>
                   </div>
                 ))
               ) : (
@@ -514,9 +595,23 @@ export function AdminUserDetail({ id, kind }: { id: string; kind: DetailKind }) 
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
+            <Button type="button" size="sm" variant="outline" disabled={!activityItems.length} onClick={toggleAllActivity}>
+              {allActivitySelected ? "Clear selection" : "Select all visible"}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="destructive"
+              disabled={actionPending || !selectedActivityIds.size}
+              onClick={() => void deleteSelectedActivity()}
+              className="bg-red-700 text-white hover:bg-red-600"
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete selected
+            </Button>
             <Button size="sm" variant="destructive" disabled={actionPending} onClick={deleteLogs}>
               <Trash2 className="h-4 w-4" />
-              Delete logs
+              Delete all logs
             </Button>
             <Button size="sm" onClick={() => exportActivity(activityItems)}>
               <Download className="h-4 w-4" />
@@ -569,7 +664,13 @@ export function AdminUserDetail({ id, kind }: { id: string; kind: DetailKind }) 
 
             <div className={cn("grid gap-3", activityView === "grid" && "md:grid-cols-2")}>
               {activityItems.map((activity) => (
-                <ActivityRow key={activity.id} activity={activity} view={activityView} />
+                <ActivityRow
+                  key={activity.id}
+                  activity={activity}
+                  view={activityView}
+                  selected={selectedActivityIds.has(activity.id)}
+                  onToggle={() => toggleActivity(activity.id)}
+                />
               ))}
             </div>
             {!activityItems.length && !activityLoading ? (
@@ -720,14 +821,34 @@ function shiftMonth(month: string, offset: number) {
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
-function ActivityRow({ activity, view }: { activity: ActivityItem; view: ActivityView }) {
+function ActivityRow({
+  activity,
+  view,
+  selected,
+  onToggle,
+}: {
+  activity: ActivityItem;
+  view: ActivityView;
+  selected: boolean;
+  onToggle: () => void;
+}) {
   return (
     <article
       className={cn(
-        "rounded-2xl border border-border bg-background/85 p-4 text-[15px] shadow-sm",
-        view === "list" && "grid gap-3 lg:grid-cols-[170px_1fr_240px]"
+        "rounded-2xl border border-border bg-background/85 p-4 text-[15px] shadow-sm transition",
+        selected && "border-primary/70 ring-2 ring-primary/20",
+        view === "list" && "grid gap-3 lg:grid-cols-[36px_170px_1fr_240px]"
       )}
     >
+      <label className="flex items-start pt-1">
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={onToggle}
+          className="h-4 w-4 accent-primary"
+          aria-label={`Select activity ${activity.action}`}
+        />
+      </label>
       <div>
         <p className="font-semibold text-foreground">{activity.action.replace(/_/g, " ")}</p>
         <p className="text-xs text-muted-foreground">{formatDateTime(activity.createdAt)}</p>

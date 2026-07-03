@@ -22,16 +22,16 @@ export default function NewDiscussionPage() {
     setLoading(true);
     setError("");
     try {
-      const res = await secureFetch("/api/discussions", {
+      const res = await secureFetch("/api/articles", {
         method: "POST",
         body: JSON.stringify({ title, content, category }),
       });
       const json = await res.json();
       if (!json.success) {
-        setError(json.error ?? "Failed to create discussion");
+        setError(json.error ?? "Failed to submit article");
         return;
       }
-      router.push(`/community/${json.data.id}`);
+      router.push("/community?tab=my&status=PENDING");
     } catch {
       setError("Please sign in with a verified email to post.");
     } finally {
@@ -46,7 +46,7 @@ export default function NewDiscussionPage() {
       </Link>
       <Card>
         <CardHeader>
-          <CardTitle>Start a Discussion</CardTitle>
+          <CardTitle>Submit a Community Article</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           {error && (
@@ -76,7 +76,7 @@ export default function NewDiscussionPage() {
             />
           </div>
           <Button onClick={submit} isLoading={loading} disabled={!title.trim() || content.length < 20}>
-            Publish Discussion
+            Submit for Review
           </Button>
         </CardContent>
       </Card>

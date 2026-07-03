@@ -51,7 +51,8 @@ export function getGoogleAuthUrl(state: string, baseUrl?: string) {
     scope: "openid email profile",
     state,
     access_type: "online",
-    prompt: "select_account",
+    prompt: "select_account consent",
+    include_granted_scopes: "true",
   });
   return `${GOOGLE_AUTH}?${params}`;
 }
@@ -112,10 +113,6 @@ async function linkOAuthUser(params: {
   });
   let user = linkedAccount?.user ?? (await db.user.findUnique({ where: { email } }));
 
-  if (user?.isBanned) {
-    throw new Error("Account is not available");
-  }
-
   if (!user) {
     user = await db.user.create({
       data: {
@@ -125,11 +122,12 @@ async function linkOAuthUser(params: {
         emailVerified: new Date(),
       },
     });
-  } else if (user.deletedAt || user.isSuspended || !user.emailVerified || user.avatar === null) {
+  } else if (user.deletedAt || user.isSuspended || user.isBanned || !user.emailVerified || user.avatar === null) {
     user = await db.user.update({
       where: { id: user.id },
       data: {
         deletedAt: null,
+        isBanned: false,
         isSuspended: false,
         emailVerified: user.emailVerified ?? new Date(),
         avatar: user.avatar ?? params.avatar,

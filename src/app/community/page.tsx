@@ -1,82 +1,59 @@
 import Link from "next/link";
 import { connection } from "next/server";
+import type { ReactNode } from "react";
 import { db } from "@/lib/db";
+import { getCurrentUser } from "@/lib/auth/session";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { MessageSquare, ArrowUp, ArrowDown } from "lucide-react";
+import { FileText, MessageSquare, PlusCircle } from "lucide-react";
 import { formatRelative } from "@/lib/utils";
 import { COMMUNITY_RULES, POST_CATEGORY_LABELS } from "@/lib/constants";
-import type { PostCategory } from "@prisma/client";
+import type { ContentStatus, PostCategory } from "@prisma/client";
 import { isDatabaseConnectivityError } from "@/lib/db-errors";
 
 export const metadata = { title: "Community" };
 
-type CommunityDiscussion = {
-  id: string;
-  title: string;
-  content: string;
-  category: PostCategory;
-  isPinned: boolean;
-  upvoteCount: number;
-  downvoteCount: number;
-  createdAt: Date;
-  author: { id: string; name: string; reputation: number };
-  _count: { comments: number };
+type PageProps = {
+  searchParams: Promise<{
+    tab?: string;
+    category?: string;
+    status?: string;
+  }>;
 };
 
-async function getDiscussions(): Promise<CommunityDiscussion[]> {
-  try {
-    return await db.discussion.findMany({
-      include: {
-        author: { select: { id: true, name: true, reputation: true } },
-        _count: { select: { comments: true } },
-      },
-      orderBy: { createdAt: "desc" },
-      take: 20,
-    });
-  } catch (error) {
-    if (!isDatabaseConnectivityError(error)) throw error;
+const statusFilters: Array<ContentStatus | "ALL"> = ["ALL", "PENDING", "PUBLISHED", "REJECTED", "ARCHIVED", "DRAFT"];
 
-    return [
-      {
-        id: "fallback-community-reconnecting",
-        title: "Community feed is reconnecting",
-        content:
-          "Live discussions are temporarily unavailable. The page will automatically use the latest community posts when the database connection returns.",
-        category: "RISK_MANAGEMENT",
-        isPinned: false,
-        upvoteCount: 0,
-        downvoteCount: 0,
-        createdAt: new Date(),
-        author: { id: "system", name: "TRADX", reputation: 100 },
-        _count: { comments: 0 },
-      },
-    ];
-  }
-}
-
-export default async function CommunityPage() {
+export default async function CommunityPage({ searchParams }: PageProps) {
   await connection();
+  const params = await searchParams;
+  const user = await getCurrentUser();
+  const tab = params.tab === "my" ? "my" : "all";
+  const category = normalizeCategory(params.category);
+  const status = normalizeStatus(params.status);
 
-  const discussions = await getDiscussions();
+  const [articles, myArticles] = await Promise.all([
+    getPublishedArticles(category),
+    user ? getMyArticles(user.id, status) : Promise.resolve([]),
+  ]);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <div className="flex items-center gap-3 mb-2">
+          <div className="mb-2 flex items-center gap-3">
             <MessageSquare className="h-6 w-6 text-primary" />
-            <h1 className="text-2xl font-bold">Community Discussions</h1>
+            <h1 className="text-2xl font-bold">Community</h1>
           </div>
           <p className="text-muted-foreground">
-            Professional discussion for high-quality market analysis and debate.
+            Market articles and professional discussion for high-quality analysis.
           </p>
         </div>
         <Link
           href="/community/new"
-          className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+          className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-[0_14px_34px_rgba(16,185,129,0.24)] transition hover:bg-emerald-500 active:scale-95"
         >
-          Start Discussion
+          <PlusCircle className="h-4 w-4" />
+          Submit Article
         </Link>
       </div>
 
@@ -85,10 +62,10 @@ export default async function CommunityPage() {
           <CardTitle className="text-base">Community Guidelines</CardTitle>
         </CardHeader>
         <CardContent>
-          <ul className="grid gap-2 sm:grid-cols-2 text-sm text-muted-foreground">
+          <ul className="grid gap-2 text-sm text-muted-foreground sm:grid-cols-2">
             {COMMUNITY_RULES.map((rule) => (
               <li key={rule} className="flex items-start gap-2">
-                <span className="text-accent mt-0.5">•</span>
+                <span className="mt-0.5 text-accent">•</span>
                 {rule}
               </li>
             ))}
@@ -96,46 +73,185 @@ export default async function CommunityPage() {
         </CardContent>
       </Card>
 
-      <div className="space-y-3">
-        {discussions.length === 0 ? (
-          <Card>
-            <CardContent className="py-16 text-center text-muted-foreground">
-              No discussions yet. Be the first to start a conversation.
-            </CardContent>
-          </Card>
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <div className="inline-flex rounded-2xl border border-border bg-card/95 p-1 shadow-inner">
+          <TabLink active={tab === "all"} href="/community">
+            All Community
+          </TabLink>
+          <TabLink active={tab === "my"} href="/community?tab=my">
+            My Articles
+          </TabLink>
+        </div>
+        {tab === "all" ? (
+          <FilterLinks base="/community" active={category ?? "ALL"} values={["ALL", ...Object.keys(POST_CATEGORY_LABELS)]} param="category" />
         ) : (
-          discussions.map((d) => (
-            <Card key={d.id} className="hover:border-primary/30 transition-colors">
-              <CardContent className="flex gap-4 p-5">
-                <div className="flex flex-col items-center gap-1 text-muted-foreground min-w-[40px]">
-                  <ArrowUp className="h-4 w-4" />
-                  <span className="text-sm font-medium">{d.upvoteCount - d.downvoteCount}</span>
-                  <ArrowDown className="h-4 w-4" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Badge variant="outline">
-                      {POST_CATEGORY_LABELS[d.category as PostCategory]}
-                    </Badge>
-                    {d.isPinned && <Badge variant="warning">Pinned</Badge>}
-                  </div>
-                  <Link href={`/community/${d.id}`}>
-                    <h3 className="font-semibold hover:text-primary transition-colors">
-                      {d.title}
-                    </h3>
-                  </Link>
-                  <p className="text-sm text-muted-foreground line-clamp-1 mt-1">{d.content}</p>
-                  <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
-                    <span>{d.author.name} · Rep {d.author.reputation}</span>
-                    <span>{formatRelative(d.createdAt)}</span>
-                    <span>{d._count.comments} comments</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))
+          <FilterLinks base="/community?tab=my" active={status} values={statusFilters} param="status" />
         )}
       </div>
+
+      {tab === "all" ? (
+        <ArticleList articles={articles} empty="No approved community articles match this filter yet." />
+      ) : user ? (
+        <ArticleList articles={myArticles} empty="You have not submitted any articles for this status yet." showStatus />
+      ) : (
+        <Card>
+          <CardContent className="py-16 text-center text-muted-foreground">
+            Sign in to view and manage your submitted articles.
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
+}
+
+async function getPublishedArticles(category: PostCategory | null) {
+  try {
+    return await db.article.findMany({
+      where: {
+        status: "PUBLISHED",
+        ...(category ? { category } : {}),
+      },
+      include: {
+        author: { select: { id: true, name: true, reputation: true } },
+        tags: { include: { tag: true } },
+        _count: { select: { comments: true, likes: true } },
+      },
+      orderBy: [{ featured: "desc" }, { publishedAt: "desc" }],
+      take: 24,
+    });
+  } catch (error) {
+    if (!isDatabaseConnectivityError(error)) throw error;
+    return [];
+  }
+}
+
+async function getMyArticles(userId: string, status: ContentStatus | "ALL") {
+  try {
+    return await db.article.findMany({
+      where: {
+        authorId: userId,
+        ...(status !== "ALL" ? { status } : {}),
+      },
+      include: {
+        author: { select: { id: true, name: true, reputation: true } },
+        tags: { include: { tag: true } },
+        _count: { select: { comments: true, likes: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 24,
+    });
+  } catch (error) {
+    if (!isDatabaseConnectivityError(error)) throw error;
+    return [];
+  }
+}
+
+function TabLink({ active, href, children }: { active: boolean; href: string; children: ReactNode }) {
+  return (
+    <Link
+      href={href}
+      className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
+        active ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-primary"
+      }`}
+    >
+      {children}
+    </Link>
+  );
+}
+
+function FilterLinks({
+  base,
+  active,
+  values,
+  param,
+}: {
+  base: string;
+  active: string;
+  values: string[];
+  param: string;
+}) {
+  return (
+    <div className="flex max-w-full gap-2 overflow-x-auto rounded-2xl border border-border bg-card/95 p-2">
+      {values.map((value) => {
+        const label =
+          value === "ALL"
+            ? "All"
+            : param === "category"
+              ? POST_CATEGORY_LABELS[value as PostCategory]
+              : value.toLowerCase();
+        const separator = base.includes("?") ? "&" : "?";
+        const href = value === "ALL" ? base : `${base}${separator}${param}=${value}`;
+        return (
+          <Link
+            key={value}
+            href={href}
+            className={`whitespace-nowrap rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
+              active === value ? "bg-emerald-600 text-white" : "bg-background/80 text-muted-foreground hover:text-primary"
+            }`}
+          >
+            {label}
+          </Link>
+        );
+      })}
+    </div>
+  );
+}
+
+function ArticleList({
+  articles,
+  empty,
+  showStatus = false,
+}: {
+  articles: Awaited<ReturnType<typeof getPublishedArticles>>;
+  empty: string;
+  showStatus?: boolean;
+}) {
+  if (articles.length === 0) {
+    return (
+      <Card>
+        <CardContent className="py-16 text-center text-muted-foreground">{empty}</CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="grid gap-4 lg:grid-cols-2">
+      {articles.map((article) => (
+        <Card key={article.id} className="bg-card/95 transition hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-xl">
+          <CardContent className="p-5">
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="mb-2 flex flex-wrap gap-2">
+                  <Badge variant="outline">{POST_CATEGORY_LABELS[article.category]}</Badge>
+                  {showStatus ? <Badge variant={article.status === "PUBLISHED" ? "success" : article.status === "REJECTED" || article.status === "ARCHIVED" ? "danger" : "warning"}>{article.status.toLowerCase()}</Badge> : null}
+                </div>
+                <h2 className="line-clamp-2 text-lg font-bold text-foreground">{article.title}</h2>
+              </div>
+              <FileText className="h-5 w-5 shrink-0 text-primary" />
+            </div>
+            <p className="line-clamp-3 text-sm text-muted-foreground">{article.excerpt ?? article.content}</p>
+            <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+              <span>{article.author.name} · Rep {article.author.reputation}</span>
+              <span>{formatRelative(article.publishedAt ?? article.createdAt)}</span>
+              <span>{article._count.likes} likes</span>
+              <span>{article._count.comments} comments</span>
+            </div>
+            {showStatus && (article.status === "REJECTED" || article.status === "ARCHIVED") ? (
+              <p className="mt-3 rounded-2xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs text-red-600 dark:text-red-200">
+                Check notifications for the moderation reason.
+              </p>
+            ) : null}
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+function normalizeCategory(value: string | undefined): PostCategory | null {
+  return value && value in POST_CATEGORY_LABELS ? (value as PostCategory) : null;
+}
+
+function normalizeStatus(value: string | undefined): ContentStatus | "ALL" {
+  return statusFilters.includes(value as ContentStatus) ? (value as ContentStatus) : "ALL";
 }

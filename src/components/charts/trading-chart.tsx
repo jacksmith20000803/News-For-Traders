@@ -44,7 +44,7 @@ const TREND_STYLE: Record<
     lineColor: "#00d4aa",
     topColor: "rgba(0, 212, 170, 0.28)",
     bottomColor: "rgba(0, 212, 170, 0.04)",
-    badgeClass: "border-emerald-300/35 bg-emerald-500/15 text-emerald-100 shadow-emerald-500/20",
+    badgeClass: "border-emerald-300/35 bg-emerald-500/15 text-emerald-700 shadow-emerald-500/20 dark:text-emerald-100",
   },
   down: {
     label: "Bear trend",
@@ -53,7 +53,7 @@ const TREND_STYLE: Record<
     lineColor: "#ff4757",
     topColor: "rgba(255, 71, 87, 0.25)",
     bottomColor: "rgba(255, 71, 87, 0.035)",
-    badgeClass: "border-rose-300/35 bg-rose-500/15 text-rose-100 shadow-rose-500/20",
+    badgeClass: "border-rose-300/35 bg-rose-500/15 text-rose-700 shadow-rose-500/20 dark:text-rose-100",
   },
 };
 

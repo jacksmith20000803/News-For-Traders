@@ -90,6 +90,10 @@ export function Sidebar() {
   const isSettingsRoute = pathname.startsWith("/dashboard/settings");
   const activeSettingsSection = searchParams.get("section") || "profile";
   const showSettingsChildren = !isCollapsed && (settingsExpanded || isSettingsRoute);
+  const isRouteActive = (href: string) => {
+    if (href === "/dashboard") return pathname === "/dashboard";
+    return pathname === href || pathname.startsWith(`${href}/`);
+  };
 
   return (
     <>
@@ -188,7 +192,7 @@ export function Sidebar() {
         <nav className="space-y-1 p-3 pb-24">
           {navItems.map((item) => {
             const isSettingsItem = item.href === "/dashboard/settings";
-            const isActive = isSettingsItem ? isSettingsRoute : pathname === item.href;
+            const isActive = isSettingsItem ? isSettingsRoute : isRouteActive(item.href);
             const Icon = item.icon;
 
             if (isSettingsItem) {

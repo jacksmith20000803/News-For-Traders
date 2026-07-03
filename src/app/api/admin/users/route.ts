@@ -34,6 +34,12 @@ async function countDistinctVisitors(q: string | undefined) {
       SELECT COUNT(DISTINCT "visitorId") AS "count"
       FROM "VisitorActivity"
       WHERE "userId" IS NULL
+      AND NOT EXISTS (
+        SELECT 1
+        FROM "VisitorActivity" linked
+        WHERE linked."visitorId" = "VisitorActivity"."visitorId"
+        AND linked."userId" IS NOT NULL
+      )
       ${visitorSearchSql(q)}
     `
   );
@@ -51,8 +57,16 @@ export async function GET(request: NextRequest) {
     const skip = (page - 1) * limit;
 
     if (kind === "visitors") {
+      const linkedVisitorIds = (
+        await db.visitorActivity.findMany({
+          where: { userId: { not: null } },
+          distinct: ["visitorId"],
+          select: { visitorId: true },
+        })
+      ).map((row) => row.visitorId);
       const where = {
         userId: null,
+        ...(linkedVisitorIds.length ? { visitorId: { notIn: linkedVisitorIds } } : {}),
         ...(q
           ? {
               OR: [

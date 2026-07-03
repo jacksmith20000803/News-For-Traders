@@ -1,8 +1,9 @@
 import { NextRequest } from "next/server";
 import type { Prisma } from "@prisma/client";
-import { apiError, apiSuccess, handleApiError } from "@/lib/api/response";
+import { apiError, apiSuccess, handleApiError, parseJsonBody } from "@/lib/api/response";
 import { requireAdmin, validateCsrf } from "@/lib/auth/guards";
 import { db } from "@/lib/db";
+import { z } from "zod";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -234,6 +235,47 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
         : await db.visitorActivity.deleteMany({ where: { userId: id } });
 
     return apiSuccess({ deleted: result.count });
+  } catch (error) {
+    return handleApiError(error);
+  }
+}
+
+const adminUserDetailActionSchema = z.discriminatedUnion("action", [
+  z.object({
+    action: z.literal("delete_activity"),
+    kind: z.enum(["user", "visitor"]),
+    ids: z.array(z.string().min(1)).min(1).max(100),
+  }),
+  z.object({
+    action: z.literal("revoke_session"),
+    sessionId: z.string().min(1),
+  }),
+]);
+
+export async function PATCH(request: NextRequest, context: RouteContext) {
+  try {
+    await validateCsrf(request);
+    await requireAdmin();
+    const { id } = await context.params;
+    const body = adminUserDetailActionSchema.parse(await parseJsonBody(request));
+
+    if (body.action === "delete_activity") {
+      const where =
+        body.kind === "visitor"
+          ? { id: { in: body.ids }, visitorId: decodeURIComponent(id) }
+          : { id: { in: body.ids }, userId: id };
+      const result = await db.visitorActivity.deleteMany({ where });
+      return apiSuccess({ deleted: result.count });
+    }
+
+    const session = await db.session.findFirst({
+      where: { id: body.sessionId, userId: id },
+      select: { id: true },
+    });
+    if (!session) return apiError("Session not found", 404, "SESSION_NOT_FOUND");
+
+    await db.session.delete({ where: { id: session.id } });
+    return apiSuccess({ revoked: true });
   } catch (error) {
     return handleApiError(error);
   }

@@ -113,6 +113,7 @@ export default async function AdminDashboardPage() {
             {[
               { href: "/admin/users", label: "User Management" },
               { href: "/admin/news", label: "News Management" },
+              { href: "/admin/articles", label: "Community Articles" },
               { href: "/admin/moderation", label: "Community Moderation" },
               { href: "/admin/audit", label: "Audit Logs" },
               { href: "/admin/settings", label: "System Settings" },
