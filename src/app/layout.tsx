@@ -7,7 +7,7 @@ import { RealtimeSyncProvider } from "@/components/realtime/realtime-sync";
 import { ActivityTracker } from "@/components/analytics/activity-tracker";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
-import { RouteMain } from "@/components/layout/route-main";
+import { RouteMain, RouteSurface } from "@/components/layout/route-main";
 import { SidebarGate } from "@/components/layout/sidebar-gate";
 import { PriceTicker } from "@/components/layout/price-ticker";
 import { PageLoader } from "@/components/loading/page-loader";
@@ -105,12 +105,12 @@ export default async function RootLayout({
                   <PriceTicker />
                   <div className="flex min-w-0 flex-1" suppressHydrationWarning>
                     <SidebarGate />
-                    <div className="flex min-w-0 flex-1 flex-col">
+                    <RouteSurface>
                       <RouteMain>
                         {children}
                       </RouteMain>
                       <Footer />
-                    </div>
+                    </RouteSurface>
                   </div>
                   <AIChatEntry />
                   <AdminDownloadSystemAlerts />

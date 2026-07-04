@@ -3,7 +3,7 @@ import Image from "next/image";
 
 export function Footer() {
   return (
-    <footer className="relative isolate mt-auto overflow-hidden border-t border-gray-200 bg-white/95 text-gray-900 transition-colors dark:border-white/10 dark:bg-[#0b0f12]/95 dark:text-white pb-24 lg:pb-10" suppressHydrationWarning>
+    <footer className="relative isolate mt-auto overflow-hidden border-t border-gray-200 bg-transparent text-gray-900 transition-colors dark:border-white/10 dark:bg-transparent dark:text-white pb-24 lg:pb-10" suppressHydrationWarning>
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-10" suppressHydrationWarning>
         <div className="grid gap-8 sm:grid-cols-2 sm:gap-10 lg:grid-cols-[1.45fr_1fr_1fr_1fr]" suppressHydrationWarning>
           <div className="max-w-sm" suppressHydrationWarning>

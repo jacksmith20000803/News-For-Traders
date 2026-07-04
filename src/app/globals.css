@@ -203,24 +203,35 @@ a[title]:not([aria-label]):not([data-tooltip="false"]):focus-visible::after {
   content: attr(title);
 }
 
-.app-main {
+.app-route-surface {
+  --page-base: var(--background);
   --page-wash: color-mix(in srgb, var(--background) 94%, var(--primary) 6%);
-  /* --page-line: color-mix(in srgb, var(--border) 45%, transparent); */
+  --page-line: color-mix(in srgb, var(--border) 45%, transparent);
   isolation: isolate;
   position: relative;
   width: 100%;
   min-width: 0;
   max-width: 100%;
   background:
-    linear-gradient(180deg, var(--page-wash) 0%, var(--background) 24rem),
-    linear-gradient(90deg, transparent 0%, color-mix(in srgb, var(--page-line) 28%, transparent) 50%, transparent 100%);
+    linear-gradient(180deg, var(--page-wash) 0%, var(--page-base) 24rem),
+    var(--page-base);
 }
 
-.app-main::before {
+.app-route-surface::before {
   content: "";
   position: absolute;
   inset: 0;
-  z-index: -1;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, transparent 0%, color-mix(in srgb, var(--page-line) 28%, transparent) 50%, transparent 100%);
+}
+
+.app-route-surface::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
   pointer-events: none;
   background-image:
     linear-gradient(var(--page-line) 1px, transparent 1px),
@@ -230,6 +241,19 @@ a[title]:not([aria-label]):not([data-tooltip="false"]):focus-visible::after {
   mask-image: linear-gradient(to bottom, black, transparent 34rem);
 }
 
+.app-route-surface > * {
+  position: relative;
+  z-index: 1;
+}
+
+.app-main {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  background: transparent;
+}
+
 .route-home-bg { --page-wash: color-mix(in srgb, var(--background) 90%, #10b981 10%); }
 .route-dashboard-bg { --page-wash: color-mix(in srgb, var(--background) 91%, #22d3ee 9%); }
 .route-markets-bg { --page-wash: color-mix(in srgb, var(--background) 91%, #3b82f6 9%); }
@@ -237,13 +261,24 @@ a[title]:not([aria-label]):not([data-tooltip="false"]):focus-visible::after {
 .route-community-bg { --page-wash: color-mix(in srgb, var(--background) 92%, #8b5cf6 8%); }
 .route-auth-bg { --page-wash: color-mix(in srgb, var(--background) 90%, #059669 10%); }
 .route-support-bg { --page-wash: color-mix(in srgb, var(--background) 91%, #0ea5e9 9%); }
+.route-admin-bg {
+  --page-base: #f8fafc;
+  --page-wash: #f8fafc;
+  --page-line: rgba(15, 23, 42, 0.055);
+}
+
+.dark .route-admin-bg {
+  --page-base: #0b0f12;
+  --page-wash: #0b0f12;
+  --page-line: rgba(255, 255, 255, 0.035);
+}
 
 @media (max-width: 640px) {
   html {
     font-size: 15px;
   }
 
-  .app-main::before {
+  .app-route-surface::after {
     background-size: 42px 42px;
   }
 }
