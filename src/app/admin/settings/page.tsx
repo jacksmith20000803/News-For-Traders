@@ -5,10 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { AdminBackgroundSettingsForm } from "@/components/admin/admin-background-settings-form";
 import { AdminEmailKeySettings } from "@/components/admin/admin-email-key-settings";
 import { AdminTradingBotDownloadSettingsForm } from "@/components/admin/admin-trading-bot-download-settings-form";
-import {
-  TRADING_BOT_DOWNLOAD_URL_SETTING_KEY,
-  TRADING_BOT_LOCAL_DOWNLOAD_URL,
-} from "@/lib/download/trading-bot-links";
+import { TRADING_BOT_LOCAL_DOWNLOAD_URL } from "@/lib/download/trading-bot-links";
+import { getTradingBotDownloadConfig } from "@/lib/download/trading-bot-settings";
 import Link from "next/link";
 
 export default async function AdminSettingsPage() {
@@ -24,11 +22,11 @@ export default async function AdminSettingsPage() {
     },
   });
 
-  const [settings, flags, bgImage, tradingBotDownloadUrl] = await Promise.all([
+  const [settings, flags, bgImage, tradingBotDownloadConfig] = await Promise.all([
     db.siteSetting.findMany(),
     db.featureFlag.findMany(),
     db.siteSetting.findUnique({ where: { key: "platform_background_image" } }),
-    db.siteSetting.findUnique({ where: { key: TRADING_BOT_DOWNLOAD_URL_SETTING_KEY } }),
+    getTradingBotDownloadConfig(),
   ]);
 
   return (
@@ -53,7 +51,7 @@ export default async function AdminSettingsPage() {
         </CardHeader>
         <CardContent>
           <AdminTradingBotDownloadSettingsForm
-            initialDownloadUrl={tradingBotDownloadUrl?.value || ""}
+            initialConfig={tradingBotDownloadConfig}
             fallbackUrl={TRADING_BOT_LOCAL_DOWNLOAD_URL}
           />
         </CardContent>

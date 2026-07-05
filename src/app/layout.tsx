@@ -14,7 +14,7 @@ import { PageLoader } from "@/components/loading/page-loader";
 import { AIChatEntry } from "@/components/layout/ai-chat-entry";
 import { HydrationCleanup } from "@/components/layout/hydration-cleanup";
 import { AdminDownloadSystemAlerts } from "@/components/admin/admin-download-system-alerts";
-import { getTradingBotDownloadUrl } from "@/lib/download/trading-bot-settings";
+import { getTradingBotDownloadConfig } from "@/lib/download/trading-bot-settings";
 import "./globals.css";
 
 const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://tradx.app";
@@ -84,7 +84,7 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const tradingBotDownloadUrl = await getTradingBotDownloadUrl();
+  const tradingBotDownloadConfig = await getTradingBotDownloadConfig();
 
   return (
     <html lang="en" suppressHydrationWarning className="dark h-full">
@@ -115,7 +115,7 @@ export default async function RootLayout({
                       <Footer />
                     </RouteSurface>
                   </div>
-                  <AIChatEntry downloadUrl={tradingBotDownloadUrl} />
+                  <AIChatEntry downloadConfig={tradingBotDownloadConfig} />
                   <AdminDownloadSystemAlerts />
                   <Suspense fallback={null}>
                     <ActivityTracker />

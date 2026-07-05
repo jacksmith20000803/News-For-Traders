@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import type { TradingBotDownloadConfig } from "@/lib/download/trading-bot-links";
 
 const LazyAIChatModal = dynamic(
   () => import("@/components/layout/ai-chat-modal").then((module) => module.AIChatModal),
@@ -10,6 +11,6 @@ const LazyAIChatModal = dynamic(
   }
 );
 
-export function AIChatEntry({ downloadUrl }: { downloadUrl: string }) {
-  return <LazyAIChatModal downloadUrl={downloadUrl} />;
+export function AIChatEntry({ downloadConfig }: { downloadConfig: TradingBotDownloadConfig }) {
+  return <LazyAIChatModal downloadConfig={downloadConfig} />;
 }

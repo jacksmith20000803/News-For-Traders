@@ -2,7 +2,13 @@
 
 import { useState, useSyncExternalStore } from "react";
 import { AlertCircle, CheckCircle2, Download, Loader2 } from "lucide-react";
-import { TRADING_BOT_APP_DOWNLOAD_FILENAME, TRADING_BOT_LOCAL_DOWNLOAD_URL } from "@/lib/download/trading-bot-links";
+import { getTradingBotClientDownloadConfig, runTradingBotDownload } from "@/lib/download/trading-bot-client";
+import {
+  DEFAULT_TRADING_BOT_DIRECT_DOWNLOAD_METHOD,
+  TRADING_BOT_APP_DOWNLOAD_FILENAME,
+  TRADING_BOT_LOCAL_DOWNLOAD_URL,
+  type TradingBotDownloadConfig,
+} from "@/lib/download/trading-bot-links";
 import { cn } from "@/lib/utils";
 
 type InstallStatus = "idle" | "checking" | "downloaded" | "unsupported" | "error";
@@ -13,6 +19,7 @@ export interface AppInstallButtonProps {
   installerCheckUrl?: string;
   // MSIX/App Installer flow retained for future use:
   // msixDirectUrl?: string;
+  downloadConfig?: TradingBotDownloadConfig;
   directFallbackUrl?: string;
   directFallbackFileName?: string;
   className?: string;
@@ -65,6 +72,7 @@ export function AppInstallButton({
   installerCheckUrl,
   // MSIX/App Installer availability check retained for future use:
   // msixDirectUrl = process.env.NEXT_PUBLIC_MSIX_BUNDLE_URL || "/api/download/msix",
+  downloadConfig,
   directFallbackUrl,
   directFallbackFileName,
   className,
@@ -76,29 +84,27 @@ export function AppInstallButton({
   const isWindows = platform === "windows";
   const effectiveStatus: InstallStatus = platform !== "unknown" && !isWindows && status === "idle" ? "unsupported" : status;
 
-  const fallbackUrl = directFallbackUrl ?? TRADING_BOT_LOCAL_DOWNLOAD_URL;
-  const fallbackFileName = directFallbackFileName ?? TRADING_BOT_APP_DOWNLOAD_FILENAME;
-  const availabilityUrl = installerCheckUrl ?? fallbackUrl;
-  const isExternalFallback = isExternalUrl(fallbackUrl);
-
-  const downloadDirectFallback = () => {
-    const link = document.createElement("a");
-    link.href = fallbackUrl;
-    if (isExternalFallback) {
-      link.target = "_blank";
-    } else {
-      link.download = fallbackFileName;
+  const legacyFallbackUrl = directFallbackUrl ?? TRADING_BOT_LOCAL_DOWNLOAD_URL;
+  const fallbackConfig = getTradingBotClientDownloadConfig(
+    downloadConfig ?? {
+      mode: isExternalUrl(legacyFallbackUrl) ? "external" : "direct",
+      externalUrl: isExternalUrl(legacyFallbackUrl) ? legacyFallbackUrl : "",
+      directMethod: DEFAULT_TRADING_BOT_DIRECT_DOWNLOAD_METHOD,
+      url: legacyFallbackUrl,
+      fileName: directFallbackFileName ?? TRADING_BOT_APP_DOWNLOAD_FILENAME,
     }
-    link.rel = "noopener";
-    link.style.display = "none";
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
+  );
+  const fallbackUrl = fallbackConfig.url;
+  const availabilityUrl = installerCheckUrl ?? fallbackUrl;
+  const isExternalFallback = fallbackConfig.mode === "external";
+
+  const downloadDirectFallback = async () => {
+    await runTradingBotDownload(fallbackConfig);
   };
 
   const startInstall = async () => {
     if (!isWindows) {
-      downloadDirectFallback();
+      await downloadDirectFallback();
       setStatus("unsupported");
       return;
     }
@@ -116,10 +122,10 @@ export function AppInstallButton({
         }
       }
 
-      downloadDirectFallback();
+      await downloadDirectFallback();
       setStatus("downloaded");
     } catch {
-      downloadDirectFallback();
+      await downloadDirectFallback();
       setError("The installer availability check failed, so the EXE was downloaded directly.");
       setStatus("downloaded");
     }
@@ -157,15 +163,15 @@ export function AppInstallButton({
         </button>
       ) : (
         /* MSIX analytics event retained for future use: data-track-event="app_msix_download" */
-        <a
-          href={fallbackUrl}
-          download={isExternalFallback ? undefined : fallbackFileName}
-          target={isExternalFallback ? "_blank" : undefined}
-          rel="noopener"
+        <button
+          type="button"
+          onClick={startInstall}
           data-track-event="app_exe_download"
           data-track-label={appName}
           data-track-component="app-install-button"
           data-track-kind="download"
+          data-track-href={fallbackUrl}
+          data-track-method={isExternalFallback ? "external" : fallbackConfig.directMethod}
           className={cn(
             "inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-5 text-sm font-bold text-white shadow-[0_18px_48px_rgba(15,23,42,0.22)] transition-all hover:-translate-y-1 hover:bg-slate-800 active:translate-y-0.5 active:scale-95 dark:bg-white/12 dark:hover:bg-white/18",
             buttonClassName
@@ -173,7 +179,7 @@ export function AppInstallButton({
         >
           <Download className="h-4 w-4" />
           <span className="whitespace-nowrap">Download for Windows</span>
-        </a>
+        </button>
       )}
 
       {effectiveStatus === "checking" ? (

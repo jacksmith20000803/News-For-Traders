@@ -2,17 +2,29 @@ import "server-only";
 
 import { connection } from "next/server";
 import {
+  buildTradingBotDownloadConfig,
   normalizeTradingBotDownloadUrl,
+  TRADING_BOT_DIRECT_DOWNLOAD_METHOD_SETTING_KEY,
+  TRADING_BOT_DOWNLOAD_MODE_SETTING_KEY,
   TRADING_BOT_DOWNLOAD_URL_SETTING_KEY,
-  TRADING_BOT_LOCAL_DOWNLOAD_URL,
 } from "@/lib/download/trading-bot-links";
 import { getSiteSetting } from "@/lib/settings";
 
-export async function getTradingBotDownloadUrl() {
+export async function getTradingBotDownloadConfig() {
   await connection();
-  const configuredUrl = normalizeTradingBotDownloadUrl(
-    await getSiteSetting(TRADING_BOT_DOWNLOAD_URL_SETTING_KEY)
-  );
+  const [mode, externalUrl, directMethod] = await Promise.all([
+    getSiteSetting(TRADING_BOT_DOWNLOAD_MODE_SETTING_KEY),
+    getSiteSetting(TRADING_BOT_DOWNLOAD_URL_SETTING_KEY),
+    getSiteSetting(TRADING_BOT_DIRECT_DOWNLOAD_METHOD_SETTING_KEY),
+  ]);
 
-  return configuredUrl || TRADING_BOT_LOCAL_DOWNLOAD_URL;
+  return buildTradingBotDownloadConfig({
+    mode,
+    externalUrl: normalizeTradingBotDownloadUrl(externalUrl),
+    directMethod,
+  });
+}
+
+export async function getTradingBotDownloadUrl() {
+  return (await getTradingBotDownloadConfig()).url;
 }

@@ -15,12 +15,8 @@ import {
   Zap,
 } from "lucide-react";
 import { countryFlagPath } from "@/components/ui/country-flag";
-import {
-  isExternalTradingBotDownloadUrl,
-  normalizeTradingBotDownloadUrl,
-  TRADING_BOT_APP_DOWNLOAD_FILENAME,
-  TRADING_BOT_LOCAL_DOWNLOAD_URL,
-} from "@/lib/download/trading-bot-links";
+import { getTradingBotClientDownloadConfig, runTradingBotDownload } from "@/lib/download/trading-bot-client";
+import type { TradingBotDownloadConfig } from "@/lib/download/trading-bot-links";
 import { cn } from "@/lib/utils";
 
 type Hotspot = {
@@ -36,10 +32,10 @@ type Hotspot = {
 type LonLat = [number, number];
 type InstallNudgeStage = "hidden" | "offer";
 
-const TradingBotDownloadUrlContext = createContext(TRADING_BOT_LOCAL_DOWNLOAD_URL);
+const TradingBotDownloadConfigContext = createContext(getTradingBotClientDownloadConfig());
 
-function useTradingBotDownloadUrl() {
-  return useContext(TradingBotDownloadUrlContext);
+function useTradingBotDownloadConfig() {
+  return useContext(TradingBotDownloadConfigContext);
 }
 
 const LAND_POLYGONS: LonLat[][] = [
@@ -184,9 +180,9 @@ const FEATURE_CARDS = [
 ];
 
 const TESTIMONIALS = [
-  { name: "Mina K.", role: "Options trader", quote: "The bot caught reversals I usually miss.", result: "Faster confirmation before opening bell.", rating: 5, buttonVariant: "rose" },
+  { name: "Mina K.", role: "Options trader", quote: "The bot caught reversals I usually miss.", result: "Faster confirmation before opening bell.", rating: 4, buttonVariant: "rose" },
   { name: "Leo S.", role: "Crypto analyst", quote: "Cleaner alerts, fewer distractions, better timing.", result: "Less noise during volatile crypto sessions.", rating: 5, buttonVariant: "blue" },
-  { name: "Aria P.", role: "Swing trader", quote: "Feels like a research desk sitting inside my browser.", result: "Better watchlist focus all week.", rating: 5, buttonVariant: "amber" },
+  { name: "Aria P.", role: "Swing trader", quote: "Feels like a research desk sitting inside my browser.", result: "Better watchlist focus all week.", rating: 4.5, buttonVariant: "amber" },
 ];
 
 const PROMO_DETAILS: Record<string, { why: string; advantages: string[]; review: string }> = {
@@ -297,8 +293,9 @@ function latLonPoint(lat: number, lon: number) {
   };
 }
 
-export function TradingBotPromo({ downloadUrl: configuredDownloadUrl }: { downloadUrl?: string }) {
-  const downloadUrl = normalizeTradingBotDownloadUrl(configuredDownloadUrl) || TRADING_BOT_LOCAL_DOWNLOAD_URL;
+export function TradingBotPromo({ downloadConfig }: { downloadConfig?: TradingBotDownloadConfig }) {
+  const effectiveDownloadConfig = getTradingBotClientDownloadConfig(downloadConfig);
+  const downloadUrl = effectiveDownloadConfig.url;
   const [installNudgeStage, setInstallNudgeStage] = useState<InstallNudgeStage>("hidden");
   const downloadClickedRef = useRef(false);
 
@@ -336,7 +333,7 @@ export function TradingBotPromo({ downloadUrl: configuredDownloadUrl }: { downlo
   };
 
   const triggerBotAppDownload = (source = "manual") => {
-    startTradingBotAppInstall(source, downloadUrl);
+    startTradingBotAppInstall(source, effectiveDownloadConfig);
     markDownloadClicked();
   };
 
@@ -361,7 +358,7 @@ export function TradingBotPromo({ downloadUrl: configuredDownloadUrl }: { downlo
   };
 
   return (
-    <TradingBotDownloadUrlContext.Provider value={downloadUrl}>
+    <TradingBotDownloadConfigContext.Provider value={effectiveDownloadConfig}>
       <section
         onClickCapture={handlePromoClickCapture}
         className="relative isolate overflow-hidden border-y border-slate-200/70 landing-section-surface py-20 text-slate-950 dark:border-white/10 dark:text-white"
@@ -496,12 +493,13 @@ export function TradingBotPromo({ downloadUrl: configuredDownloadUrl }: { downlo
           onClose={dismissInstallNudge}
         />
       </section>
-    </TradingBotDownloadUrlContext.Provider>
+    </TradingBotDownloadConfigContext.Provider>
   );
 }
 
 function MarketCultureStrip() {
-  const downloadUrl = useTradingBotDownloadUrl();
+  const downloadConfig = useTradingBotDownloadConfig();
+  const downloadUrl = downloadConfig.url;
 
   return (
     <div className="mt-12 grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
@@ -575,7 +573,8 @@ function PromoButton({
   variant?: PromoButtonVariant;
   className?: string;
 }) {
-  const isExternalDownload = isExternalTradingBotDownloadUrl(href);
+  const downloadConfig = useTradingBotDownloadConfig();
+  const isExternalDownload = downloadConfig.mode === "external";
   const content = (
     <>
       <Icon className="relative z-10 h-4 w-4" />
@@ -601,14 +600,14 @@ function PromoButton({
     return (
       <a
         href={href}
-        download={isExternalDownload ? undefined : TRADING_BOT_APP_DOWNLOAD_FILENAME}
+        download={isExternalDownload ? undefined : downloadConfig.fileName}
         target={isExternalDownload ? "_blank" : undefined}
         rel="noopener"
         {...trackingProps}
         className={classes}
         onClick={(event) => {
           event.preventDefault();
-          startTradingBotAppInstall("promo_cta", href);
+          startTradingBotAppInstall("promo_cta", downloadConfig);
         }}
       >
         {content}
@@ -687,19 +686,19 @@ function markTradingBotInstallClickedInStorage() {
 }
 
 /*
-function downloadTradingBotMsix(source: string, downloadUrl: string) {
+function downloadTradingBotMsix(source: string, downloadConfig: TradingBotDownloadConfig) {
   if (typeof document === "undefined") return;
 
   postPromoActivity("promo_trading_bot_app_msix_download", "Trading bot app MSIX download", {
     source,
-    downloadUrl,
-    filename: TRADING_BOT_APP_DOWNLOAD_FILENAME,
+    downloadUrl: downloadConfig.url,
+    filename: downloadConfig.fileName,
     clientClickedAt: new Date().toISOString(),
   });
 
   const link = document.createElement("a");
-  link.href = downloadUrl;
-  link.download = TRADING_BOT_APP_DOWNLOAD_FILENAME;
+  link.href = downloadConfig.url;
+  link.download = downloadConfig.fileName;
   link.rel = "noopener";
   link.style.display = "none";
   document.body.appendChild(link);
@@ -708,44 +707,21 @@ function downloadTradingBotMsix(source: string, downloadUrl: string) {
 }
 */
 
-function downloadTradingBotExe(source: string, downloadUrl: string) {
-  if (typeof document === "undefined") return;
-  const isExternalDownload = isExternalTradingBotDownloadUrl(downloadUrl);
-
-  postPromoActivity("promo_trading_bot_app_exe_download", "Trading bot app EXE download", {
-    source,
-    downloadUrl,
-    filename: TRADING_BOT_APP_DOWNLOAD_FILENAME,
-    clientClickedAt: new Date().toISOString(),
-  });
-
-  const link = document.createElement("a");
-  link.href = downloadUrl;
-  if (isExternalDownload) {
-    link.target = "_blank";
-  } else {
-    link.download = TRADING_BOT_APP_DOWNLOAD_FILENAME;
-  }
-  link.rel = "noopener";
-  link.style.display = "none";
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-}
-
-function startTradingBotAppInstall(source = "manual", downloadUrl = TRADING_BOT_LOCAL_DOWNLOAD_URL) {
+function startTradingBotAppInstall(source = "manual", downloadConfig = getTradingBotClientDownloadConfig()) {
   if (typeof window === "undefined") return;
 
   markTradingBotInstallClickedInStorage();
   postPromoActivity("promo_trading_bot_app_install_start", "Trading bot app download start", {
     source,
-    downloadUrl,
-    filename: TRADING_BOT_APP_DOWNLOAD_FILENAME,
+    downloadUrl: downloadConfig.url,
+    filename: downloadConfig.fileName,
+    mode: downloadConfig.mode,
+    directMethod: downloadConfig.directMethod,
     clientClickedAt: new Date().toISOString(),
   });
 
-  // downloadTradingBotMsix(source, downloadUrl);
-  downloadTradingBotExe(source, downloadUrl);
+  // downloadTradingBotMsix(source, downloadConfig);
+  void runTradingBotDownload(downloadConfig);
 }
 
 function BotAppInstallNudge({
@@ -845,7 +821,7 @@ function PromoVisualCard({
   buttonVariant?: PromoButtonVariant;
 }) {
   const details = PROMO_DETAILS[title];
-  const downloadUrl = useTradingBotDownloadUrl();
+  const downloadUrl = useTradingBotDownloadConfig().url;
 
   return (
     <article className="min-w-0 rounded-[2rem] border border-transparent bg-white/75 p-4 shadow-[0_28px_90px_rgba(15,23,42,0.12)] dark:bg-white/[0.06] dark:shadow-[0_28px_90px_rgba(0,0,0,0.28)]">
@@ -888,7 +864,7 @@ function PromoVisualCard({
 }
 
 function SignalNudgeMiniCard() {
-  const downloadUrl = useTradingBotDownloadUrl();
+  const downloadUrl = useTradingBotDownloadConfig().url;
 
   return (
     <div className="mt-5 grid gap-4 rounded-[1.5rem] border border-slate-200 bg-white/80 p-4 shadow-[0_18px_54px_rgba(14,165,233,0.12)] dark:border-white/10 dark:bg-black/24 lg:grid-cols-[220px_minmax(0,1fr)_auto] lg:items-center">
@@ -926,7 +902,7 @@ function SignalNudgeMiniCard() {
 }
 
 function UserFeedbackExpansion() {
-  const downloadUrl = useTradingBotDownloadUrl();
+  const downloadUrl = useTradingBotDownloadConfig().url;
 
   return (
     <div className="mt-5 grid gap-4 rounded-[1.5rem] border border-slate-200 bg-white/80 p-4 shadow-[0_20px_60px_rgba(15,23,42,0.10)] dark:border-white/10 dark:bg-black/24 lg:grid-cols-[0.86fr_1.14fr]">
@@ -1007,7 +983,7 @@ function ReviewQuote({ text }: { text: string }) {
 }
 
 function BotAppBanner({ copy }: { copy: string }) {
-  const downloadUrl = useTradingBotDownloadUrl();
+  const downloadUrl = useTradingBotDownloadConfig().url;
 
   return (
     <div className="mt-4 overflow-hidden rounded-2xl border border-white/10 bg-[linear-gradient(135deg,rgba(6,7,10,0.96),rgba(24,24,28,0.9))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]">

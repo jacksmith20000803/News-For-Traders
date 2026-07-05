@@ -4,12 +4,12 @@ import { ContactSection } from "@/components/landing/contact-section";
 import { CoinPricesSection } from "@/components/landing/coin-prices-section";
 import { HomeAuthRedirect } from "@/components/auth/home-auth-redirect";
 import { TradingBotPromo } from "@/components/landing/trading-bot-promo";
-import { getTradingBotDownloadUrl } from "@/lib/download/trading-bot-settings";
+import { getTradingBotDownloadConfig } from "@/lib/download/trading-bot-settings";
 
 const DISPLAYED_COINS = ["BTC", "ETH", "SOL", "XRP", "ADA", "DOGE"];
 
 export default async function HomePage() {
-  const tradingBotDownloadUrl = await getTradingBotDownloadUrl();
+  const tradingBotDownloadConfig = await getTradingBotDownloadConfig();
 
   return (
     <>
@@ -21,7 +21,7 @@ export default async function HomePage() {
         <CoinPricesSection />
       </div>
       <div id="best-bot" className="scroll-mt-20">
-        <TradingBotPromo downloadUrl={tradingBotDownloadUrl} />
+        <TradingBotPromo downloadConfig={tradingBotDownloadConfig} />
       </div>
       <div id="news" className="scroll-mt-20">
         <NewsSection coinSymbols={DISPLAYED_COINS} />
