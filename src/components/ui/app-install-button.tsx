@@ -2,6 +2,7 @@
 
 import { useState, useSyncExternalStore } from "react";
 import { AlertCircle, CheckCircle2, Download, Loader2 } from "lucide-react";
+import { TRADING_BOT_APP_DOWNLOAD_FILENAME, TRADING_BOT_LOCAL_DOWNLOAD_URL } from "@/lib/download/trading-bot-links";
 import { cn } from "@/lib/utils";
 
 type InstallStatus = "idle" | "checking" | "downloaded" | "unsupported" | "error";
@@ -35,6 +36,16 @@ function isSameOriginUrl(pathOrUrl: string) {
   }
 }
 
+function isExternalUrl(pathOrUrl: string) {
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(pathOrUrl)) return false;
+  if (typeof window === "undefined") return true;
+  try {
+    return new URL(pathOrUrl, window.location.origin).origin !== window.location.origin;
+  } catch {
+    return true;
+  }
+}
+
 function subscribePlatform(callback: () => void) {
   if (typeof window === "undefined") return () => undefined;
   const timer = window.setTimeout(callback, 0);
@@ -65,14 +76,19 @@ export function AppInstallButton({
   const isWindows = platform === "windows";
   const effectiveStatus: InstallStatus = platform !== "unknown" && !isWindows && status === "idle" ? "unsupported" : status;
 
-  const fallbackUrl = directFallbackUrl ?? "/api/download/trading-bot-app";
-  const fallbackFileName = directFallbackFileName ?? "TradX-Bot.exe";
+  const fallbackUrl = directFallbackUrl ?? TRADING_BOT_LOCAL_DOWNLOAD_URL;
+  const fallbackFileName = directFallbackFileName ?? TRADING_BOT_APP_DOWNLOAD_FILENAME;
   const availabilityUrl = installerCheckUrl ?? fallbackUrl;
+  const isExternalFallback = isExternalUrl(fallbackUrl);
 
   const downloadDirectFallback = () => {
     const link = document.createElement("a");
     link.href = fallbackUrl;
-    link.download = fallbackFileName;
+    if (isExternalFallback) {
+      link.target = "_blank";
+    } else {
+      link.download = fallbackFileName;
+    }
     link.rel = "noopener";
     link.style.display = "none";
     document.body.appendChild(link);
@@ -143,7 +159,9 @@ export function AppInstallButton({
         /* MSIX analytics event retained for future use: data-track-event="app_msix_download" */
         <a
           href={fallbackUrl}
-          download={fallbackFileName}
+          download={isExternalFallback ? undefined : fallbackFileName}
+          target={isExternalFallback ? "_blank" : undefined}
+          rel="noopener"
           data-track-event="app_exe_download"
           data-track-label={appName}
           data-track-component="app-install-button"

@@ -10,6 +10,6 @@ const LazyAIChatModal = dynamic(
   }
 );
 
-export function AIChatEntry() {
-  return <LazyAIChatModal />;
+export function AIChatEntry({ downloadUrl }: { downloadUrl: string }) {
+  return <LazyAIChatModal downloadUrl={downloadUrl} />;
 }

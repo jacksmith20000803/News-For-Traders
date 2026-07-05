@@ -25,6 +25,11 @@ import {
   loadPuterChatHistory,
   type ChatAttachment,
 } from "@/lib/puter/client";
+import {
+  isExternalTradingBotDownloadUrl,
+  TRADING_BOT_APP_DOWNLOAD_FILENAME,
+  TRADING_BOT_LOCAL_DOWNLOAD_URL,
+} from "@/lib/download/trading-bot-links";
 import { cn } from "@/lib/utils";
 
 interface Message {
@@ -44,7 +49,7 @@ interface AttachmentDraft {
 const MAX_ATTACHMENT_SIZE_BYTES = 5 * 1024 * 1024;
 const MAX_ATTACHMENTS = 4;
 
-export function AIChatModal() {
+export function AIChatModal({ downloadUrl = TRADING_BOT_LOCAL_DOWNLOAD_URL }: { downloadUrl?: string }) {
   const [open, setOpen] = useState(false);
   const [closing, setClosing] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -617,13 +622,15 @@ export function AIChatModal() {
       }`}>
         {/* MSIX download filename retained for future use: download="trading-bot-app.msix" */}
         <a
-          href="/api/download/trading-bot-app"
-          download="TradX-Bot.exe"
+          href={downloadUrl}
+          target={isExternalTradingBotDownloadUrl(downloadUrl) ? "_blank" : undefined}
+          rel={isExternalTradingBotDownloadUrl(downloadUrl) ? "noopener" : undefined}
+          download={isExternalTradingBotDownloadUrl(downloadUrl) ? undefined : TRADING_BOT_APP_DOWNLOAD_FILENAME}
           data-track-event="promo_download_click"
           data-track-label="Download Trading Bot"
           data-track-component="trading-bot-promo"
           data-track-kind="download"
-          data-track-href="/api/download/trading-bot-app"
+          data-track-href={downloadUrl}
           className="tradx-rotating-gradient-button group relative inline-flex min-h-11 w-full items-center justify-center gap-2 overflow-hidden rounded-2xl px-5 text-sm font-bold text-white shadow-[0_18px_48px_rgba(139,92,246,0.35)] transition-all hover:-translate-y-1 hover:brightness-110 active:translate-y-0.5 active:scale-95"
         >
           <PlugZap className="relative z-10 h-4 w-4" aria-hidden="true" />

@@ -2,6 +2,7 @@ import { config } from "dotenv";
 config({ path: ".env" });
 
 import { db as prisma } from "../src/lib/db";
+import { TRADING_BOT_DOWNLOAD_URL_SETTING_KEY } from "../src/lib/download/trading-bot-links";
 import * as argon2 from "argon2";
 
 async function main() {
@@ -73,6 +74,12 @@ async function main() {
     where: { key: "platform_background_image" },
     update: {},
     create: { key: "platform_background_image", value: "" },
+  });
+
+  await prisma.siteSetting.upsert({
+    where: { key: TRADING_BOT_DOWNLOAD_URL_SETTING_KEY },
+    update: {},
+    create: { key: TRADING_BOT_DOWNLOAD_URL_SETTING_KEY, value: "" },
   });
 
   // Asset profiles for detail pages

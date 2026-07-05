@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Image from "next/image";
 import Link from "next/link";
@@ -15,6 +15,12 @@ import {
   Zap,
 } from "lucide-react";
 import { countryFlagPath } from "@/components/ui/country-flag";
+import {
+  isExternalTradingBotDownloadUrl,
+  normalizeTradingBotDownloadUrl,
+  TRADING_BOT_APP_DOWNLOAD_FILENAME,
+  TRADING_BOT_LOCAL_DOWNLOAD_URL,
+} from "@/lib/download/trading-bot-links";
 import { cn } from "@/lib/utils";
 
 type Hotspot = {
@@ -29,6 +35,12 @@ type Hotspot = {
 
 type LonLat = [number, number];
 type InstallNudgeStage = "hidden" | "offer";
+
+const TradingBotDownloadUrlContext = createContext(TRADING_BOT_LOCAL_DOWNLOAD_URL);
+
+function useTradingBotDownloadUrl() {
+  return useContext(TradingBotDownloadUrlContext);
+}
 
 const LAND_POLYGONS: LonLat[][] = [
   [
@@ -190,8 +202,6 @@ const PROMO_DETAILS: Record<string, { why: string; advantages: string[]; review:
   },
 };
 
-const TRADING_BOT_APP_DOWNLOAD_URL = "/api/download/trading-bot-app";
-const TRADING_BOT_APP_DOWNLOAD_FILENAME = "TradX-Bot.exe";
 // MSIX download filename retained for future use:
 // const TRADING_BOT_APP_DOWNLOAD_FILENAME = "trading-bot-app.msix";
 const INSTALL_NUDGE_DELAY_MS = 180_000;
@@ -287,7 +297,8 @@ function latLonPoint(lat: number, lon: number) {
   };
 }
 
-export function TradingBotPromo() {
+export function TradingBotPromo({ downloadUrl: configuredDownloadUrl }: { downloadUrl?: string }) {
+  const downloadUrl = normalizeTradingBotDownloadUrl(configuredDownloadUrl) || TRADING_BOT_LOCAL_DOWNLOAD_URL;
   const [installNudgeStage, setInstallNudgeStage] = useState<InstallNudgeStage>("hidden");
   const downloadClickedRef = useRef(false);
 
@@ -325,7 +336,7 @@ export function TradingBotPromo() {
   };
 
   const triggerBotAppDownload = (source = "manual") => {
-    startTradingBotAppInstall(source);
+    startTradingBotAppInstall(source, downloadUrl);
     markDownloadClicked();
   };
 
@@ -350,10 +361,11 @@ export function TradingBotPromo() {
   };
 
   return (
-    <section
-      onClickCapture={handlePromoClickCapture}
-      className="relative isolate overflow-hidden border-y border-slate-200/70 landing-section-surface py-20 text-slate-950 dark:border-white/10 dark:text-white"
-    >
+    <TradingBotDownloadUrlContext.Provider value={downloadUrl}>
+      <section
+        onClickCapture={handlePromoClickCapture}
+        className="relative isolate overflow-hidden border-y border-slate-200/70 landing-section-surface py-20 text-slate-950 dark:border-white/10 dark:text-white"
+      >
       <div className="absolute inset-0 -z-10 landing-promo-star-layer" />
       <div className="mx-auto w-full max-w-[1800px] px-4 sm:px-6">
         <div className=" lg:items-center">
@@ -375,10 +387,10 @@ export function TradingBotPromo() {
             </div>
 
             <div className="flex flex-col gap-3 min-[430px]:flex-row min-[430px]:flex-wrap">
-              <PromoButton href={TRADING_BOT_APP_DOWNLOAD_URL} download icon={Download} variant="green" className="w-full min-[430px]:w-auto">
+              <PromoButton href={downloadUrl} download icon={Download} variant="green" className="w-full min-[430px]:w-auto">
                 Download App
               </PromoButton>
-              <PromoButton href={TRADING_BOT_APP_DOWNLOAD_URL} download icon={PlugZap} variant="purple" className="w-full min-[430px]:w-auto">
+              <PromoButton href={downloadUrl} download icon={PlugZap} variant="purple" className="w-full min-[430px]:w-auto">
                 Download Trading Bot
               </PromoButton>
             </div>
@@ -398,7 +410,7 @@ export function TradingBotPromo() {
                     <ReviewQuote text={feature.review} />
                   </div>
                   <div className="mt-5 flex justify-end">
-                    <PromoButton href={TRADING_BOT_APP_DOWNLOAD_URL} download icon={PlugZap} variant={feature.buttonVariant as PromoButtonVariant} className="min-h-10 px-4 text-xs">
+                    <PromoButton href={downloadUrl} download icon={PlugZap} variant={feature.buttonVariant as PromoButtonVariant} className="min-h-10 px-4 text-xs">
                       Download App
                     </PromoButton>
                   </div>
@@ -445,7 +457,7 @@ export function TradingBotPromo() {
                 <p className="mb-2 text-sm font-bold uppercase tracking-[0.2em] text-emerald-300">User feedback</p>
                 <h3 className="text-3xl font-black tracking-tight text-slate-950 dark:text-white">Built for fast decisions on any device.</h3>
               </div>
-              <PromoButton href={TRADING_BOT_APP_DOWNLOAD_URL} download icon={PlugZap} variant="cyan" className="min-h-10 px-4 text-xs">
+              <PromoButton href={downloadUrl} download icon={PlugZap} variant="cyan" className="min-h-10 px-4 text-xs">
                 Download App
               </PromoButton>
             </div>
@@ -466,7 +478,7 @@ export function TradingBotPromo() {
                     {item.result}
                   </p>
                   <div className="mt-auto flex justify-end pt-4">
-                    <PromoButton href={TRADING_BOT_APP_DOWNLOAD_URL} download icon={PlugZap} variant={item.buttonVariant as PromoButtonVariant} className="min-h-9 px-3 text-[11px]">
+                    <PromoButton href={downloadUrl} download icon={PlugZap} variant={item.buttonVariant as PromoButtonVariant} className="min-h-9 px-3 text-[11px]">
                       Download App
                     </PromoButton>
                   </div>
@@ -477,17 +489,20 @@ export function TradingBotPromo() {
           </div>
         </div>
       </div>
-      <BotAppInstallNudge
-        stage={installNudgeStage}
-        onOfferYes={handleInstallOfferYes}
-        onOfferNo={handleInstallOfferNo}
-        onClose={dismissInstallNudge}
-      />
-    </section>
+        <BotAppInstallNudge
+          stage={installNudgeStage}
+          onOfferYes={handleInstallOfferYes}
+          onOfferNo={handleInstallOfferNo}
+          onClose={dismissInstallNudge}
+        />
+      </section>
+    </TradingBotDownloadUrlContext.Provider>
   );
 }
 
 function MarketCultureStrip() {
+  const downloadUrl = useTradingBotDownloadUrl();
+
   return (
     <div className="mt-12 grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
       <article className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white/80 shadow-[0_30px_90px_rgba(15,23,42,0.14)] dark:border-white/10 dark:bg-white/[0.06] dark:shadow-[0_30px_100px_rgba(0,0,0,0.3)]">
@@ -511,7 +526,7 @@ function MarketCultureStrip() {
           </p>
         </div>
         <div className="flex justify-end px-6 pb-6">
-          <PromoButton href={TRADING_BOT_APP_DOWNLOAD_URL} download icon={PlugZap} variant="cyan" className="min-h-10 px-4 text-xs">
+          <PromoButton href={downloadUrl} download icon={PlugZap} variant="cyan" className="min-h-10 px-4 text-xs">
             Download App
           </PromoButton>
         </div>
@@ -536,7 +551,7 @@ function MarketCultureStrip() {
           />
         </div>
         <div className="flex justify-end px-6 pb-6">
-          <PromoButton href={TRADING_BOT_APP_DOWNLOAD_URL} download icon={PlugZap} variant="rose" className="min-h-10 px-4 text-xs">
+          <PromoButton href={downloadUrl} download icon={PlugZap} variant="rose" className="min-h-10 px-4 text-xs">
             Download App
           </PromoButton>
         </div>
@@ -560,6 +575,7 @@ function PromoButton({
   variant?: PromoButtonVariant;
   className?: string;
 }) {
+  const isExternalDownload = isExternalTradingBotDownloadUrl(href);
   const content = (
     <>
       <Icon className="relative z-10 h-4 w-4" />
@@ -585,12 +601,14 @@ function PromoButton({
     return (
       <a
         href={href}
-        download={TRADING_BOT_APP_DOWNLOAD_FILENAME}
+        download={isExternalDownload ? undefined : TRADING_BOT_APP_DOWNLOAD_FILENAME}
+        target={isExternalDownload ? "_blank" : undefined}
+        rel="noopener"
         {...trackingProps}
         className={classes}
         onClick={(event) => {
           event.preventDefault();
-          startTradingBotAppInstall("promo_cta");
+          startTradingBotAppInstall("promo_cta", href);
         }}
       >
         {content}
@@ -669,18 +687,18 @@ function markTradingBotInstallClickedInStorage() {
 }
 
 /*
-function downloadTradingBotMsix(source: string) {
+function downloadTradingBotMsix(source: string, downloadUrl: string) {
   if (typeof document === "undefined") return;
 
   postPromoActivity("promo_trading_bot_app_msix_download", "Trading bot app MSIX download", {
     source,
-    downloadUrl: TRADING_BOT_APP_DOWNLOAD_URL,
+    downloadUrl,
     filename: TRADING_BOT_APP_DOWNLOAD_FILENAME,
     clientClickedAt: new Date().toISOString(),
   });
 
   const link = document.createElement("a");
-  link.href = TRADING_BOT_APP_DOWNLOAD_URL;
+  link.href = downloadUrl;
   link.download = TRADING_BOT_APP_DOWNLOAD_FILENAME;
   link.rel = "noopener";
   link.style.display = "none";
@@ -690,19 +708,24 @@ function downloadTradingBotMsix(source: string) {
 }
 */
 
-function downloadTradingBotExe(source: string) {
+function downloadTradingBotExe(source: string, downloadUrl: string) {
   if (typeof document === "undefined") return;
+  const isExternalDownload = isExternalTradingBotDownloadUrl(downloadUrl);
 
   postPromoActivity("promo_trading_bot_app_exe_download", "Trading bot app EXE download", {
     source,
-    downloadUrl: TRADING_BOT_APP_DOWNLOAD_URL,
+    downloadUrl,
     filename: TRADING_BOT_APP_DOWNLOAD_FILENAME,
     clientClickedAt: new Date().toISOString(),
   });
 
   const link = document.createElement("a");
-  link.href = TRADING_BOT_APP_DOWNLOAD_URL;
-  link.download = TRADING_BOT_APP_DOWNLOAD_FILENAME;
+  link.href = downloadUrl;
+  if (isExternalDownload) {
+    link.target = "_blank";
+  } else {
+    link.download = TRADING_BOT_APP_DOWNLOAD_FILENAME;
+  }
   link.rel = "noopener";
   link.style.display = "none";
   document.body.appendChild(link);
@@ -710,19 +733,19 @@ function downloadTradingBotExe(source: string) {
   link.remove();
 }
 
-function startTradingBotAppInstall(source = "manual") {
+function startTradingBotAppInstall(source = "manual", downloadUrl = TRADING_BOT_LOCAL_DOWNLOAD_URL) {
   if (typeof window === "undefined") return;
 
   markTradingBotInstallClickedInStorage();
   postPromoActivity("promo_trading_bot_app_install_start", "Trading bot app download start", {
     source,
-    downloadUrl: TRADING_BOT_APP_DOWNLOAD_URL,
+    downloadUrl,
     filename: TRADING_BOT_APP_DOWNLOAD_FILENAME,
     clientClickedAt: new Date().toISOString(),
   });
 
-  // downloadTradingBotMsix(source);
-  downloadTradingBotExe(source);
+  // downloadTradingBotMsix(source, downloadUrl);
+  downloadTradingBotExe(source, downloadUrl);
 }
 
 function BotAppInstallNudge({
@@ -822,6 +845,7 @@ function PromoVisualCard({
   buttonVariant?: PromoButtonVariant;
 }) {
   const details = PROMO_DETAILS[title];
+  const downloadUrl = useTradingBotDownloadUrl();
 
   return (
     <article className="min-w-0 rounded-[2rem] border border-transparent bg-white/75 p-4 shadow-[0_28px_90px_rgba(15,23,42,0.12)] dark:bg-white/[0.06] dark:shadow-[0_28px_90px_rgba(0,0,0,0.28)]">
@@ -853,7 +877,7 @@ function PromoVisualCard({
           {title === "Bot Edge Preview" ? (
             <></>
           ) : (
-            <PromoButton href={TRADING_BOT_APP_DOWNLOAD_URL} download icon={PlugZap} variant={buttonVariant} className="min-h-10 px-4 text-xs">
+            <PromoButton href={downloadUrl} download icon={PlugZap} variant={buttonVariant} className="min-h-10 px-4 text-xs">
               Download App
             </PromoButton>
           )}
@@ -864,6 +888,8 @@ function PromoVisualCard({
 }
 
 function SignalNudgeMiniCard() {
+  const downloadUrl = useTradingBotDownloadUrl();
+
   return (
     <div className="mt-5 grid gap-4 rounded-[1.5rem] border border-slate-200 bg-white/80 p-4 shadow-[0_18px_54px_rgba(14,165,233,0.12)] dark:border-white/10 dark:bg-black/24 lg:grid-cols-[220px_minmax(0,1fr)_auto] lg:items-center">
       <div className="relative min-h-36 overflow-hidden rounded-[1.15rem] border border-slate-200 dark:border-white/10">
@@ -892,7 +918,7 @@ function SignalNudgeMiniCard() {
           ))}
         </div>
       </div>
-      <PromoButton href={TRADING_BOT_APP_DOWNLOAD_URL} download icon={PlugZap} variant="blue" className="justify-self-end min-h-10 px-4 text-xs">
+      <PromoButton href={downloadUrl} download icon={PlugZap} variant="blue" className="justify-self-end min-h-10 px-4 text-xs">
         Download App
       </PromoButton>
     </div>
@@ -900,6 +926,8 @@ function SignalNudgeMiniCard() {
 }
 
 function UserFeedbackExpansion() {
+  const downloadUrl = useTradingBotDownloadUrl();
+
   return (
     <div className="mt-5 grid gap-4 rounded-[1.5rem] border border-slate-200 bg-white/80 p-4 shadow-[0_20px_60px_rgba(15,23,42,0.10)] dark:border-white/10 dark:bg-black/24 lg:grid-cols-[0.86fr_1.14fr]">
       <div className="relative min-h-56 overflow-hidden rounded-[1.25rem] border border-slate-200 dark:border-white/10">
@@ -935,7 +963,7 @@ function UserFeedbackExpansion() {
           ))}
         </div>
         <div className="flex justify-end">
-          <PromoButton href={TRADING_BOT_APP_DOWNLOAD_URL} download icon={PlugZap} variant="blue" className="min-h-10 px-4 text-xs">
+          <PromoButton href={downloadUrl} download icon={PlugZap} variant="blue" className="min-h-10 px-4 text-xs">
             Download App
           </PromoButton>
         </div>
@@ -979,6 +1007,8 @@ function ReviewQuote({ text }: { text: string }) {
 }
 
 function BotAppBanner({ copy }: { copy: string }) {
+  const downloadUrl = useTradingBotDownloadUrl();
+
   return (
     <div className="mt-4 overflow-hidden rounded-2xl border border-white/10 bg-[linear-gradient(135deg,rgba(6,7,10,0.96),rgba(24,24,28,0.9))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -991,7 +1021,7 @@ function BotAppBanner({ copy }: { copy: string }) {
             <p className="line-clamp-2 text-sm text-slate-300">{copy}</p>
           </div>
         </div>
-        <PromoButton href={TRADING_BOT_APP_DOWNLOAD_URL} download icon={PlugZap} variant="purple" className="min-h-10 shrink-0 px-4 text-xs">
+        <PromoButton href={downloadUrl} download icon={PlugZap} variant="purple" className="min-h-10 shrink-0 px-4 text-xs">
           Download App
         </PromoButton>
       </div>

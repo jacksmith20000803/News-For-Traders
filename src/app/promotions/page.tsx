@@ -1,12 +1,16 @@
 import Image from "next/image";
 import { AppInstallButton } from "@/components/ui/app-install-button";
+import { getTradingBotDownloadUrl } from "@/lib/download/trading-bot-settings";
+import { TRADING_BOT_APP_DOWNLOAD_FILENAME } from "@/lib/download/trading-bot-links";
 
 export const metadata = {
   title: "TradX Trading Bot Download",
   description: "Download the TradX Windows trading bot installer.",
 };
 
-export default function PromotionsPage() {
+export default async function PromotionsPage() {
+  const tradingBotDownloadUrl = await getTradingBotDownloadUrl();
+
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_15%_10%,rgba(16,185,129,0.12),transparent_34%),radial-gradient(circle_at_86%_18%,rgba(59,130,246,0.16),transparent_32%),#050708] px-4 py-16 text-white sm:px-6">
       <section className="mx-auto grid w-full max-w-6xl gap-8 rounded-[2rem] border border-white/10 bg-white/[0.06] p-5 shadow-[0_30px_120px_rgba(0,0,0,0.4)] backdrop-blur-xl lg:grid-cols-[0.95fr_1.05fr] lg:p-8">
@@ -34,8 +38,8 @@ export default function PromotionsPage() {
             */}
             <AppInstallButton
               appName="Trading Bot"
-              directFallbackUrl="/api/download/trading-bot-app"
-              directFallbackFileName="TradX-Bot.exe"
+              directFallbackUrl={tradingBotDownloadUrl}
+              directFallbackFileName={TRADING_BOT_APP_DOWNLOAD_FILENAME}
             />
             {/*
             MSIX direct package link retained for future use:
@@ -48,8 +52,10 @@ export default function PromotionsPage() {
             </a>
             */}
             <a
-              href="/api/download/trading-bot-app"
-              download="TradX-Bot.exe"
+              href={tradingBotDownloadUrl}
+              target={tradingBotDownloadUrl.startsWith("http") ? "_blank" : undefined}
+              rel={tradingBotDownloadUrl.startsWith("http") ? "noopener" : undefined}
+              download={tradingBotDownloadUrl.startsWith("http") ? undefined : TRADING_BOT_APP_DOWNLOAD_FILENAME}
               className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-gradient-to-r from-sky-400 via-blue-500 to-indigo-500 px-5 text-sm font-bold text-white shadow-[0_18px_48px_rgba(59,130,246,0.28)] transition hover:-translate-y-1 hover:brightness-110 active:translate-y-0.5 active:scale-95"
             >
               Download EXE installer
