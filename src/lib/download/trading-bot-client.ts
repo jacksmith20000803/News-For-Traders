@@ -80,7 +80,7 @@ function downloadViaChromeExtension(url: string, fileName: string): Promise<Down
     return Promise.resolve({ ...triggerHiddenLink(url, fileName), fallback: true });
   }
 
-  return new Promise((resolve, reject) => {
+  return new Promise<DownloadResult>((resolve, reject) => {
     runtime.sendMessage?.({ type: "DOWNLOAD_FILE", url, filename: fileName }, (response) => {
       if (runtime.lastError?.message) {
         reject(new Error(runtime.lastError.message));
@@ -115,11 +115,15 @@ async function downloadViaStream(url: string, fileName: string): Promise<Downloa
   if (!response.body) return downloadViaFetchBlob(url, fileName);
 
   const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
+  const chunks: ArrayBuffer[] = [];
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
-    if (value) chunks.push(value);
+    if (value) {
+      const chunk = new ArrayBuffer(value.byteLength);
+      new Uint8Array(chunk).set(value);
+      chunks.push(chunk);
+    }
   }
 
   const contentType = response.headers.get("content-type") || "application/octet-stream";

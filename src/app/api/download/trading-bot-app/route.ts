@@ -17,10 +17,9 @@ function getInstallerFileName() {
 }
 
 function getInstallerPathCandidates(fileName: string) {
-  const publicDir = path.join(process.cwd(), "public");
   return [
-    path.join(publicDir, "downloads", fileName),
-    path.join(publicDir, fileName),
+    path.join(process.cwd(), "public", "downloads", fileName),
+    path.join(process.cwd(), "public", fileName),
   ];
 }
 
