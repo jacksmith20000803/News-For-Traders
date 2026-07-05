@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { logAuditEvent } from "@/lib/audit";
 import { getClientIp } from "@/lib/security/rate-limit";
 
-const DOWNLOAD_ACTIONS = [
+const DOWNLOAD_ONLY_ACTIONS = [
   "promo_download_click",
   "promo_trading_bot_app_exe_download",
   "promo_trading_bot_app_msix_download",
@@ -15,8 +15,19 @@ const DOWNLOAD_ACTIONS = [
   "app_exe_download",
   "app_msix_download",
   "trading_bot_app_downloaded",
+];
+
+const INSTALL_ACTIONS = [
   "trading_bot_app_installed",
 ];
+
+const DOWNLOAD_OR_INSTALL_ACTIONS = [...DOWNLOAD_ONLY_ACTIONS, ...INSTALL_ACTIONS];
+
+function downloadStatusFor(hasDownloaded: boolean, hasInstalled: boolean) {
+  if (hasInstalled) return "installed";
+  if (hasDownloaded) return "downloaded";
+  return "not_downloaded";
+}
 
 function visitorSearchSql(q: string | undefined) {
   if (!q) return Prisma.empty;
@@ -168,13 +179,17 @@ export async function GET(request: NextRequest) {
           ? await db.visitorActivity.findMany({
               where: {
                 visitorId: { in: visitorIds },
-                action: { in: DOWNLOAD_ACTIONS },
+                action: { in: DOWNLOAD_OR_INSTALL_ACTIONS },
               },
-              distinct: ["visitorId"],
-              select: { visitorId: true },
+              select: { visitorId: true, action: true },
             })
           : [];
-      const downloadedVisitorIds = new Set(downloadRows.map((row) => row.visitorId));
+      const downloadedVisitorIds = new Set(
+        downloadRows.filter((row) => DOWNLOAD_ONLY_ACTIONS.includes(row.action)).map((row) => row.visitorId)
+      );
+      const installedVisitorIds = new Set(
+        downloadRows.filter((row) => INSTALL_ACTIONS.includes(row.action)).map((row) => row.visitorId)
+      );
 
       const visitors = groups.map((group) => {
           const latest = latestByVisitor.get(group.visitorId);
@@ -210,7 +225,11 @@ export async function GET(request: NextRequest) {
             firstSeenAt: group._min.createdAt?.toISOString() ?? latest?.createdAt.toISOString() ?? null,
             lastSeenAt: latest?.createdAt.toISOString() ?? null,
             activityCount: group._count._all,
-            hasDownloaded: downloadedVisitorIds.has(group.visitorId),
+            hasDownloaded: downloadedVisitorIds.has(group.visitorId) || installedVisitorIds.has(group.visitorId),
+            downloadStatus: downloadStatusFor(
+              downloadedVisitorIds.has(group.visitorId),
+              installedVisitorIds.has(group.visitorId)
+            ),
           };
         });
 
@@ -316,13 +335,23 @@ export async function GET(request: NextRequest) {
         ? await db.visitorActivity.findMany({
             where: {
               userId: { in: userIds },
-              action: { in: DOWNLOAD_ACTIONS },
+              action: { in: DOWNLOAD_OR_INSTALL_ACTIONS },
             },
-            distinct: ["userId"],
-            select: { userId: true },
+            select: { userId: true, action: true },
           })
         : [];
-    const downloadedUserIds = new Set(downloadRows.map((row) => row.userId).filter(Boolean));
+    const downloadedUserIds = new Set(
+      downloadRows
+        .filter((row) => DOWNLOAD_ONLY_ACTIONS.includes(row.action))
+        .map((row) => row.userId)
+        .filter(Boolean)
+    );
+    const installedUserIds = new Set(
+      downloadRows
+        .filter((row) => INSTALL_ACTIONS.includes(row.action))
+        .map((row) => row.userId)
+        .filter(Boolean)
+    );
 
     return apiSuccess({
       kind,
@@ -350,7 +379,8 @@ export async function GET(request: NextRequest) {
             user.registrationAudit?.ipRiskCheckedAt?.toISOString() ??
             null,
         },
-        hasDownloaded: downloadedUserIds.has(user.id),
+        hasDownloaded: downloadedUserIds.has(user.id) || installedUserIds.has(user.id),
+        downloadStatus: downloadStatusFor(downloadedUserIds.has(user.id), installedUserIds.has(user.id)),
         visitorActivities: undefined,
         sessions: undefined,
         registrationAudit: user.registrationAudit

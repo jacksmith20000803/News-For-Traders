@@ -3,6 +3,8 @@ import { apiError, handleApiError } from "@/lib/api/response";
 import { requireAdmin } from "@/lib/auth/guards";
 import { readOrGenerateDownloadReport } from "@/lib/download/daily-report";
 
+export const runtime = "nodejs";
+
 type RouteContext = {
   params: Promise<{ reportId: string }>;
 };

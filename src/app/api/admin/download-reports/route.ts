@@ -3,6 +3,8 @@ import { apiSuccess, handleApiError } from "@/lib/api/response";
 import { requireAdmin } from "@/lib/auth/guards";
 import { getNextDownloadReportBoundary, listRecentDownloadReports } from "@/lib/download/daily-report";
 
+export const runtime = "nodejs";
+
 export async function GET(request: NextRequest) {
   try {
     await requireAdmin();

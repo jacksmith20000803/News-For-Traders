@@ -1,4 +1,5 @@
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { db } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
@@ -9,7 +10,8 @@ export const DOWNLOAD_REPORT_ACTIONS = [
 ] as const;
 
 const REPORT_HOUR = 11;
-const REPORT_DIRECTORY = path.join(process.cwd(), "storage", "download-reports");
+const REPORT_DIRECTORY = process.env.DOWNLOAD_REPORT_DIR || path.join(process.cwd(), "storage", "download-reports");
+const TEMP_REPORT_DIRECTORY = path.join(tmpdir(), "tradx", "download-reports");
 const REPORT_TIMEZONE = process.env.DOWNLOAD_REPORT_TIMEZONE || "America/Los_Angeles";
 
 type ReportWindow = {
@@ -44,6 +46,12 @@ type ReportSummary = {
   usersByCountry: Record<string, number>;
   recordsByAction: Record<"download" | "install", number>;
   generatedAt: string;
+  warnings: string[];
+};
+
+type ReportRowsResult = {
+  rows: ReportRow[];
+  warnings: string[];
 };
 
 function getZonedParts(date: Date, timezone = REPORT_TIMEZONE) {
@@ -144,8 +152,60 @@ function fileNameForReport(reportId: string) {
   return `trading-bot-download-report-${reportId}.txt`;
 }
 
-function filePathForReport(reportId: string) {
-  return path.join(REPORT_DIRECTORY, fileNameForReport(reportId));
+function filePathForReport(reportId: string, directory = REPORT_DIRECTORY) {
+  return path.join(directory, fileNameForReport(reportId));
+}
+
+function isMissingTableError(error: unknown, tableName: string) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: unknown }).code === "P2021" &&
+    "meta" in error &&
+    typeof (error as { meta?: { table?: unknown } }).meta?.table === "string" &&
+    String((error as { meta?: { table?: unknown } }).meta?.table).includes(tableName)
+  );
+}
+
+function isWriteUnavailableError(error: unknown) {
+  const code = typeof error === "object" && error !== null && "code" in error ? (error as { code?: unknown }).code : null;
+  return code === "EROFS" || code === "EACCES" || code === "EPERM" || code === "ENOENT";
+}
+
+async function resolveExistingReportPath(reportId: string) {
+  const candidates = [filePathForReport(reportId), filePathForReport(reportId, TEMP_REPORT_DIRECTORY)];
+
+  for (const candidate of candidates) {
+    try {
+      await stat(candidate);
+      return candidate;
+    } catch {
+      // Try the next candidate.
+    }
+  }
+
+  return null;
+}
+
+async function writeReportFile(reportId: string, text: string) {
+  const primaryPath = filePathForReport(reportId);
+  try {
+    await mkdir(REPORT_DIRECTORY, { recursive: true });
+    await writeFile(primaryPath, text, "utf8");
+    return { filePath: primaryPath, warnings: [] };
+  } catch (error) {
+    if (process.env.DOWNLOAD_REPORT_DIR || !isWriteUnavailableError(error)) throw error;
+
+    const warning = `Primary report storage was unavailable, so this file was saved temporarily under ${TEMP_REPORT_DIRECTORY}. Set DOWNLOAD_REPORT_DIR to a writable persistent folder for durable reports.`;
+    const fallbackPath = filePathForReport(reportId, TEMP_REPORT_DIRECTORY);
+    await mkdir(TEMP_REPORT_DIRECTORY, { recursive: true });
+    await writeFile(fallbackPath, `${text.trimEnd()}\n\nStorage\n- ${warning}\n`, "utf8");
+    return {
+      filePath: fallbackPath,
+      warnings: [warning],
+    };
+  }
 }
 
 function windowFromEndLocalDate(dateParts: { year: number; month: number; day: number }): ReportWindow {
@@ -203,39 +263,52 @@ function eventActionLabel(action: string): "download" | "install" {
   return action === "trading_bot_app_installed" ? "install" : "download";
 }
 
-async function getReportRows(window: ReportWindow): Promise<ReportRow[]> {
-  const rows = await db.visitorActivity.findMany({
-    where: {
-      action: { in: [...DOWNLOAD_REPORT_ACTIONS] },
-      createdAt: { gte: window.start, lt: window.end },
-    },
-    orderBy: { createdAt: "asc" },
-    include: {
-      user: {
-        select: {
-          id: true,
-          name: true,
-          username: true,
-          email: true,
-          country: true,
+async function getReportRows(window: ReportWindow): Promise<ReportRowsResult> {
+  try {
+    const rows = await db.visitorActivity.findMany({
+      where: {
+        action: { in: [...DOWNLOAD_REPORT_ACTIONS] },
+        createdAt: { gte: window.start, lt: window.end },
+      },
+      orderBy: { createdAt: "asc" },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            username: true,
+            email: true,
+            country: true,
+          },
         },
       },
-    },
-  });
-
-  return rows.map((row) => {
-    const userName = row.user?.name || row.user?.username || row.user?.email;
-    const visitorName = row.visitorId ? `Visitor ${row.visitorId.slice(0, 8)}` : "Unknown user";
-    const country = formatCountry(row.country || row.user?.country);
+    });
 
     return {
-      name: userName || visitorName,
-      country,
-      time: formatInReportTimezone(row.createdAt, window.timezone),
-      action: eventActionLabel(row.action),
-      actorKey: row.userId ? `user:${row.userId}` : row.visitorId ? `visitor:${row.visitorId}` : `ip:${row.ipAddress ?? row.id}`,
+      rows: rows.map((row) => {
+        const userName = row.user?.name || row.user?.username || row.user?.email;
+        const visitorName = row.visitorId ? `Visitor ${row.visitorId.slice(0, 8)}` : "Unknown user";
+        const country = formatCountry(row.country || row.user?.country);
+
+        return {
+          name: userName || visitorName,
+          country,
+          time: formatInReportTimezone(row.createdAt, window.timezone),
+          action: eventActionLabel(row.action),
+          actorKey: row.userId ? `user:${row.userId}` : row.visitorId ? `visitor:${row.visitorId}` : `ip:${row.ipAddress ?? row.id}`,
+        };
+      }),
+      warnings: [],
     };
-  });
+  } catch (error) {
+    if (!isMissingTableError(error, "VisitorActivity")) throw error;
+    return {
+      rows: [],
+      warnings: [
+        "Activity table VisitorActivity is missing in the connected database. Apply the Prisma migrations or run `npx prisma db push` so download/install events can be included.",
+      ],
+    };
+  }
 }
 
 function countUniqueActorsByCountry(rows: ReportRow[]) {
@@ -264,7 +337,7 @@ function countRecordsByAction(rows: ReportRow[]) {
   );
 }
 
-function buildReportText(window: ReportWindow, rows: ReportRow[], generatedAt: Date) {
+function buildReportText(window: ReportWindow, rows: ReportRow[], generatedAt: Date, warnings: string[]) {
   const uniqueActors = new Set(rows.map((row) => row.actorKey));
   const usersByCountry = countUniqueActorsByCountry(rows);
   const recordsByAction = countRecordsByAction(rows);
@@ -275,6 +348,7 @@ function buildReportText(window: ReportWindow, rows: ReportRow[], generatedAt: D
     `Window: ${window.startLabel} to ${window.endLabel}`,
     `Timezone: ${window.timezone}`,
     `Generated: ${formatInReportTimezone(generatedAt, window.timezone)}`,
+    ...(warnings.length ? ["", "Warnings", ...warnings.map((warning) => `- ${warning}`)] : []),
     "",
     "Records",
     "Name | Country | Time | Action",
@@ -310,14 +384,12 @@ function buildReportText(window: ReportWindow, rows: ReportRow[], generatedAt: D
 }
 
 export async function generateDownloadReport(window: ReportWindow) {
-  const rows = await getReportRows(window);
+  const reportRows = await getReportRows(window);
   const generatedAt = new Date();
-  const built = buildReportText(window, rows, generatedAt);
-  const filePath = filePathForReport(window.reportId);
+  const built = buildReportText(window, reportRows.rows, generatedAt, reportRows.warnings);
   const fileName = fileNameForReport(window.reportId);
-
-  await mkdir(REPORT_DIRECTORY, { recursive: true });
-  await writeFile(filePath, built.text, "utf8");
+  const written = await writeReportFile(window.reportId, built.text);
+  const warnings = [...reportRows.warnings, ...written.warnings];
 
   const summary: ReportSummary = {
     reportId: window.reportId,
@@ -327,13 +399,14 @@ export async function generateDownloadReport(window: ReportWindow) {
     windowStartLabel: window.startLabel,
     windowEndLabel: window.endLabel,
     fileName,
-    filePath,
+    filePath: written.filePath,
     downloadUrl: `/api/admin/download-reports/${window.reportId}`,
     totalUsers: built.summary.totalUsers,
     totalRecords: built.summary.totalRecords,
     usersByCountry: built.summary.usersByCountry,
     recordsByAction: built.summary.recordsByAction,
     generatedAt: generatedAt.toISOString(),
+    warnings,
   };
 
   return summary;
@@ -343,12 +416,13 @@ export async function readOrGenerateDownloadReport(reportId: string) {
   const window = getDownloadReportWindowForId(reportId);
   if (!window) return null;
 
-  const filePath = filePathForReport(reportId);
-  try {
-    await stat(filePath);
-  } catch {
+  let filePath = await resolveExistingReportPath(reportId);
+  if (!filePath) {
     await generateDownloadReport(window);
+    filePath = await resolveExistingReportPath(reportId);
   }
+
+  if (!filePath) return null;
 
   return {
     window,
@@ -358,53 +432,72 @@ export async function readOrGenerateDownloadReport(reportId: string) {
 }
 
 async function notifyAdminsReportReady(report: ReportSummary) {
-  const admins = await db.user.findMany({
-    where: { role: "ADMIN", deletedAt: null, isBanned: false, isSuspended: false },
-    select: { id: true },
-  });
-  if (!admins.length) return 0;
+  try {
+    const admins = await db.user.findMany({
+      where: { role: "ADMIN", deletedAt: null, isBanned: false, isSuspended: false },
+      select: { id: true },
+    });
+    if (!admins.length) return { created: 0, warnings: [] };
 
-  const title = `Daily download report ready (${report.reportId})`;
-  let created = 0;
+    const title = `Daily download report ready (${report.reportId})`;
+    let created = 0;
 
-  await Promise.all(
-    admins.map(async (admin) => {
-      const existing = await db.notification.findFirst({
-        where: { userId: admin.id, title },
-        select: { id: true },
-      });
-      if (existing) return;
+    await Promise.all(
+      admins.map(async (admin) => {
+        const existing = await db.notification.findFirst({
+          where: { userId: admin.id, title },
+          select: { id: true },
+        });
+        if (existing) return;
 
-      await createNotification({
-        userId: admin.id,
-        type: "SYSTEM",
-        title,
-        message: `The ${report.windowStartLabel} to ${report.windowEndLabel} download/install report is ready.`,
-        metadata: {
-          eventType: "download_report_ready",
-          forceSystemNotification: true,
-          reportId: report.reportId,
-          downloadUrl: report.downloadUrl,
-          windowStart: report.windowStart,
-          windowEnd: report.windowEnd,
-          totalUsers: report.totalUsers,
-          totalRecords: report.totalRecords,
-        },
-      });
-      created += 1;
-    })
-  );
+        await createNotification({
+          userId: admin.id,
+          type: "SYSTEM",
+          title,
+          message: report.warnings.length
+            ? `The report is ready, but it includes setup warnings. ${report.warnings[0]}`
+            : `The ${report.windowStartLabel} to ${report.windowEndLabel} download/install report is ready.`,
+          metadata: {
+            eventType: "download_report_ready",
+            forceSystemNotification: true,
+            reportId: report.reportId,
+            downloadUrl: report.downloadUrl,
+            windowStart: report.windowStart,
+            windowEnd: report.windowEnd,
+            totalUsers: report.totalUsers,
+            totalRecords: report.totalRecords,
+            warnings: report.warnings,
+          },
+        });
+        created += 1;
+      })
+    );
 
-  return created;
+    return { created, warnings: [] };
+  } catch (error) {
+    if (isMissingTableError(error, "User") || isMissingTableError(error, "Notification")) {
+      return {
+        created: 0,
+        warnings: [
+          "Admin notification could not be created because the connected database is missing User or Notification tables. Apply the Prisma migrations or run `npx prisma db push`.",
+        ],
+      };
+    }
+
+    throw error;
+  }
 }
 
 export async function ensureCompletedDownloadReport(now = new Date()) {
   const window = getCompletedDownloadReportWindow(now);
   const report = await generateDownloadReport(window);
-  const notificationsCreated = await notifyAdminsReportReady(report);
+  const notificationResult = await notifyAdminsReportReady(report);
+  if (notificationResult.warnings.length) {
+    report.warnings = [...report.warnings, ...notificationResult.warnings];
+  }
   return {
     report,
-    notificationsCreated,
+    notificationsCreated: notificationResult.created,
     nextBoundaryAt: getNextDownloadReportBoundary(now).toISOString(),
   };
 }
@@ -432,6 +525,7 @@ export async function listRecentDownloadReports(limit = 7) {
       exists: Boolean(fileStat),
       generatedAt: fileStat?.mtime.toISOString() ?? null,
       downloadUrl: `/api/admin/download-reports/${window.reportId}`,
+      storage: fileStat ? "persistent" : null,
     });
 
     const previousEndParts = shiftCalendarDate(getZonedParts(window.end, window.timezone), -1);

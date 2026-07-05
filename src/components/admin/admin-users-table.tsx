@@ -9,6 +9,7 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  Download,
   Globe2,
   LayoutGrid,
   List,
@@ -37,6 +38,8 @@ type IpRiskRow = {
   ipRiskSource: string | null;
   ipRiskCheckedAt: string | null;
 };
+
+type DownloadStatusValue = "not_downloaded" | "downloaded" | "installed";
 
 type AdminUserRow = {
   id: string;
@@ -87,6 +90,7 @@ type AdminUserRow = {
   } | null;
   ipRisk: IpRiskRow;
   hasDownloaded: boolean;
+  downloadStatus: DownloadStatusValue;
 };
 
 type VisitorRow = {
@@ -114,6 +118,7 @@ type VisitorRow = {
   lastSeenAt: string | null;
   activityCount: number;
   hasDownloaded: boolean;
+  downloadStatus: DownloadStatusValue;
 };
 
 type ApiResponse<T> = {
@@ -652,7 +657,7 @@ function UserRecord({
       <div className="mt-4 flex flex-wrap items-center gap-2 lg:mt-0 lg:justify-end">
         <Badge variant={status.variant}>{status.label}</Badge>
         <Badge variant="outline">{ROLE_LABELS[user.role]}</Badge>
-        <DownloadStatus downloaded={user.hasDownloaded} />
+        <DownloadStatus status={user.downloadStatus ?? (user.hasDownloaded ? "downloaded" : "not_downloaded")} />
         <ButtonLink href={`/admin/users/${user.id}`} label="See Details" />
         <Button
           type="button"
@@ -745,7 +750,7 @@ function VisitorRecord({
 
       <div className="mt-4 flex flex-wrap items-center gap-2 lg:mt-0 lg:justify-end">
         <Badge variant="primary">{visitor.activityCount} events</Badge>
-        <DownloadStatus downloaded={visitor.hasDownloaded} />
+        <DownloadStatus status={visitor.downloadStatus ?? (visitor.hasDownloaded ? "downloaded" : "not_downloaded")} />
         <ButtonLink href={`/admin/users/${encodeURIComponent(visitor.visitorId)}?kind=visitor`} label="See Details" />
         <Button
           type="button"
@@ -802,26 +807,40 @@ function ButtonLink({ href, label }: { href: string; label: string }) {
   );
 }
 
-function DownloadStatus({ downloaded }: { downloaded: boolean }) {
+function DownloadStatus({ status }: { status: DownloadStatusValue }) {
+  const config = {
+    not_downloaded: {
+      label: "Not downloaded",
+      title: "No trading bot download recorded",
+      className: "bg-red-600 text-white ring-red-400/40",
+      iconClassName: "bg-red-500 text-white ring-1 ring-red-200/70",
+      icon: <X className="h-3.5 w-3.5" />,
+    },
+    downloaded: {
+      label: "Downloaded",
+      title: "Trading bot download recorded",
+      className: "bg-blue-600 text-white ring-blue-400/40",
+      iconClassName: "bg-blue-500 text-white ring-1 ring-blue-200/70",
+      icon: <Download className="h-3.5 w-3.5" />,
+    },
+    installed: {
+      label: "Installed",
+      title: "Trading bot install recorded",
+      className: "bg-emerald-600 text-white ring-emerald-400/40",
+      iconClassName: "bg-emerald-500 text-white ring-1 ring-emerald-200/70",
+      icon: <Check className="h-3.5 w-3.5" />,
+    },
+  }[status];
+
   return (
     <span
-      className={cn(
-        "inline-flex h-9 items-center gap-2 rounded-xl px-3 text-xs font-semibold ring-1",
-        downloaded
-          ? "bg-emerald-600 text-white ring-emerald-400/40"
-          : "bg-red-600 text-white ring-red-400/40"
-      )}
-      title={downloaded ? "Trading bot download clicked" : "No trading bot download recorded"}
+      className={cn("inline-flex h-9 items-center gap-2 rounded-xl px-3 text-xs font-semibold ring-1", config.className)}
+      title={config.title}
     >
-      <span
-        className={cn(
-          "inline-flex h-5 w-5 items-center justify-center rounded-full",
-          downloaded ? "bg-emerald-500 text-white" : "bg-red-500 text-black ring-1 ring-red-200/70"
-        )}
-      >
-        {downloaded ? <Check className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
+      <span className={cn("inline-flex h-5 w-5 items-center justify-center rounded-full", config.iconClassName)}>
+        {config.icon}
       </span>
-      {downloaded ? "Downloaded" : "Not downloaded"}
+      {config.label}
     </span>
   );
 }

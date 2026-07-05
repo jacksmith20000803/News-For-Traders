@@ -2,6 +2,8 @@ import { apiError, apiSuccess, handleApiError } from "@/lib/api/response";
 import { config } from "@/lib/config";
 import { ensureCompletedDownloadReport } from "@/lib/download/daily-report";
 
+export const runtime = "nodejs";
+
 function isAuthorized(request: Request) {
   if (process.env.NODE_ENV !== "production") return true;
   const { searchParams } = new URL(request.url);

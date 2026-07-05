@@ -19,6 +19,12 @@ type ReportsResponse = {
   nextBoundaryAt: string;
 };
 
+type GenerateReportResponse = {
+  report?: {
+    warnings?: string[];
+  };
+};
+
 export function AdminDownloadReportsPanel() {
   const [reports, setReports] = useState<ReportItem[]>([]);
   const [nextBoundaryAt, setNextBoundaryAt] = useState<string | null>(null);
@@ -58,9 +64,10 @@ export function AdminDownloadReportsPanel() {
         credentials: "same-origin",
         cache: "no-store",
       });
-      const json = await readJsonResponse<{ success: boolean; error?: string }>(response);
+      const json = await readJsonResponse<{ success: boolean; data?: GenerateReportResponse; error?: string }>(response);
       if (!json.success) throw new Error(json.error ?? "Could not generate report");
-      setMessage("Latest completed report is ready.");
+      const warning = json.data?.report?.warnings?.[0];
+      setMessage(warning ? `Latest completed report is ready with a warning: ${warning}` : "Latest completed report is ready.");
       await loadReports();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not generate report");

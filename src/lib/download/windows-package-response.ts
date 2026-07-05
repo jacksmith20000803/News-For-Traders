@@ -16,7 +16,7 @@ export function getWindowsPackageContentType(fileName: string) {
     case ".appinstaller":
       return "application/appinstaller";
     case ".exe":
-      return "application/vnd.microsoft.portable-executable";
+      return "application/x-msdownload";
     default:
       return "application/octet-stream";
   }
@@ -82,10 +82,12 @@ export async function createWindowsPackageResponse({
   }
 
   const contentType = getWindowsPackageContentType(fileName);
+  const safeFileName = path.basename(fileName);
+  const encodedFileName = encodeURIComponent(safeFileName);
   const headers = new Headers({
     "Accept-Ranges": "bytes",
     "Cache-Control": cacheControl,
-    "Content-Disposition": `${disposition}; filename="${path.basename(fileName)}"`,
+    "Content-Disposition": `${disposition}; filename="${safeFileName}"; filename*=UTF-8''${encodedFileName}`,
     "Content-Type": contentType,
     "X-Content-Type-Options": "nosniff",
   });
