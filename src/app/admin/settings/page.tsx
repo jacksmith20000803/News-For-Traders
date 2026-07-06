@@ -3,9 +3,11 @@ import { db } from "@/lib/db";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AdminBackgroundSettingsForm } from "@/components/admin/admin-background-settings-form";
+import { AdminDownloadReportSettingsForm } from "@/components/admin/admin-download-report-settings-form";
 import { AdminEmailKeySettings } from "@/components/admin/admin-email-key-settings";
 import { AdminTradingBotDownloadSettingsForm } from "@/components/admin/admin-trading-bot-download-settings-form";
 import { TRADING_BOT_LOCAL_DOWNLOAD_URL } from "@/lib/download/trading-bot-links";
+import { getDownloadReportTimezone } from "@/lib/download/daily-report";
 import { getTradingBotDownloadConfig } from "@/lib/download/trading-bot-settings";
 import Link from "next/link";
 
@@ -22,11 +24,12 @@ export default async function AdminSettingsPage() {
     },
   });
 
-  const [settings, flags, bgImage, tradingBotDownloadConfig] = await Promise.all([
+  const [settings, flags, bgImage, tradingBotDownloadConfig, downloadReportTimezone] = await Promise.all([
     db.siteSetting.findMany(),
     db.featureFlag.findMany(),
     db.siteSetting.findUnique({ where: { key: "platform_background_image" } }),
     getTradingBotDownloadConfig(),
+    getDownloadReportTimezone(),
   ]);
 
   return (
@@ -54,6 +57,15 @@ export default async function AdminSettingsPage() {
             initialConfig={tradingBotDownloadConfig}
             fallbackUrl={TRADING_BOT_LOCAL_DOWNLOAD_URL}
           />
+        </CardContent>
+      </Card>
+
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>Daily Report Timezone</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <AdminDownloadReportSettingsForm initialTimezone={downloadReportTimezone} />
         </CardContent>
       </Card>
 

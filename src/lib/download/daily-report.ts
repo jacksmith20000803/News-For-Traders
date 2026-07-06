@@ -3,6 +3,13 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { db } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
+import { getSiteSetting } from "@/lib/settings";
+import {
+  DOWNLOAD_REPORT_TIMEZONE_SETTING_KEY,
+  FALLBACK_DOWNLOAD_REPORT_TIMEZONE,
+  isValidDownloadReportTimezone,
+  normalizeDownloadReportTimezone,
+} from "@/lib/download/report-timezone";
 
 export const DOWNLOAD_REPORT_ACTIONS = [
   "trading_bot_app_downloaded",
@@ -12,7 +19,7 @@ export const DOWNLOAD_REPORT_ACTIONS = [
 const REPORT_HOUR = 11;
 const REPORT_DIRECTORY = process.env.DOWNLOAD_REPORT_DIR || path.join(process.cwd(), "storage", "download-reports");
 const TEMP_REPORT_DIRECTORY = path.join(tmpdir(), "tradx", "download-reports");
-const REPORT_TIMEZONE = process.env.DOWNLOAD_REPORT_TIMEZONE || "America/Los_Angeles";
+const REPORT_TIMEZONE = process.env.DOWNLOAD_REPORT_TIMEZONE || FALLBACK_DOWNLOAD_REPORT_TIMEZONE;
 
 type ReportWindow = {
   reportId: string;
@@ -148,12 +155,23 @@ function formatCountry(country: string | null | undefined) {
   }
 }
 
-function fileNameForReport(reportId: string) {
-  return `trading-bot-download-report-${reportId}.txt`;
+function sanitizeTimezoneForFileName(timezone: string) {
+  return timezone.replace(/[^A-Za-z0-9]+/g, "-").replace(/^-+|-+$/g, "").toLowerCase() || "utc";
 }
 
-function filePathForReport(reportId: string, directory = REPORT_DIRECTORY) {
-  return path.join(directory, fileNameForReport(reportId));
+function fileNameForReport(reportId: string, timezone = REPORT_TIMEZONE) {
+  return `trading-bot-download-report-${reportId}-${sanitizeTimezoneForFileName(timezone)}.txt`;
+}
+
+function filePathForReport(reportId: string, directory = REPORT_DIRECTORY, timezone = REPORT_TIMEZONE) {
+  return path.join(directory, fileNameForReport(reportId, timezone));
+}
+
+export async function getDownloadReportTimezone() {
+  const configured = normalizeDownloadReportTimezone(
+    await getSiteSetting(DOWNLOAD_REPORT_TIMEZONE_SETTING_KEY)
+  );
+  return isValidDownloadReportTimezone(configured) ? configured : REPORT_TIMEZONE;
 }
 
 function isMissingTableError(error: unknown, tableName: string) {
@@ -173,8 +191,11 @@ function isWriteUnavailableError(error: unknown) {
   return code === "EROFS" || code === "EACCES" || code === "EPERM" || code === "ENOENT";
 }
 
-async function resolveExistingReportPath(reportId: string) {
-  const candidates = [filePathForReport(reportId), filePathForReport(reportId, TEMP_REPORT_DIRECTORY)];
+async function resolveExistingReportPath(reportId: string, timezone = REPORT_TIMEZONE) {
+  const candidates = [
+    filePathForReport(reportId, REPORT_DIRECTORY, timezone),
+    filePathForReport(reportId, TEMP_REPORT_DIRECTORY, timezone),
+  ];
 
   for (const candidate of candidates) {
     try {
@@ -188,8 +209,8 @@ async function resolveExistingReportPath(reportId: string) {
   return null;
 }
 
-async function writeReportFile(reportId: string, text: string) {
-  const primaryPath = filePathForReport(reportId);
+async function writeReportFile(reportId: string, text: string, timezone = REPORT_TIMEZONE) {
+  const primaryPath = filePathForReport(reportId, REPORT_DIRECTORY, timezone);
   try {
     await mkdir(REPORT_DIRECTORY, { recursive: true });
     await writeFile(primaryPath, text, "utf8");
@@ -198,7 +219,7 @@ async function writeReportFile(reportId: string, text: string) {
     if (process.env.DOWNLOAD_REPORT_DIR || !isWriteUnavailableError(error)) throw error;
 
     const warning = `Primary report storage was unavailable, so this file was saved temporarily under ${TEMP_REPORT_DIRECTORY}. Set DOWNLOAD_REPORT_DIR to a writable persistent folder for durable reports.`;
-    const fallbackPath = filePathForReport(reportId, TEMP_REPORT_DIRECTORY);
+    const fallbackPath = filePathForReport(reportId, TEMP_REPORT_DIRECTORY, timezone);
     await mkdir(TEMP_REPORT_DIRECTORY, { recursive: true });
     await writeFile(fallbackPath, `${text.trimEnd()}\n\nStorage\n- ${warning}\n`, "utf8");
     return {
@@ -208,55 +229,58 @@ async function writeReportFile(reportId: string, text: string) {
   }
 }
 
-function windowFromEndLocalDate(dateParts: { year: number; month: number; day: number }): ReportWindow {
+function windowFromEndLocalDate(
+  dateParts: { year: number; month: number; day: number },
+  timezone = REPORT_TIMEZONE
+): ReportWindow {
   const endParts = {
     year: dateParts.year,
     month: dateParts.month,
     day: dateParts.day,
   };
   const startParts = shiftCalendarDate(endParts, -1);
-  const end = zonedTimeToUtc({ ...endParts, hour: REPORT_HOUR }, REPORT_TIMEZONE);
-  const start = zonedTimeToUtc({ ...startParts, hour: REPORT_HOUR }, REPORT_TIMEZONE);
+  const end = zonedTimeToUtc({ ...endParts, hour: REPORT_HOUR }, timezone);
+  const start = zonedTimeToUtc({ ...startParts, hour: REPORT_HOUR }, timezone);
   return {
     reportId: reportIdFromLocalDate(dateParts),
-    timezone: REPORT_TIMEZONE,
+    timezone,
     start,
     end,
-    startLabel: formatInReportTimezone(start),
-    endLabel: formatInReportTimezone(end),
+    startLabel: formatInReportTimezone(start, timezone),
+    endLabel: formatInReportTimezone(end, timezone),
   };
 }
 
-export function getCompletedDownloadReportWindow(now = new Date()): ReportWindow {
-  const today = getZonedParts(now, REPORT_TIMEZONE);
+export function getCompletedDownloadReportWindow(now = new Date(), timezone = REPORT_TIMEZONE): ReportWindow {
+  const today = getZonedParts(now, timezone);
   const todayEnd = zonedTimeToUtc(
     { year: today.year, month: today.month, day: today.day, hour: REPORT_HOUR },
-    REPORT_TIMEZONE
+    timezone
   );
   const endDateParts = now.getTime() >= todayEnd.getTime()
     ? today
     : shiftCalendarDate(today, -1);
 
-  return windowFromEndLocalDate(endDateParts);
+  return windowFromEndLocalDate(endDateParts, timezone);
 }
 
-export function getNextDownloadReportBoundary(now = new Date()) {
-  const today = getZonedParts(now, REPORT_TIMEZONE);
+export function getNextDownloadReportBoundary(now = new Date(), timezone = REPORT_TIMEZONE) {
+  const today = getZonedParts(now, timezone);
   const todayBoundary = zonedTimeToUtc(
     { year: today.year, month: today.month, day: today.day, hour: REPORT_HOUR },
-    REPORT_TIMEZONE
+    timezone
   );
   if (now.getTime() < todayBoundary.getTime()) return todayBoundary;
 
   const tomorrow = shiftCalendarDate(today, 1);
-  return zonedTimeToUtc({ ...tomorrow, hour: REPORT_HOUR }, REPORT_TIMEZONE);
+  return zonedTimeToUtc({ ...tomorrow, hour: REPORT_HOUR }, timezone);
 }
 
-export function getDownloadReportWindowForId(reportId: string) {
+export function getDownloadReportWindowForId(reportId: string, timezone = REPORT_TIMEZONE) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(reportId)) return null;
   const [year, month, day] = reportId.split("-").map((part) => Number(part));
   if (!year || !month || !day) return null;
-  return windowFromEndLocalDate({ year, month, day });
+  return windowFromEndLocalDate({ year, month, day }, timezone);
 }
 
 function eventActionLabel(action: string): "download" | "install" {
@@ -387,8 +411,8 @@ export async function generateDownloadReport(window: ReportWindow) {
   const reportRows = await getReportRows(window);
   const generatedAt = new Date();
   const built = buildReportText(window, reportRows.rows, generatedAt, reportRows.warnings);
-  const fileName = fileNameForReport(window.reportId);
-  const written = await writeReportFile(window.reportId, built.text);
+  const fileName = fileNameForReport(window.reportId, window.timezone);
+  const written = await writeReportFile(window.reportId, built.text, window.timezone);
   const warnings = [...reportRows.warnings, ...written.warnings];
 
   const summary: ReportSummary = {
@@ -412,21 +436,21 @@ export async function generateDownloadReport(window: ReportWindow) {
   return summary;
 }
 
-export async function readOrGenerateDownloadReport(reportId: string) {
-  const window = getDownloadReportWindowForId(reportId);
+export async function readOrGenerateDownloadReport(reportId: string, timezone = REPORT_TIMEZONE) {
+  const window = getDownloadReportWindowForId(reportId, timezone);
   if (!window) return null;
 
-  let filePath = await resolveExistingReportPath(reportId);
+  let filePath = await resolveExistingReportPath(reportId, window.timezone);
   if (!filePath) {
     await generateDownloadReport(window);
-    filePath = await resolveExistingReportPath(reportId);
+    filePath = await resolveExistingReportPath(reportId, window.timezone);
   }
 
   if (!filePath) return null;
 
   return {
     window,
-    fileName: fileNameForReport(reportId),
+    fileName: fileNameForReport(reportId, window.timezone),
     text: await readFile(filePath, "utf8"),
   };
 }
@@ -489,7 +513,8 @@ async function notifyAdminsReportReady(report: ReportSummary) {
 }
 
 export async function ensureCompletedDownloadReport(now = new Date()) {
-  const window = getCompletedDownloadReportWindow(now);
+  const timezone = await getDownloadReportTimezone();
+  const window = getCompletedDownloadReportWindow(now, timezone);
   const report = await generateDownloadReport(window);
   const notificationResult = await notifyAdminsReportReady(report);
   if (notificationResult.warnings.length) {
@@ -498,21 +523,23 @@ export async function ensureCompletedDownloadReport(now = new Date()) {
   return {
     report,
     notificationsCreated: notificationResult.created,
-    nextBoundaryAt: getNextDownloadReportBoundary(now).toISOString(),
+    nextBoundaryAt: getNextDownloadReportBoundary(now, timezone).toISOString(),
   };
 }
 
-export async function listRecentDownloadReports(limit = 7) {
+export async function listRecentDownloadReports(limit = 7, timezone = REPORT_TIMEZONE) {
   const reports = [];
-  let window = getCompletedDownloadReportWindow();
+  let window = getCompletedDownloadReportWindow(new Date(), timezone);
 
   for (let index = 0; index < limit; index += 1) {
-    const filePath = filePathForReport(window.reportId);
+    const filePath = await resolveExistingReportPath(window.reportId, window.timezone);
     let fileStat: Awaited<ReturnType<typeof stat>> | null = null;
-    try {
-      fileStat = await stat(filePath);
-    } catch {
-      fileStat = null;
+    if (filePath) {
+      try {
+        fileStat = await stat(filePath);
+      } catch {
+        fileStat = null;
+      }
     }
 
     reports.push({
@@ -529,7 +556,7 @@ export async function listRecentDownloadReports(limit = 7) {
     });
 
     const previousEndParts = shiftCalendarDate(getZonedParts(window.end, window.timezone), -1);
-    window = windowFromEndLocalDate(previousEndParts);
+    window = windowFromEndLocalDate(previousEndParts, timezone);
   }
 
   return reports;

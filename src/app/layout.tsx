@@ -14,6 +14,7 @@ import { PageLoader } from "@/components/loading/page-loader";
 import { AIChatEntry } from "@/components/layout/ai-chat-entry";
 import { HydrationCleanup } from "@/components/layout/hydration-cleanup";
 import { AdminDownloadSystemAlerts } from "@/components/admin/admin-download-system-alerts";
+import { TradingBotDownloadNotice } from "@/components/ui/trading-bot-download-notice";
 import { getTradingBotDownloadConfig } from "@/lib/download/trading-bot-settings";
 import "./globals.css";
 
@@ -116,6 +117,7 @@ export default async function RootLayout({
                     </RouteSurface>
                   </div>
                   <AIChatEntry downloadConfig={tradingBotDownloadConfig} />
+                  <TradingBotDownloadNotice />
                   <AdminDownloadSystemAlerts />
                   <Suspense fallback={null}>
                     <ActivityTracker />

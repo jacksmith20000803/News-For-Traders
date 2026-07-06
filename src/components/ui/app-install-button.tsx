@@ -2,7 +2,7 @@
 
 import { useState, useSyncExternalStore } from "react";
 import { AlertCircle, CheckCircle2, Download, Loader2 } from "lucide-react";
-import { getTradingBotClientDownloadConfig, runTradingBotDownload } from "@/lib/download/trading-bot-client";
+import { getTradingBotClientDownloadConfig, runTradingBotDownload, useTradingBotDownloadState } from "@/lib/download/trading-bot-client";
 import {
   DEFAULT_TRADING_BOT_DIRECT_DOWNLOAD_METHOD,
   TRADING_BOT_APP_DOWNLOAD_FILENAME,
@@ -81,8 +81,10 @@ export function AppInstallButton({
   const [status, setStatus] = useState<InstallStatus>("idle");
   const [error, setError] = useState<string | null>(null);
   const platform = useSyncExternalStore(subscribePlatform, getPlatformSnapshot, getServerPlatformSnapshot);
+  const downloadState = useTradingBotDownloadState();
   const isWindows = platform === "windows";
   const effectiveStatus: InstallStatus = platform !== "unknown" && !isWindows && status === "idle" ? "unsupported" : status;
+  const downloadBusy = downloadState.active;
 
   const legacyFallbackUrl = directFallbackUrl ?? TRADING_BOT_LOCAL_DOWNLOAD_URL;
   const fallbackConfig = getTradingBotClientDownloadConfig(
@@ -103,6 +105,8 @@ export function AppInstallButton({
   };
 
   const startInstall = async () => {
+    if (downloadBusy) return;
+
     if (!isWindows) {
       await downloadDirectFallback();
       setStatus("unsupported");
@@ -141,7 +145,7 @@ export function AppInstallButton({
         <button
           type="button"
           onClick={startInstall}
-          disabled={effectiveStatus === "checking"}
+          disabled={effectiveStatus === "checking" || downloadBusy}
           aria-label={label}
           data-track-event="app_install_start"
           data-track-label={appName}
@@ -166,6 +170,7 @@ export function AppInstallButton({
         <button
           type="button"
           onClick={startInstall}
+          disabled={downloadBusy}
           data-track-event="app_exe_download"
           data-track-label={appName}
           data-track-component="app-install-button"
@@ -173,7 +178,7 @@ export function AppInstallButton({
           data-track-href={fallbackUrl}
           data-track-method={isExternalFallback ? "external" : fallbackConfig.directMethod}
           className={cn(
-            "inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-5 text-sm font-bold text-white shadow-[0_18px_48px_rgba(15,23,42,0.22)] transition-all hover:-translate-y-1 hover:bg-slate-800 active:translate-y-0.5 active:scale-95 dark:bg-white/12 dark:hover:bg-white/18",
+            "inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-5 text-sm font-bold text-white shadow-[0_18px_48px_rgba(15,23,42,0.22)] transition-all hover:-translate-y-1 hover:bg-slate-800 active:translate-y-0.5 active:scale-95 disabled:cursor-wait disabled:opacity-70 dark:bg-white/12 dark:hover:bg-white/18",
             buttonClassName
           )}
         >

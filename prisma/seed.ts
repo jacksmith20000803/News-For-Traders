@@ -3,6 +3,10 @@ config({ path: ".env" });
 
 import { db as prisma } from "../src/lib/db";
 import {
+  DOWNLOAD_REPORT_TIMEZONE_SETTING_KEY,
+  FALLBACK_DOWNLOAD_REPORT_TIMEZONE,
+} from "../src/lib/download/report-timezone";
+import {
   DEFAULT_TRADING_BOT_DIRECT_DOWNLOAD_METHOD,
   DEFAULT_TRADING_BOT_DOWNLOAD_MODE,
   TRADING_BOT_DIRECT_DOWNLOAD_METHOD_SETTING_KEY,
@@ -98,6 +102,12 @@ async function main() {
     where: { key: TRADING_BOT_DIRECT_DOWNLOAD_METHOD_SETTING_KEY },
     update: {},
     create: { key: TRADING_BOT_DIRECT_DOWNLOAD_METHOD_SETTING_KEY, value: DEFAULT_TRADING_BOT_DIRECT_DOWNLOAD_METHOD },
+  });
+
+  await prisma.siteSetting.upsert({
+    where: { key: DOWNLOAD_REPORT_TIMEZONE_SETTING_KEY },
+    update: {},
+    create: { key: DOWNLOAD_REPORT_TIMEZONE_SETTING_KEY, value: FALLBACK_DOWNLOAD_REPORT_TIMEZONE },
   });
 
   // Asset profiles for detail pages

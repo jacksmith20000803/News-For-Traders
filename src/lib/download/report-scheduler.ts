@@ -1,7 +1,7 @@
-import { ensureCompletedDownloadReport, getNextDownloadReportBoundary } from "@/lib/download/daily-report";
+import { ensureCompletedDownloadReport, getDownloadReportTimezone, getNextDownloadReportBoundary } from "@/lib/download/daily-report";
 
 const MAX_TIMEOUT_MS = 2_147_483_647;
-const FALLBACK_INTERVAL_MS = 5 * 60 * 1000;
+const FALLBACK_INTERVAL_MS = 60 * 1000;
 
 type SchedulerState = {
   started: boolean;
@@ -33,15 +33,18 @@ async function runDueReportCheck(source: string) {
   }
 }
 
-function scheduleNextBoundary() {
+async function scheduleNextBoundary() {
   const scheduler = state();
   if (scheduler.timeout) clearTimeout(scheduler.timeout);
 
-  const nextBoundary = getNextDownloadReportBoundary();
+  const timezone = await getDownloadReportTimezone();
+  const nextBoundary = getNextDownloadReportBoundary(new Date(), timezone);
   const delay = Math.max(1_000, Math.min(nextBoundary.getTime() - Date.now() + 500, MAX_TIMEOUT_MS));
 
   scheduler.timeout = setTimeout(() => {
-    void runDueReportCheck("boundary").finally(scheduleNextBoundary);
+    void runDueReportCheck("boundary").finally(() => {
+      void scheduleNextBoundary();
+    });
   }, delay);
 }
 
@@ -53,10 +56,14 @@ export function startDownloadReportScheduler() {
   scheduler.started = true;
 
   scheduler.timeout = setTimeout(() => {
-    void runDueReportCheck("startup").finally(scheduleNextBoundary);
+    void runDueReportCheck("startup").finally(() => {
+      void scheduleNextBoundary();
+    });
   }, 5_000);
 
   scheduler.interval = setInterval(() => {
-    void runDueReportCheck("fallback");
+    void runDueReportCheck("fallback").finally(() => {
+      void scheduleNextBoundary();
+    });
   }, FALLBACK_INTERVAL_MS);
 }

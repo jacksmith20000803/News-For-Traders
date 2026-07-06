@@ -15,7 +15,7 @@ import {
   Zap,
 } from "lucide-react";
 import { countryFlagPath } from "@/components/ui/country-flag";
-import { getTradingBotClientDownloadConfig, runTradingBotDownload } from "@/lib/download/trading-bot-client";
+import { getTradingBotClientDownloadConfig, runTradingBotDownload, useTradingBotDownloadState } from "@/lib/download/trading-bot-client";
 import type { TradingBotDownloadConfig } from "@/lib/download/trading-bot-links";
 import { cn } from "@/lib/utils";
 
@@ -574,7 +574,7 @@ function PromoButton({
   className?: string;
 }) {
   const downloadConfig = useTradingBotDownloadConfig();
-  const isExternalDownload = downloadConfig.mode === "external";
+  const downloadState = useTradingBotDownloadState();
   const content = (
     <>
       <Icon className="relative z-10 h-4 w-4" />
@@ -598,20 +598,20 @@ function PromoButton({
 
   if (download) {
     return (
-      <a
-        href={href}
-        download={isExternalDownload ? undefined : downloadConfig.fileName}
-        target={isExternalDownload ? "_blank" : undefined}
-        rel="noopener"
+      <button
+        type="button"
+        disabled={downloadState.active}
+        aria-label={typeof children === "string" ? children : "Download trading bot"}
         {...trackingProps}
-        className={classes}
+        className={cn(classes, "disabled:cursor-wait disabled:opacity-70")}
         onClick={(event) => {
           event.preventDefault();
+          if (downloadState.active) return;
           startTradingBotAppInstall("promo_cta", downloadConfig);
         }}
       >
         {content}
-      </a>
+      </button>
     );
   }
 
@@ -735,6 +735,8 @@ function BotAppInstallNudge({
   onOfferNo: () => void;
   onClose: () => void;
 }) {
+  const downloadState = useTradingBotDownloadState();
+
   if (stage === "hidden") return null;
   if (typeof document === "undefined") return null;
 
@@ -785,10 +787,11 @@ function BotAppInstallNudge({
           <button
             type="button"
             onClick={onOfferYes}
+            disabled={downloadState.active}
             data-track-event="promo_nudge_download_app"
             data-track-label="Download app"
             data-track-component="trading-bot-promo"
-            className="relative z-10 flex min-h-12 w-full items-center justify-center overflow-hidden rounded-xl bg-gradient-to-r from-emerald-500 via-green-500 to-lime-400 px-4 text-sm font-black text-white shadow-[0_20px_45px_rgba(34,197,94,0.34)] active:translate-y-0.5 active:scale-95"
+            className="relative z-10 flex min-h-12 w-full items-center justify-center overflow-hidden rounded-xl bg-gradient-to-r from-emerald-500 via-green-500 to-lime-400 px-4 text-sm font-black text-white shadow-[0_20px_45px_rgba(34,197,94,0.34)] active:translate-y-0.5 active:scale-95 disabled:cursor-wait disabled:opacity-70"
           >
             Download app
           </button>

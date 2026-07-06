@@ -16,6 +16,7 @@ type ReportItem = {
 
 type ReportsResponse = {
   reports: ReportItem[];
+  timezone: string;
   nextBoundaryAt: string;
 };
 
@@ -28,6 +29,7 @@ type GenerateReportResponse = {
 export function AdminDownloadReportsPanel() {
   const [reports, setReports] = useState<ReportItem[]>([]);
   const [nextBoundaryAt, setNextBoundaryAt] = useState<string | null>(null);
+  const [timezone, setTimezone] = useState("");
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [message, setMessage] = useState("");
@@ -42,6 +44,7 @@ export function AdminDownloadReportsPanel() {
       if (!json.success || !json.data) throw new Error(json.error ?? "Could not load reports");
       setReports(json.data.reports);
       setNextBoundaryAt(json.data.nextBoundaryAt);
+      setTimezone(json.data.timezone);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not load reports");
     } finally {
@@ -89,13 +92,13 @@ export function AdminDownloadReportsPanel() {
             <div className="min-w-0">
               <h2 className="text-lg font-bold text-foreground">Daily download/install reports</h2>
               <p className="text-sm text-muted-foreground">
-                Windows close daily at 11:00 AM. Each text file lists name, country, time, action, and totals.
+                Report windows close daily at 11:00 AM{timezone ? ` (${timezone})` : ""}. Each text file lists name, country, time, action, and totals.
               </p>
             </div>
           </div>
           {nextBoundaryAt ? (
             <p className="mt-3 text-xs text-muted-foreground">
-              Next report closes at {new Date(nextBoundaryAt).toLocaleString()}.
+              Next report closes at {new Date(nextBoundaryAt).toLocaleString(undefined, timezone ? { timeZone: timezone } : undefined)}.
             </p>
           ) : null}
         </div>

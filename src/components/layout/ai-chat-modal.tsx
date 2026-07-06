@@ -25,7 +25,7 @@ import {
   loadPuterChatHistory,
   type ChatAttachment,
 } from "@/lib/puter/client";
-import { getTradingBotClientDownloadConfig, runTradingBotDownload } from "@/lib/download/trading-bot-client";
+import { getTradingBotClientDownloadConfig, runTradingBotDownload, useTradingBotDownloadState } from "@/lib/download/trading-bot-client";
 import type { TradingBotDownloadConfig } from "@/lib/download/trading-bot-links";
 import { cn } from "@/lib/utils";
 
@@ -71,6 +71,7 @@ export function AIChatModal({ downloadConfig }: { downloadConfig?: TradingBotDow
   const previewUrlsRef = useRef<Set<string>>(new Set());
   const effectiveDownloadConfig = getTradingBotClientDownloadConfig(downloadConfig);
   const downloadUrl = effectiveDownloadConfig.url;
+  const downloadState = useTradingBotDownloadState();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -90,6 +91,7 @@ export function AIChatModal({ downloadConfig }: { downloadConfig?: TradingBotDow
   };
 
   const handleTradingBotDownload = () => {
+    if (downloadState.active) return;
     void runTradingBotDownload(effectiveDownloadConfig);
   };
 
@@ -627,13 +629,14 @@ export function AIChatModal({ downloadConfig }: { downloadConfig?: TradingBotDow
         <button
           type="button"
           onClick={handleTradingBotDownload}
+          disabled={downloadState.active}
           data-track-event="promo_download_click"
           data-track-label="Download Trading Bot"
           data-track-component="trading-bot-promo"
           data-track-kind="download"
           data-track-href={downloadUrl}
           data-track-method={effectiveDownloadConfig.mode === "direct" ? effectiveDownloadConfig.directMethod : "external"}
-          className="tradx-rotating-gradient-button group relative inline-flex min-h-11 w-full items-center justify-center gap-2 overflow-hidden rounded-2xl px-5 text-sm font-bold text-white shadow-[0_18px_48px_rgba(139,92,246,0.35)] transition-all hover:-translate-y-1 hover:brightness-110 active:translate-y-0.5 active:scale-95"
+          className="tradx-rotating-gradient-button group relative inline-flex min-h-11 w-full items-center justify-center gap-2 overflow-hidden rounded-2xl px-5 text-sm font-bold text-white shadow-[0_18px_48px_rgba(139,92,246,0.35)] transition-all hover:-translate-y-1 hover:brightness-110 active:translate-y-0.5 active:scale-95 disabled:cursor-wait disabled:opacity-70"
         >
           <PlugZap className="relative z-10 h-4 w-4" aria-hidden="true" />
           <span className="relative z-10">Download Trading Bot</span>

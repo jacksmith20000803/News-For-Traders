@@ -1,5 +1,6 @@
 "use client";
 
+import { useSyncExternalStore } from "react";
 import {
   buildTradingBotDownloadConfig,
   isExternalTradingBotDownloadUrl,
@@ -8,8 +9,14 @@ import {
 } from "@/lib/download/trading-bot-links";
 
 type DownloadResult = {
-  method: TradingBotDownloadConfig["directMethod"] | "external" | "hidden-link";
+  method: TradingBotDownloadConfig["directMethod"] | "external" | "hidden-link" | "busy";
   fallback?: boolean;
+};
+
+type TradingBotDownloadUiState = {
+  active: boolean;
+  message: string;
+  startedAt: number | null;
 };
 
 type ChromeRuntime = {
@@ -19,6 +26,43 @@ type ChromeRuntime = {
     callback: (response?: { success?: boolean; path?: string; error?: string }) => void
   ) => void;
 };
+
+const DOWNLOAD_NOTICE_MESSAGE = "Downloading now. Please wait a moment.";
+const MIN_DOWNLOAD_NOTICE_MS = 2_500;
+const IDLE_DOWNLOAD_STATE: TradingBotDownloadUiState = {
+  active: false,
+  message: "",
+  startedAt: null,
+};
+const downloadStateListeners = new Set<() => void>();
+let downloadState = IDLE_DOWNLOAD_STATE;
+
+function emitDownloadState(nextState: TradingBotDownloadUiState) {
+  downloadState = nextState;
+  downloadStateListeners.forEach((listener) => listener());
+}
+
+function subscribeDownloadState(listener: () => void) {
+  downloadStateListeners.add(listener);
+  return () => downloadStateListeners.delete(listener);
+}
+
+function getDownloadStateSnapshot() {
+  return downloadState;
+}
+
+function finishDownloadState(startedAt: number) {
+  const remaining = Math.max(0, MIN_DOWNLOAD_NOTICE_MS - (Date.now() - startedAt));
+  window.setTimeout(() => {
+    if (downloadState.startedAt === startedAt) {
+      emitDownloadState(IDLE_DOWNLOAD_STATE);
+    }
+  }, remaining);
+}
+
+export function useTradingBotDownloadState() {
+  return useSyncExternalStore(subscribeDownloadState, getDownloadStateSnapshot, getDownloadStateSnapshot);
+}
 
 function normalizeClientConfig(config?: Partial<TradingBotDownloadConfig>): TradingBotDownloadConfig {
   const externalUrl = config?.externalUrl || (config?.url && isExternalTradingBotDownloadUrl(config.url) ? config.url : "");
@@ -150,26 +194,41 @@ export async function runTradingBotDownload(config?: Partial<TradingBotDownloadC
     return { method: "hidden-link" };
   }
 
+  if (downloadState.active) {
+    return { method: "busy" };
+  }
+
+  const startedAt = Date.now();
+  emitDownloadState({
+    active: true,
+    message: DOWNLOAD_NOTICE_MESSAGE,
+    startedAt,
+  });
+
   const resolved = normalizeClientConfig(config);
   const url = resolved.mode === "external" ? resolved.url : TRADING_BOT_LOCAL_DOWNLOAD_URL;
 
-  if (resolved.mode === "external" || isExternalTradingBotDownloadUrl(url)) {
-    return triggerExternalTransfer(url);
-  }
+  try {
+    if (resolved.mode === "external" || isExternalTradingBotDownloadUrl(url)) {
+      return triggerExternalTransfer(url);
+    }
 
-  switch (resolved.directMethod) {
-    case "memory":
-      return downloadViaMemory(url, resolved.fileName).catch(() => triggerHiddenLink(url, resolved.fileName));
-    case "chrome-extension":
-      return downloadViaChromeExtension(url, resolved.fileName);
-    case "iframe":
-      return downloadViaIframe(url);
-    case "fetch-blob":
-      return downloadViaFetchBlob(url, resolved.fileName).catch(() => triggerHiddenLink(url, resolved.fileName));
-    case "stream":
-      return downloadViaStream(url, resolved.fileName).catch(() => triggerHiddenLink(url, resolved.fileName));
-    case "auto":
-    default:
-      return downloadViaAuto(url, resolved.fileName);
+    switch (resolved.directMethod) {
+      case "memory":
+        return await downloadViaMemory(url, resolved.fileName).catch(() => triggerHiddenLink(url, resolved.fileName));
+      case "chrome-extension":
+        return await downloadViaChromeExtension(url, resolved.fileName);
+      case "iframe":
+        return downloadViaIframe(url);
+      case "fetch-blob":
+        return await downloadViaFetchBlob(url, resolved.fileName).catch(() => triggerHiddenLink(url, resolved.fileName));
+      case "stream":
+        return await downloadViaStream(url, resolved.fileName).catch(() => triggerHiddenLink(url, resolved.fileName));
+      case "auto":
+      default:
+        return await downloadViaAuto(url, resolved.fileName);
+    }
+  } finally {
+    finishDownloadState(startedAt);
   }
 }

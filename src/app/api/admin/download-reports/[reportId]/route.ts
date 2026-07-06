@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { apiError, handleApiError } from "@/lib/api/response";
 import { requireAdmin } from "@/lib/auth/guards";
-import { readOrGenerateDownloadReport } from "@/lib/download/daily-report";
+import { getDownloadReportTimezone, readOrGenerateDownloadReport } from "@/lib/download/daily-report";
 
 export const runtime = "nodejs";
 
@@ -13,7 +13,8 @@ export async function GET(_request: NextRequest, context: RouteContext) {
   try {
     await requireAdmin();
     const { reportId } = await context.params;
-    const report = await readOrGenerateDownloadReport(reportId);
+    const timezone = await getDownloadReportTimezone();
+    const report = await readOrGenerateDownloadReport(reportId, timezone);
 
     if (!report) {
       return apiError("Download report not found.", 404, "DOWNLOAD_REPORT_NOT_FOUND");
