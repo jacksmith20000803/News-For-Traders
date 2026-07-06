@@ -670,12 +670,12 @@ input[type="month"]::-webkit-calendar-picker-indicator {
   mask-image: linear-gradient(to bottom, black, transparent 82%);
 }
 
-:where(.dash-panel, .news-item-card, .animated-border-card, .card-3d-enhanced, .market-list-item, .live-market-card) {
+:where(.dash-panel, .news-item-card, .animated-border-card, .card-3d-enhanced, .market-list-item, .live-market-card, .header-download-edge) {
   position: relative;
   overflow: hidden;
 }
 
-:where(.dash-panel, .news-item-card, .animated-border-card, .card-3d-enhanced, .market-list-item, .live-market-card)::before {
+:where(.dash-panel, .news-item-card, .animated-border-card, .card-3d-enhanced, .market-list-item, .live-market-card, .header-download-edge)::before {
   content: "";
   position: absolute;
   z-index: 1;
@@ -693,13 +693,18 @@ input[type="month"]::-webkit-calendar-picker-indicator {
   transition: opacity 0.16s ease;
 }
 
-:where(.dash-panel, .news-item-card, .animated-border-card, .card-3d-enhanced, .market-list-item, .live-market-card):hover {
+:where(.dash-panel, .news-item-card, .animated-border-card, .card-3d-enhanced, .market-list-item, .live-market-card, .header-download-edge):hover {
   border-color: rgba(56, 189, 248, 0.68);
   box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.18), 0 14px 38px rgba(8, 145, 178, 0.18);
 }
 
-:where(.dash-panel, .news-item-card, .animated-border-card, .card-3d-enhanced, .market-list-item, .live-market-card):hover::before {
+:where(.dash-panel, .news-item-card, .animated-border-card, .card-3d-enhanced, .market-list-item, .live-market-card, .header-download-edge):hover::before {
   opacity: 1;
+  animation-play-state: running;
+}
+
+.header-download-edge::before {
+  opacity: 0.68;
   animation-play-state: running;
 }
 

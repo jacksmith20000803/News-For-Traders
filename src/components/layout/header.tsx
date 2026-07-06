@@ -5,6 +5,8 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { GlobalSearchBar } from "@/components/layout/global-search";
+import { HeaderDownloadButton } from "@/components/layout/header-download-button";
+import type { TradingBotDownloadConfig } from "@/lib/download/trading-bot-links";
 import {
   LayoutDashboard,
   MessageSquare,
@@ -52,7 +54,7 @@ const authenticatedNavItems = [
   { href: "/knowledge", label: "Research", icon: BookOpen },
 ];
 
-export function Header() {
+export function Header({ downloadConfig }: { downloadConfig: TradingBotDownloadConfig }) {
   const pathname = usePathname();
   const { theme, resolvedTheme, setTheme } = useTheme();
   const currentTheme = theme === "system" ? resolvedTheme : theme;
@@ -115,6 +117,8 @@ export function Header() {
         {user ? (
           <div className="ml-auto hidden items-center gap-4 md:flex" suppressHydrationWarning>
             <GlobalSearchBar className="w-[min(38vw,380px)]" />
+            <HeaderDownloadButton downloadConfig={downloadConfig} className="hidden xl:inline-flex" />
+            <HeaderDownloadButton downloadConfig={downloadConfig} compact className="hidden md:inline-flex xl:hidden" />
             <NotificationBell />
             <button
               type="button"
@@ -235,10 +239,20 @@ export function Header() {
                 ))}
               </nav>
             )}
+            <HeaderDownloadButton
+              downloadConfig={downloadConfig}
+              className={cn("hidden xl:inline-flex", !isLandingPage && "ml-auto")}
+            />
+            <HeaderDownloadButton
+              downloadConfig={downloadConfig}
+              compact
+              className={cn("hidden md:inline-flex xl:hidden", !isLandingPage && "ml-auto")}
+            />
           </div>
         )}
 
         <div className="ml-auto flex items-center gap-2 md:ml-0" suppressHydrationWarning>
+          <HeaderDownloadButton downloadConfig={downloadConfig} compact className="md:hidden" />
           <Link
             href="/search"
             className="md:hidden rounded-lg p-2.5 text-gray-700 dark:text-muted-foreground hover:bg-gray-100 dark:hover:bg-white/5"

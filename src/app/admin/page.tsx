@@ -21,7 +21,7 @@ export default async function AdminDashboardPage() {
     },
   });
 
-  const [userCount, newToday, newsCount, reportCount, unviewedRegs, newFeedback, recentAudit] =
+  const [userCount, newToday, newsCount, reportCount, unviewedRegs, newFeedback, pendingCommunities, recentAudit] =
     await Promise.all([
       db.user.count({ where: { deletedAt: null } }),
       db.user.count({
@@ -31,6 +31,7 @@ export default async function AdminDashboardPage() {
       db.report.count({ where: { status: "PENDING" } }),
       db.registrationAudit.count({ where: { adminViewed: false } }),
       db.feedbackSubmission.count({ where: { status: "NEW" } }),
+      db.tradeCommunity.count({ where: { status: "PENDING" } }),
       db.auditLog.findMany({
         orderBy: { createdAt: "desc" },
         take: 10,
@@ -44,6 +45,7 @@ export default async function AdminDashboardPage() {
     { label: "Unviewed Registrations", value: unviewedRegs, icon: Users, href: "/admin/registrations" },
     { label: "News Items", value: newsCount, icon: Newspaper, href: "/admin/news" },
     { label: "Feedback Inbox", value: newFeedback, icon: MessageSquare, href: "/admin/feedback" },
+    { label: "Community Requests", value: pendingCommunities, icon: Users, href: "/admin/content" },
     { label: "AI Assistant", value: "Managed", icon: Bot, href: "/admin/ai" },
     { label: "Pending Reports", value: reportCount, icon: AlertTriangle, href: "/admin/moderation" },
   ];

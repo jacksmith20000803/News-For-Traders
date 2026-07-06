@@ -166,6 +166,31 @@ enum SupportMessageStatus {
   READ
 }
 
+enum CommunityStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  ARCHIVED
+}
+
+enum CommunityMemberRole {
+  OWNER
+  MODERATOR
+  MEMBER
+}
+
+enum CommunityMembershipStatus {
+  ACTIVE
+  BLOCKED
+  REMOVED
+}
+
+enum FriendRequestStatus {
+  PENDING
+  ACCEPTED
+  IGNORED
+}
+
 model User {
   id                   String    @id @default(cuid())
   email                String    @unique
@@ -227,6 +252,14 @@ model User {
   puterTokensCreated   PuterToken[]      @relation("PuterTokenCreator")
   trustedDevices       TrustedDevice[]
   visitorActivities    VisitorActivity[]
+  ownedCommunities     TradeCommunity[]  @relation("CommunityOwner")
+  approvedCommunities  TradeCommunity[]  @relation("CommunityApprover")
+  communityMemberships CommunityMembership[]
+  communityMessages    CommunityMessage[]
+  sentFriendRequests   FriendRequest[]   @relation("FriendRequester")
+  receivedFriendRequests FriendRequest[] @relation("FriendRecipient")
+  dmParticipants       DirectConversationParticipant[]
+  directMessages       DirectMessage[]
 
   @@index([email])
   @@index([username])
@@ -1026,6 +1059,147 @@ model SupportMessage {
 
   @@index([conversationId])
   @@index([createdAt])
+}
+
+model TradeCommunity {
+  id              String          @id @default(cuid())
+  name            String
+  slug            String          @unique
+  topic           String
+  rules           String
+  avatarUrl       String?
+  badgeUrl        String?
+  ownerId         String
+  status          CommunityStatus @default(PENDING)
+  rejectionReason String?
+  approvedById    String?
+  approvedAt      DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  deletedAt       DateTime?
+
+  owner      User                   @relation("CommunityOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  approvedBy User?                  @relation("CommunityApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  members    CommunityMembership[]
+  messages   CommunityMessage[]
+
+  @@index([ownerId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([deletedAt])
+}
+
+model CommunityMembership {
+  id             String                    @id @default(cuid())
+  communityId    String
+  userId         String
+  role           CommunityMemberRole       @default(MEMBER)
+  status         CommunityMembershipStatus @default(ACTIVE)
+  rulesAgreedAt  DateTime?
+  blockedAt      DateTime?
+  blockedReason  String?
+  createdAt      DateTime                  @default(now())
+  updatedAt      DateTime                  @updatedAt
+
+  community TradeCommunity @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([communityId, userId])
+  @@index([userId, status])
+  @@index([communityId, status])
+  @@index([role])
+}
+
+model CommunityMessage {
+  id             String    @id @default(cuid())
+  communityId    String
+  senderId       String
+  content        String?
+  attachmentUrl  String?
+  attachmentName String?
+  attachmentType String?
+  attachmentSize Int?
+  replyToId      String?
+  editedAt       DateTime?
+  deletedAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  community TradeCommunity    @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  sender    User              @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  replyTo   CommunityMessage? @relation("CommunityMessageReplies", fields: [replyToId], references: [id])
+  replies   CommunityMessage[] @relation("CommunityMessageReplies")
+
+  @@index([communityId, createdAt])
+  @@index([senderId])
+  @@index([replyToId])
+  @@index([deletedAt])
+}
+
+model FriendRequest {
+  id          String              @id @default(cuid())
+  requesterId String
+  recipientId String
+  status      FriendRequestStatus @default(PENDING)
+  createdAt   DateTime            @default(now())
+  respondedAt DateTime?
+
+  requester User @relation("FriendRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  recipient User @relation("FriendRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@unique([requesterId, recipientId])
+  @@index([requesterId, createdAt])
+  @@index([recipientId, status])
+}
+
+model DirectConversation {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  participants DirectConversationParticipant[]
+  messages     DirectMessage[]
+
+  @@index([updatedAt])
+}
+
+model DirectConversationParticipant {
+  id             String   @id @default(cuid())
+  conversationId String
+  userId         String
+  createdAt      DateTime @default(now())
+
+  conversation DirectConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+}
+
+model DirectMessage {
+  id             String    @id @default(cuid())
+  conversationId String
+  senderId       String
+  content        String?
+  attachmentUrl  String?
+  attachmentName String?
+  attachmentType String?
+  attachmentSize Int?
+  replyToId      String?
+  editedAt       DateTime?
+  deletedAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  conversation DirectConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User               @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  replyTo      DirectMessage?     @relation("DirectMessageReplies", fields: [replyToId], references: [id])
+  replies      DirectMessage[]    @relation("DirectMessageReplies")
+
+  @@index([conversationId, createdAt])
+  @@index([senderId])
+  @@index([replyToId])
+  @@index([deletedAt])
 }
 
 model AdminPresence {

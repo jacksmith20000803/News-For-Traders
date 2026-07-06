@@ -26,6 +26,10 @@ const immutableAssetHeaders = [
   { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
 ];
 
+const noStoreRuntimeHeaders = [
+  { key: "Cache-Control", value: "no-store, no-cache, max-age=0, must-revalidate, proxy-revalidate" },
+];
+
 const nextConfig: NextConfig = {
   output: "standalone",
   compress: true,
@@ -62,6 +66,8 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       { source: "/:path*", headers: securityHeaders },
+      { source: "/sw.js", headers: noStoreRuntimeHeaders },
+      { source: "/service-worker.js", headers: noStoreRuntimeHeaders },
       { source: "/coin-avatar/:path*", headers: immutableAssetHeaders },
       { source: "/coin-backgrounds/:path*", headers: immutableAssetHeaders },
       { source: "/coin-badge/:path*", headers: immutableAssetHeaders },

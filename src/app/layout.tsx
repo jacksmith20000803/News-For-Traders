@@ -13,6 +13,7 @@ import { PriceTicker } from "@/components/layout/price-ticker";
 import { PageLoader } from "@/components/loading/page-loader";
 import { AIChatEntry } from "@/components/layout/ai-chat-entry";
 import { HydrationCleanup } from "@/components/layout/hydration-cleanup";
+import { StaleClientRecovery } from "@/components/layout/stale-client-recovery";
 import { AdminDownloadSystemAlerts } from "@/components/admin/admin-download-system-alerts";
 import { TradingBotDownloadNotice } from "@/components/ui/trading-bot-download-notice";
 import { getTradingBotDownloadConfig } from "@/lib/download/trading-bot-settings";
@@ -99,13 +100,14 @@ export default async function RootLayout({
       </head>
       <body className="min-h-full flex flex-col antialiased" suppressHydrationWarning>
         <HydrationCleanup />
+        <StaleClientRecovery />
         <ThemeProvider>
           <AuthProvider initialUser={null}>
             <SSEProvider>
               <RealtimeSyncProvider>
                 <PageLoader />
                 <div className="flex min-h-full min-w-0 flex-col" suppressHydrationWarning>
-                  <Header />
+                  <Header downloadConfig={tradingBotDownloadConfig} />
                   <PriceTicker />
                   <div className="flex min-w-0 flex-1" suppressHydrationWarning>
                     <SidebarGate />
