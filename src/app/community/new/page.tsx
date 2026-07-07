@@ -8,6 +8,8 @@ import { getCsrfToken, readJsonResponse } from "@/lib/api/client";
 import { COMMUNITY_PRESET_AVATARS, COMMUNITY_PRESET_BADGES } from "@/lib/community/presets";
 import { cn } from "@/lib/utils";
 
+const COMMUNITY_DRAFT_KEY = "tradx:community-create-draft";
+
 type ApiResponse<T> = {
   success: boolean;
   data?: T;
@@ -18,6 +20,7 @@ export default function NewCommunityPage() {
   const router = useRouter();
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const badgeInputRef = useRef<HTMLInputElement>(null);
+  const draftHydratedRef = useRef(false);
   const [name, setName] = useState("");
   const [topic, setTopic] = useState("");
   const [rules, setRules] = useState("");
@@ -33,6 +36,49 @@ export default function NewCommunityPage() {
   const effectiveAvatar = avatarPreview ?? avatarPreset;
   const effectiveBadge = badgePreview ?? badgePreset;
   const canSubmit = name.trim().length >= 3 && topic.trim().length >= 10 && rules.trim().length >= 20 && !loading;
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      try {
+        const rawDraft = window.localStorage.getItem(COMMUNITY_DRAFT_KEY);
+        if (!rawDraft) return;
+        const draft = JSON.parse(rawDraft) as {
+          name?: string;
+          topic?: string;
+          rules?: string;
+          avatarPreset?: string;
+          badgePreset?: string;
+        };
+        setName(draft.name ?? "");
+        setTopic(draft.topic ?? "");
+        setRules(draft.rules ?? "");
+        if (draft.avatarPreset) setAvatarPreset(draft.avatarPreset);
+        if (draft.badgePreset) setBadgePreset(draft.badgePreset);
+      } catch {
+        window.localStorage.removeItem(COMMUNITY_DRAFT_KEY);
+      } finally {
+        draftHydratedRef.current = true;
+      }
+    }, 0);
+
+    return () => window.clearTimeout(timeout);
+  }, []);
+
+  useEffect(() => {
+    if (!draftHydratedRef.current) return;
+    const timeout = window.setTimeout(() => {
+      const hasDraft = name.trim() || topic.trim() || rules.trim();
+      if (!hasDraft) {
+        window.localStorage.removeItem(COMMUNITY_DRAFT_KEY);
+        return;
+      }
+      window.localStorage.setItem(
+        COMMUNITY_DRAFT_KEY,
+        JSON.stringify({ name, topic, rules, avatarPreset, badgePreset })
+      );
+    }, 250);
+    return () => window.clearTimeout(timeout);
+  }, [avatarPreset, badgePreset, name, rules, topic]);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -61,6 +107,7 @@ export default function NewCommunityPage() {
         setError(json.error ?? "Failed to submit community request.");
         return;
       }
+      window.localStorage.removeItem(COMMUNITY_DRAFT_KEY);
       router.push("/community");
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Failed to submit community request.");
@@ -82,7 +129,7 @@ export default function NewCommunityPage() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-      <Link href="/community" className="mb-5 inline-flex items-center gap-2 text-sm font-bold text-muted-foreground hover:text-primary">
+      <Link href="/community" className="mb-5 inline-flex items-center gap-2 rounded-2xl border border-border bg-card/85 px-3 py-2 text-sm font-bold text-muted-foreground shadow-sm hover:bg-muted hover:text-primary">
         <ArrowLeft className="h-4 w-4" />
         Back to community
       </Link>
@@ -133,7 +180,7 @@ export default function NewCommunityPage() {
               <button
                 type="button"
                 onClick={() => setRules(sampleRules)}
-                className="mt-2 text-xs font-bold text-primary hover:underline"
+                className="mt-2 inline-flex rounded-xl border border-primary/20 bg-primary/10 px-3 py-2 text-xs font-bold text-primary shadow-sm hover:bg-primary/15"
               >
                 Use starter rules
               </button>
@@ -202,7 +249,7 @@ export default function NewCommunityPage() {
             <div
               className="absolute -top-10 left-5 flex h-20 w-20 items-center justify-center rounded-[1.4rem] border-4 border-card bg-cover bg-center text-xl font-black text-white shadow-xl"
               style={{
-                backgroundImage: `linear-gradient(135deg, rgba(16,185,129,0.45), rgba(59,130,246,0.18)), url(${effectiveAvatar})`,
+                backgroundImage: `url(${effectiveAvatar})`,
               }}
             >
               {!effectiveAvatar ? name.slice(0, 2).toUpperCase() || "CM" : null}
@@ -253,7 +300,7 @@ function AssetPicker({
         <button
           type="button"
           onClick={onUpload}
-          className="inline-flex h-9 items-center gap-2 rounded-xl border border-border bg-background px-3 text-xs font-black text-muted-foreground hover:text-primary"
+          className="inline-flex h-9 items-center gap-2 rounded-xl border border-border bg-background px-3 text-xs font-black text-muted-foreground shadow-sm hover:bg-muted hover:text-primary"
         >
           <UploadCloud className="h-4 w-4" />
           Upload

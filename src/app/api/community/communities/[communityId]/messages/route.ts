@@ -4,11 +4,13 @@ import { ApiError, apiSuccess, handleApiError } from "@/lib/api/response";
 import { requireAuth, validateCsrf } from "@/lib/auth/guards";
 import { db } from "@/lib/db";
 import { saveChatAttachment } from "@/lib/community/uploads";
+import { getCommunityMediaItem } from "@/lib/community/media";
 import { eventBus } from "@/lib/events/broadcaster";
 
 const messageSchema = z.object({
   content: z.string().trim().max(4000).optional(),
   replyToId: z.string().cuid().optional(),
+  mediaId: z.string().trim().optional(),
 });
 
 export async function GET(
@@ -56,11 +58,17 @@ export async function POST(
     const data = messageSchema.parse({
       content: String(formData.get("content") ?? "") || undefined,
       replyToId: String(formData.get("replyToId") ?? "") || undefined,
+      mediaId: String(formData.get("mediaId") ?? "") || undefined,
     });
     const attachment = formData.get("attachment");
     const savedAttachment = attachment instanceof File && attachment.size > 0 ? await saveChatAttachment(attachment) : null;
+    const catalogMedia = data.mediaId ? await getCommunityMediaItem(data.mediaId) : null;
 
-    if (!data.content && !savedAttachment) {
+    if (data.mediaId && (!catalogMedia || catalogMedia.type === "EMOJI" || !catalogMedia.url)) {
+      throw new ApiError(422, "Selected media is no longer available.", "MEDIA_NOT_FOUND");
+    }
+
+    if (!data.content && !savedAttachment && !catalogMedia) {
       throw new ApiError(422, "Message text or attachment is required.", "MESSAGE_REQUIRED");
     }
 
@@ -78,9 +86,9 @@ export async function POST(
         senderId: user.id,
         content: data.content,
         replyToId: data.replyToId,
-        attachmentUrl: savedAttachment?.url,
-        attachmentName: savedAttachment?.name,
-        attachmentType: savedAttachment?.type,
+        attachmentUrl: savedAttachment?.url ?? catalogMedia?.url,
+        attachmentName: savedAttachment?.name ?? catalogMedia?.name,
+        attachmentType: savedAttachment?.type ?? (catalogMedia ? (catalogMedia.type === "GIF" ? "image/gif" : "image/webp") : undefined),
         attachmentSize: savedAttachment?.size,
       },
       include: {

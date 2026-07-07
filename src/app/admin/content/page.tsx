@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AdminCommunityManagement } from "@/components/admin/admin-community-management";
+import { AdminCommunityMediaManager } from "@/components/admin/admin-community-media-manager";
 import Link from "next/link";
 
 export default async function AdminContentPage() {
@@ -72,6 +73,17 @@ export default async function AdminContentPage() {
                 approvedAt: community.approvedAt?.toISOString() ?? null,
               }))}
             />
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="mb-8">
+        <Card>
+          <CardHeader>
+            <CardTitle>Community Media Library</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <AdminCommunityMediaManager />
           </CardContent>
         </Card>
       </div>

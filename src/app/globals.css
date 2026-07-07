@@ -178,15 +178,16 @@ a[title]:not([data-tooltip="false"]):focus-visible::after {
   position: absolute !important;
   left: 50%;
   top: calc(100% + 0.5rem);
-  z-index: 99 !important;
+  z-index: 1000 !important;
   width: max-content;
   max-width: 14rem;
   transform: translateX(-50%);
-  border: 1px solid color-mix(in srgb, var(--border) 75%, var(--foreground) 25%);
+  border: 1px solid color-mix(in srgb, var(--border) 68%, var(--foreground) 32%);
   border-radius: 0.65rem;
-  background: color-mix(in srgb, var(--card) 92%, var(--background) 8%);
+  background: color-mix(in srgb, var(--card) 96%, var(--background) 4%);
   color: var(--foreground);
-  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.26), 0 0 0 1px color-mix(in srgb, var(--foreground) 8%, transparent);
+  backdrop-filter: blur(14px);
   padding: 0.38rem 0.55rem;
   pointer-events: none;
   text-align: center;
@@ -940,10 +941,10 @@ input[type="month"]::-webkit-calendar-picker-indicator {
 [role="tooltip"],
 .tooltip,
 [data-radix-popper-content-wrapper],
-[data-tooltip],
+[data-tooltip]:not([data-tooltip="false"]),
 .tooltip-content {
   position: absolute;
-  z-index: 99;
+  z-index: 1000;
 }
 
 @keyframes ask-ai-sweep {

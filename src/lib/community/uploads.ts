@@ -38,6 +38,16 @@ export async function saveChatAttachment(file: File) {
   });
 }
 
+export async function saveCommunityMediaAsset(file: File, type: "STICKER" | "GIF") {
+  return saveUpload(file, {
+    folder: `community/media/${type.toLowerCase()}s`,
+    maxSize: MAX_CHAT_ATTACHMENT_SIZE_BYTES,
+    allowedTypes: IMAGE_TYPES,
+    typeError: "Upload a PNG, JPG, WEBP, or GIF image.",
+    sizeError: "Community media files must be smaller than 5MB.",
+  });
+}
+
 async function saveUpload(
   file: File,
   options: {
