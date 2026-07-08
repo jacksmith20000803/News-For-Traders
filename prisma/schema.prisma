@@ -1167,6 +1167,7 @@ model DirectConversationParticipant {
   id             String   @id @default(cuid())
   conversationId String
   userId         String
+  lastReadAt     DateTime?
   createdAt      DateTime @default(now())
 
   conversation DirectConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
@@ -1174,6 +1175,7 @@ model DirectConversationParticipant {
 
   @@unique([conversationId, userId])
   @@index([userId])
+  @@index([conversationId, lastReadAt])
 }
 
 model DirectMessage {

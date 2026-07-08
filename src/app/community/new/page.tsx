@@ -128,7 +128,8 @@ export default function NewCommunityPage() {
   );
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+    <div className="auth-market-bg min-h-[calc(100vh-8rem)] px-4 py-8 sm:px-6">
+      <div className="relative z-10 mx-auto max-w-6xl">
       <Link href="/community" className="mb-5 inline-flex items-center gap-2 rounded-2xl border border-border bg-card/85 px-3 py-2 text-sm font-bold text-muted-foreground shadow-sm hover:bg-muted hover:text-primary">
         <ArrowLeft className="h-4 w-4" />
         Back to community
@@ -262,6 +263,7 @@ export default function NewCommunityPage() {
             </div>
           </div>
         </aside>
+      </div>
       </div>
     </div>
   );

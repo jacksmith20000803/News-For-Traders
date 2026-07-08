@@ -22,25 +22,27 @@ export default async function CommunityPage({
   const initialData = await getCommunityHubData(user.id);
 
   return (
-    <div className="px-0 py-0 lg:px-4 lg:py-5">
-      <CommunityHub
-        currentUser={{
-          id: user.id,
-          name: user.name,
-          username: user.username,
-          email: user.email,
-          avatar: user.avatar,
-          country: null,
-        }}
-        initialData={initialData}
-        initialTarget={
-          query.community
-            ? { kind: "community", id: query.community }
-            : query.dm
-              ? { kind: "dm", id: query.dm }
-              : undefined
-        }
-      />
+    <div className="auth-market-bg min-h-[calc(100vh-8rem)] px-0 py-0 lg:px-4 lg:py-5">
+      <div className="relative z-10">
+        <CommunityHub
+          currentUser={{
+            id: user.id,
+            name: user.name,
+            username: user.username,
+            email: user.email,
+            avatar: user.avatar,
+            country: null,
+          }}
+          initialData={initialData}
+          initialTarget={
+            query.community
+              ? { kind: "community", id: query.community }
+              : query.dm
+                ? { kind: "dm", id: query.dm }
+                : undefined
+          }
+        />
+      </div>
     </div>
   );
 }

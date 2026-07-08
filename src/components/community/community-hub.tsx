@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Ban,
+  Check,
+  CheckCheck,
   CheckCircle2,
   Copy,
   Edit3,
@@ -101,6 +103,8 @@ type ChatMessage = {
     sender: { id: string; name: string; username: string | null; avatar: string | null };
   } | null;
   deliveryStatus?: "sending" | "failed" | "sent";
+  viewedAt?: string | null;
+  viewedByRecipient?: boolean;
 };
 
 type SearchUser = HubUser & {
@@ -132,7 +136,8 @@ const NEW_MESSAGE_GAP_MS = 30 * 60 * 1000;
 
 type ChatEventPayload =
   | { type: "community.message"; communityId: string; message: ChatMessage }
-  | { type: "dm.message"; conversationId: string; message: ChatMessage };
+  | { type: "dm.message"; conversationId: string; message: ChatMessage }
+  | { type: "dm.read"; conversationId: string; readerId: string; readAt: string };
 
 type TimelineItem =
   | { type: "divider"; id: string; label: string; tone: "date" | "new" }
@@ -268,6 +273,14 @@ export function CommunityHub({
     }
   }, [data.myCommunities]);
 
+  const markDmRead = useCallback(async (conversationId: string) => {
+    try {
+      await secureFetch(`/api/community/dms/${conversationId}/messages`, { method: "PATCH" });
+    } catch {
+      // Best-effort read receipts should not interrupt live chat.
+    }
+  }, []);
+
   useEffect(() => {
     const timeout = window.setTimeout(() => void loadMessages(active), 0);
     return () => window.clearTimeout(timeout);
@@ -287,9 +300,15 @@ export function CommunityHub({
       }
       if (payload.type === "dm.message" && active.kind === "dm" && payload.conversationId === active.id) {
         setMessages((current) => mergeIncomingMessage(current, payload.message, currentUser.id));
+        if (payload.message.senderId !== currentUser.id) {
+          void markDmRead(active.id);
+        }
+      }
+      if (payload.type === "dm.read" && active.kind === "dm" && payload.conversationId === active.id && payload.readerId !== currentUser.id) {
+        setMessages((current) => markMessagesViewed(current, currentUser.id, payload.readAt));
       }
     });
-  }, [active, currentUser.id]);
+  }, [active, currentUser.id, markDmRead]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -1137,7 +1156,7 @@ function TimelineDivider({ label, tone }: { label: string; tone: "date" | "new" 
   return (
     <div className="flex items-center gap-3 py-1">
       <span className="h-px flex-1 bg-red-500/45" />
-      <span className={cn("rounded-full border border-red-500/35 bg-card px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em]", tone === "new" ? "text-red-500" : "text-muted-foreground")}>
+      <span className={cn("px-2 text-[11px] font-black uppercase tracking-[0.18em]", tone === "new" ? "text-red-500" : "text-red-500/80 dark:text-red-300")}>
         {label}
       </span>
       <span className="h-px flex-1 bg-red-500/45" />
@@ -1260,15 +1279,30 @@ function MessageBubble({
               </span>
             ) : null}
             {message.editedAt ? <span className="mt-1 block text-[10px] font-bold text-muted-foreground">edited</span> : null}
-            {message.deliveryStatus && message.deliveryStatus !== "sent" ? (
-              <span className={cn("mt-1 block text-[10px] font-black uppercase tracking-[0.12em]", message.deliveryStatus === "failed" ? "text-red-500" : "text-muted-foreground")}>
-                {message.deliveryStatus}
-              </span>
-            ) : null}
+            <MessageDeliveryState message={message} isOwn={isOwn} />
           </>
         )}
       </div>
     </div>
+  );
+}
+
+function MessageDeliveryState({ message, isOwn }: { message: ChatMessage; isOwn: boolean }) {
+  if (!isOwn || message.deletedAt || message.deliveryStatus === "sending") return null;
+  if (message.deliveryStatus === "failed") {
+    return <span className="mt-1 flex justify-end text-[10px] font-black uppercase tracking-[0.12em] text-red-500">Failed</span>;
+  }
+
+  const viewed = Boolean(message.viewedAt || message.viewedByRecipient);
+
+  return (
+    <span
+      className={cn("mt-1 flex items-center justify-end", viewed ? "text-sky-500" : "text-muted-foreground/70")}
+      aria-label={viewed ? "Viewed by recipient" : "Sent to server"}
+      title={viewed ? "Viewed by recipient" : "Sent to server"}
+    >
+      {viewed ? <CheckCheck className="h-3.5 w-3.5" /> : <Check className="h-3.5 w-3.5" />}
+    </span>
   );
 }
 
@@ -1427,9 +1461,9 @@ function MediaPickerModal({
   const tabs: Array<CommunityMediaType | "ALL"> = ["ALL", "EMOJI", "STICKER", "GIF"];
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm">
-      <div className="flex max-h-[82vh] w-full max-w-3xl flex-col overflow-hidden rounded-[1.6rem] border border-border bg-card/96 shadow-2xl backdrop-blur-xl">
-        <div className="flex items-center justify-between gap-3 border-b border-border p-4">
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-background/72 p-4 backdrop-blur-md dark:bg-black/58">
+      <div className="flex max-h-[82vh] w-full max-w-3xl flex-col overflow-hidden rounded-[1.6rem] border border-border bg-card text-card-foreground shadow-2xl shadow-black/20 ring-1 ring-white/10 dark:bg-[#171a21]">
+        <div className="flex items-center justify-between gap-3 border-b border-border bg-background/45 p-4 dark:bg-white/[0.03]">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.18em] text-primary">Media picker</p>
             <h2 className="text-lg font-black text-foreground">Emoticons, stickers, and GIFs</h2>
@@ -1438,7 +1472,7 @@ function MediaPickerModal({
             <X className="h-5 w-5" />
           </button>
         </div>
-        <div className="border-b border-border p-4">
+        <div className="border-b border-border bg-card p-4 dark:bg-[#171a21]">
           <div className="flex flex-col gap-3 md:flex-row md:items-center">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -1466,7 +1500,7 @@ function MediaPickerModal({
             ))}
           </div>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto p-4">
+        <div className="min-h-0 flex-1 overflow-y-auto bg-background/55 p-4 dark:bg-black/18">
           {loading ? (
             <div className="flex min-h-64 items-center justify-center">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -1838,12 +1872,35 @@ function mergeIncomingMessage(current: ChatMessage[], incoming: ChatMessage, cur
   return [...current, normalizedIncoming].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 }
 
+function markMessagesViewed(current: ChatMessage[], currentUserId: string, readAt: string) {
+  const readAtTime = new Date(readAt).getTime();
+  if (Number.isNaN(readAtTime)) return current;
+
+  let changed = false;
+  const next = current.map((message) => {
+    const createdAtTime = new Date(message.createdAt).getTime();
+    if (message.senderId !== currentUserId || Number.isNaN(createdAtTime) || createdAtTime > readAtTime || message.viewedByRecipient) {
+      return message;
+    }
+    changed = true;
+    return {
+      ...message,
+      deliveryStatus: "sent" as const,
+      viewedAt: readAt,
+      viewedByRecipient: true,
+    };
+  });
+
+  return changed ? next : current;
+}
+
 function isChatEventPayload(payload: unknown): payload is ChatEventPayload {
   if (!payload || typeof payload !== "object") return false;
   const value = payload as Partial<ChatEventPayload>;
   return (
     (value.type === "community.message" && typeof value.communityId === "string" && Boolean(value.message)) ||
-    (value.type === "dm.message" && typeof value.conversationId === "string" && Boolean(value.message))
+    (value.type === "dm.message" && typeof value.conversationId === "string" && Boolean(value.message)) ||
+    (value.type === "dm.read" && typeof value.conversationId === "string" && typeof value.readerId === "string" && typeof value.readAt === "string")
   );
 }
 

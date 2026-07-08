@@ -20,7 +20,7 @@ export async function GET(
   try {
     const user = await requireAuth();
     const { conversationId } = await params;
-    await requireConversationParticipant(conversationId, user.id);
+    const participants = await requireConversationParticipant(conversationId, user.id);
 
     const messages = await db.directMessage.findMany({
       where: { conversationId },
@@ -36,8 +36,20 @@ export async function GET(
       take: 80,
     });
 
+    const readAt = new Date();
+    await db.directConversationParticipant.update({
+      where: { conversationId_userId: { conversationId, userId: user.id } },
+      data: { lastReadAt: readAt },
+    });
+
+    participants
+      .filter((participant) => participant.userId !== user.id)
+      .forEach((participant) => {
+        eventBus.publish("chat", { type: "dm.read", conversationId, readerId: user.id, readAt: readAt.toISOString() }, participant.userId);
+      });
+
     return apiSuccess({
-      messages: messages.reverse().map(serializeDirectMessage),
+      messages: messages.reverse().map((message) => serializeDirectMessage(message, user.id, participants)),
     });
   } catch (error) {
     return handleApiError(error);
@@ -110,7 +122,7 @@ export async function POST(
       return created;
     });
 
-    const serialized = serializeDirectMessage(message);
+    const serialized = serializeDirectMessage(message, user.id, participants);
     participants
       .filter((participant) => participant.userId !== user.id)
       .forEach((participant) => {
@@ -123,6 +135,34 @@ export async function POST(
   }
 }
 
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ conversationId: string }> }
+) {
+  try {
+    await validateCsrf(request);
+    const user = await requireAuth();
+    const { conversationId } = await params;
+    const participants = await requireConversationParticipant(conversationId, user.id);
+    const readAt = new Date();
+
+    await db.directConversationParticipant.update({
+      where: { conversationId_userId: { conversationId, userId: user.id } },
+      data: { lastReadAt: readAt },
+    });
+
+    participants
+      .filter((participant) => participant.userId !== user.id)
+      .forEach((participant) => {
+        eventBus.publish("chat", { type: "dm.read", conversationId, readerId: user.id, readAt: readAt.toISOString() }, participant.userId);
+      });
+
+    return apiSuccess({ readAt: readAt.toISOString() });
+  } catch (error) {
+    return handleApiError(error);
+  }
+}
+
 async function requireConversationParticipant(conversationId: string, userId: string) {
   const conversation = await db.directConversation.findFirst({
     where: {
@@ -130,12 +170,17 @@ async function requireConversationParticipant(conversationId: string, userId: st
       participants: { some: { userId } },
     },
     include: {
-      participants: { select: { userId: true } },
+      participants: { select: { userId: true, lastReadAt: true } },
     },
   });
   if (!conversation) throw new ApiError(403, "Conversation access required.", "DM_ACCESS_REQUIRED");
   return conversation.participants;
 }
+
+type ConversationParticipantReadState = {
+  userId: string;
+  lastReadAt: Date | null;
+};
 
 function serializeDirectMessage(message: {
   id: string;
@@ -159,9 +204,18 @@ function serializeDirectMessage(message: {
         content: string | null;
         attachmentName: string | null;
         deletedAt: Date | null;
-      })
+    })
     | null;
-}) {
+}, currentUserId?: string, participants: ConversationParticipantReadState[] = []) {
+  const recipientViewedAt =
+    currentUserId === message.senderId
+      ? participants
+          .filter((participant) => participant.userId !== message.senderId)
+          .map((participant) => participant.lastReadAt)
+          .filter((lastReadAt): lastReadAt is Date => lastReadAt !== null && lastReadAt.getTime() >= message.createdAt.getTime())
+          .sort((a, b) => a.getTime() - b.getTime())[0] ?? null
+      : null;
+
   return {
     id: message.id,
     conversationId: message.conversationId,
@@ -175,6 +229,8 @@ function serializeDirectMessage(message: {
     editedAt: message.editedAt?.toISOString() ?? null,
     deletedAt: message.deletedAt?.toISOString() ?? null,
     createdAt: message.createdAt.toISOString(),
+    viewedAt: recipientViewedAt?.toISOString() ?? null,
+    viewedByRecipient: Boolean(recipientViewedAt),
     sender: message.sender,
     replyTo: message.replyTo
       ? {
