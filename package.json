@@ -14,6 +14,8 @@
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
+    "bootstrap:production": "tsx scripts/bootstrap-production-data.ts",
+    "migrate:legacy-data": "tsx scripts/migrate-legacy-data.ts",
     "auth:check": "tsx scripts/check-auth-deployment.ts",
     "ingest:news": "tsx scripts/ingest-news.ts",
     "postinstall": "prisma generate"
