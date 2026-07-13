@@ -31,7 +31,7 @@ type BootstrapAsset = {
 
 const ADMIN_EMAIL = process.env.BOOTSTRAP_ADMIN_EMAIL || "admin@maketpulse.com";
 const ADMIN_PASSWORD = process.env.BOOTSTRAP_ADMIN_PASSWORD;
-const HISTORY_DAYS = normalizePositiveInt(process.env.BOOTSTRAP_HISTORY_DAYS, 365);
+const HISTORY_DAYS = normalizePositiveInt(process.env.BOOTSTRAP_HISTORY_DAYS, 183);
 const PROVIDER_NAME = "bootstrap-history";
 
 const ASSETS: BootstrapAsset[] = [
@@ -41,6 +41,14 @@ const ASSETS: BootstrapAsset[] = [
   { slug: "XRP", symbol: "XRP/USD", assetType: "crypto", category: "CRYPTO", name: "XRP", description: "Payments-focused digital asset", coinGeckoId: "ripple", basePrice: 0.58 },
   { slug: "ADA", symbol: "ADA/USD", assetType: "crypto", category: "CRYPTO", name: "Cardano", description: "Research-driven proof-of-stake blockchain", coinGeckoId: "cardano", basePrice: 0.48 },
   { slug: "DOGE", symbol: "DOGE/USD", assetType: "crypto", category: "CRYPTO", name: "Dogecoin", description: "Community-driven digital currency", coinGeckoId: "dogecoin", basePrice: 0.14 },
+  { slug: "DOT", symbol: "DOT/USD", assetType: "crypto", category: "CRYPTO", name: "Polkadot", description: "Interoperable multi-chain network", coinGeckoId: "polkadot", basePrice: 6.5 },
+  { slug: "BNB", symbol: "BNB/USD", assetType: "crypto", category: "CRYPTO", name: "BNB", description: "Exchange and smart-chain utility asset", coinGeckoId: "binancecoin", basePrice: 690 },
+  { slug: "AVAX", symbol: "AVAX/USD", assetType: "crypto", category: "CRYPTO", name: "Avalanche", description: "High-throughput smart contract platform", coinGeckoId: "avalanche-2", basePrice: 36 },
+  { slug: "LINK", symbol: "LINK/USD", assetType: "crypto", category: "CRYPTO", name: "Chainlink", description: "Decentralized oracle network", coinGeckoId: "chainlink", basePrice: 15 },
+  { slug: "UNI", symbol: "UNI/USD", assetType: "crypto", category: "CRYPTO", name: "Uniswap", description: "Decentralized exchange governance token", coinGeckoId: "uniswap", basePrice: 9 },
+  { slug: "ATOM", symbol: "ATOM/USD", assetType: "crypto", category: "CRYPTO", name: "Cosmos", description: "Interoperable blockchain ecosystem", coinGeckoId: "cosmos", basePrice: 7 },
+  { slug: "LTC", symbol: "LTC/USD", assetType: "crypto", category: "CRYPTO", name: "Litecoin", description: "Peer-to-peer digital currency", coinGeckoId: "litecoin", basePrice: 85 },
+  { slug: "ETC", symbol: "ETC/USD", assetType: "crypto", category: "CRYPTO", name: "Ethereum Classic", description: "Original Ethereum proof-of-work chain", coinGeckoId: "ethereum-classic", basePrice: 24 },
   { slug: "EURUSD", symbol: "EUR/USD", assetType: "forex", category: "FOREX", name: "Euro / US Dollar", description: "Most traded currency pair globally", basePrice: 1.08 },
   { slug: "XAUUSD", symbol: "XAU/USD", assetType: "commodity", category: "COMMODITIES", name: "Gold", description: "Safe-haven precious metal benchmark", basePrice: 2650 },
   { slug: "AAPL", symbol: "AAPL", assetType: "stock", category: "STOCKS", name: "Apple Inc.", description: "Technology giant and S&P 500 component", basePrice: 220 },
@@ -51,7 +59,6 @@ const ASSETS: BootstrapAsset[] = [
 
 async function main() {
   if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is required.");
-  if (!ADMIN_PASSWORD) throw new Error("BOOTSTRAP_ADMIN_PASSWORD is required.");
 
   console.log("Bootstrapping production database...");
   await ensureSystemSettings();
@@ -66,6 +73,11 @@ async function main() {
 }
 
 async function ensureAdminAccount() {
+  if (!ADMIN_PASSWORD) {
+    console.log("BOOTSTRAP_ADMIN_PASSWORD is not set; skipping admin account bootstrap.");
+    return;
+  }
+
   const passwordHash = await argon2.hash(ADMIN_PASSWORD!, {
     type: argon2.argon2id,
     memoryCost: 65536,
