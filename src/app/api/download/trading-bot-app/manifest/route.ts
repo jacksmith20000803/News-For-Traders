@@ -4,7 +4,7 @@ import path from "node:path";
 
 export const runtime = "nodejs";
 
-const DEFAULT_INSTALLER_NAME = "TradX-Bot.exe";
+const DEFAULT_INSTALLER_NAME = "TradX-Bot.zip";
 // MSIX installer default retained for future use:
 // const DEFAULT_INSTALLER_NAME = "trading-bot-app.msix";
 const DEFAULT_VERSION = "1.0.0-dev";
@@ -77,7 +77,7 @@ export async function GET(request: Request) {
           // MSIX message retained for future use:
           // error: "Trading bot installer is not present yet. Place your signed installer in public/downloads/trading-bot-app.msix or set TRADING_BOT_APP_FILE.",
           error:
-            "Trading bot installer is not present yet. Place your signed EXE installer at public/TradX-Bot.exe or public/downloads/TradX-Bot.exe, or set TRADING_BOT_APP_FILE.",
+            "Trading bot installer is not present yet. Place your signed EXE installer at public/TradX-Bot.zip or public/downloads/TradX-Bot.zip, or set TRADING_BOT_APP_FILE.",
           expectedFileName: fileName,
         },
         { status: 404 }
