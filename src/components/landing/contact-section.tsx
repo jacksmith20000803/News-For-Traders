@@ -23,7 +23,7 @@ export function ContactSection() {
   const focusBorder = currentTheme === "dark" ? "focus:border-emerald-500/50" : "focus:border-emerald-500/50";
 
   return (
-    <section className={cn("relative py-20", bgColor)} suppressHydrationWarning>
+    <section className={cn("relative py-20")} suppressHydrationWarning style={{ backgroundImage: `linear-gradient(180deg, rgba(0,0,0,0), rgba(0,0,0,0.28)), url('/contact-bg.webp')`, backgroundRepeat: "no-repeat", backgroundSize: "cover", backgroundPosition: "center center" }}>
       <div className="absolute inset-0" suppressHydrationWarning>
         <div
           className="absolute inset-0"

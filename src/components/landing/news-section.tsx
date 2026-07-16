@@ -135,7 +135,7 @@ export function NewsSection({ coinSymbols }: NewsSectionProps) {
       <section className="relative py-20 landing-section-surface" suppressHydrationWarning>
         <div className="relative z-10 mx-auto max-w-[1800px] px-4 sm:px-6" suppressHydrationWarning>
           <div className="text-center py-12" suppressHydrationWarning>
-            <p className="text-gray-400" suppressHydrationWarning>Loading news...</p>
+            <p className="text-gray-500 dark:text-gray-400" suppressHydrationWarning>Loading news...</p>
           </div>
         </div>
       </section>
@@ -144,19 +144,7 @@ export function NewsSection({ coinSymbols }: NewsSectionProps) {
 
   return (
     <section className="relative py-20 landing-section-surface" suppressHydrationWarning>
-      <div className="absolute inset-0" suppressHydrationWarning>
-        <div
-          className="absolute inset-0"
-          suppressHydrationWarning
-          style={{
-            backgroundImage: `
-              linear-gradient(rgba(0,0,0,0.02) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(0,0,0,0.02) 1px, transparent 1px)
-            `,
-            backgroundSize: "60px 60px",
-          }}
-        />
-      </div>
+      <div className="absolute inset-0 landing-hero-grid opacity-70" suppressHydrationWarning />
 
       <div className="relative z-10 mx-auto max-w-[1800px] px-4 sm:px-6" suppressHydrationWarning>
         <motion.div
@@ -167,30 +155,32 @@ export function NewsSection({ coinSymbols }: NewsSectionProps) {
           className="mb-12"
           suppressHydrationWarning
         >
-          <div className="flex items-center justify-between mb-4" suppressHydrationWarning>
+          <div className="mb-4 flex items-center justify-between gap-4" suppressHydrationWarning>
             <div className="flex items-center gap-3" suppressHydrationWarning>
-              <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-emerald-500/10" suppressHydrationWarning>
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-500/10 shadow-[0_0_28px_rgba(16,185,129,0.16)]" suppressHydrationWarning>
                 <TrendingUp className="w-5 h-5 text-emerald-400" suppressHydrationWarning />
               </div>
-              <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white" suppressHydrationWarning>Latest Market News</h2>
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.22em] text-emerald-600 dark:text-emerald-300">Market updates</p>
+                <h2 className="mt-1 text-3xl font-black tracking-tight text-gray-900 sm:text-4xl dark:text-white" suppressHydrationWarning>Latest Market News</h2>
+              </div>
             </div>
             <div suppressHydrationWarning>
               <ButtonLink
                 href="/news"
-                variant="outline"
-                className="hidden sm:flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-900 dark:text-white border-gray-300 dark:border-white/10 hover:bg-gray-100 dark:hover:bg-white/5"
+                className="landing-button-shine hidden min-h-11 items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-500 px-5 text-sm font-black text-slate-950 shadow-[0_16px_40px_rgba(16,185,129,0.24)] sm:flex"
               >
-                View All
+                View all news
                 <ArrowRight className="w-4 h-4" suppressHydrationWarning />
               </ButtonLink>
             </div>
           </div>
-          <p className="text-gray-600 dark:text-gray-400 text-lg max-w-2xl" suppressHydrationWarning>
+          <p className="max-w-2xl text-base leading-8 text-gray-600 dark:text-gray-400 sm:text-lg" suppressHydrationWarning>
             Stay informed with real-time market updates and expert analysis from trusted sources.
           </p>
         </motion.div>
 
-        <div className="grid gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-3" suppressHydrationWarning>
+        <div className="grid gap-4 sm:gap-6 md:grid-cols-2 xl:grid-cols-3" suppressHydrationWarning>
           {news.map((item: NewsItem, index: number) => (
             <motion.div
               key={item.id}
@@ -203,7 +193,7 @@ export function NewsSection({ coinSymbols }: NewsSectionProps) {
             >
               <article
                 data-news-card={item.id}
-                className="h-full p-6 rounded-2xl bg-white dark:bg-[#0a0c0c] border border-gray-200 dark:border-white/6 hover:border-gray-300 dark:hover:border-white/10 transition-colors"
+                className="landing-premium-card h-full rounded-2xl p-4 transition duration-300 hover:-translate-y-1 sm:p-5"
                 suppressHydrationWarning
               >
                 <div className="flex items-start justify-between mb-4" suppressHydrationWarning>
@@ -220,15 +210,16 @@ export function NewsSection({ coinSymbols }: NewsSectionProps) {
                 </div>
 
                 {item.imageUrl && (
-                  <div className="mb-4 rounded-lg overflow-hidden relative h-32" suppressHydrationWarning>
+                  <div className="mb-4 relative h-44 overflow-hidden rounded-xl" suppressHydrationWarning>
                     <Image
                       src={item.imageUrl}
                       alt={stripHtml(item.headline)}
                       fill
                       sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw"
-                      className="object-cover"
+                      className="object-cover transition duration-500 group-hover:scale-105"
                       unoptimized
                     />
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/34 to-transparent" />
                   </div>
                 )}
 
@@ -238,12 +229,12 @@ export function NewsSection({ coinSymbols }: NewsSectionProps) {
 
                 <p className="text-gray-600 dark:text-gray-400 text-sm mb-4 line-clamp-2" suppressHydrationWarning>{stripHtml(item.summary)}</p>
 
-                <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-white/6" suppressHydrationWarning>
+                <div className="flex items-center justify-between border-t border-gray-200 pt-4 dark:border-white/6" suppressHydrationWarning>
                   <span className="text-xs text-gray-500 dark:text-gray-500" suppressHydrationWarning>{item.source?.name || 'Unknown'}</span>
                   <div suppressHydrationWarning>
                     <ButtonLink
                       href={`/news/${item.id}`}
-                      className="text-xs font-medium text-emerald-400 hover:text-emerald-300"
+                      className="gap-1 text-xs font-black text-emerald-500 hover:text-emerald-400 dark:text-emerald-300"
                     >
                       Read More
                     </ButtonLink>

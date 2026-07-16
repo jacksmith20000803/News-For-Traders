@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import { TrendingUp, TrendingDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { subscribeRealtimeSync } from "@/components/realtime/realtime-sync";
@@ -11,6 +12,27 @@ interface TickerItem {
   price: number;
   change: number;
   changePercent: number;
+}
+
+const coinAvatarBySymbol: Record<string, string> = {
+  ADA: "/coin-avatar/ada.webp",
+  ATOM: "/coin-avatar/dot.webp",
+  AVAX: "/coin-avatar/avax.webp",
+  BNB: "/coin-avatar/bnb.webp",
+  BTC: "/coin-avatar/btc.webp",
+  DOGE: "/coin-avatar/doge.webp",
+  DOT: "/coin-avatar/dot.webp",
+  ETH: "/coin-avatar/eth.webp",
+  EUR: "/coin-avatar/eur.webp",
+  LINK: "/coin-avatar/link.webp",
+  LTC: "/coin-avatar/ltc.webp",
+  SOL: "/coin-avatar/sol.webp",
+  UNI: "/coin-avatar/uni.webp",
+  XRP: "/coin-avatar/xrp.webp",
+};
+
+function coinAvatarFor(symbol: string) {
+  return coinAvatarBySymbol[symbol.split("/")[0]?.toUpperCase()] ?? "/coin-avatar/btc.webp";
 }
 
 export function PriceTicker() {
@@ -80,7 +102,7 @@ export function PriceTicker() {
   }
 
   return (
-    <div className="w-full border-b border-gray-300 bg-gray-100 overflow-hidden relative dark:border-white/5 dark:bg-[#0a0c0c]" suppressHydrationWarning>
+    <div className="relative w-full overflow-hidden border-b border-slate-950/8 bg-white/82 shadow-[0_1px_0_rgba(255,255,255,0.8)_inset] backdrop-blur-2xl dark:border-white/8 dark:bg-[#05090c]/88 dark:shadow-none" suppressHydrationWarning>
       {/* Slow-scrolling animation */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="ticker-sweep absolute inset-0" />
@@ -119,7 +141,7 @@ export function PriceTicker() {
         `}</style>
       </div>
       
-      <div className="flex items-center gap-6 py-2 px-4 relative z-10 animate-marquee" suppressHydrationWarning>
+      <div className="relative z-10 flex items-center gap-6 px-4 py-2 animate-marquee sm:gap-8" suppressHydrationWarning>
         <style jsx>{`
           @keyframes marquee {
             0% { transform: translateX(0); }
@@ -132,10 +154,17 @@ export function PriceTicker() {
         {[...tickers, ...tickers].map((ticker, index) => (
           <div
             key={`${ticker.symbol}-${index}`}
-            className="flex items-center gap-2 shrink-0 whitespace-nowrap"
+            className="group flex shrink-0 items-center gap-2 whitespace-nowrap transition duration-300 hover:-translate-y-0.5"
             suppressHydrationWarning
           >
-            <span className="text-xs font-semibold text-gray-900 dark:text-white/90">{ticker.symbol}</span>
+            <Image
+              src={coinAvatarFor(ticker.symbol)}
+              alt=""
+              width={22}
+              height={22}
+              className="h-5 w-5 rounded-full object-cover ring-1 ring-white/70 transition duration-300 group-hover:scale-110 dark:ring-white/20 sm:h-[22px] sm:w-[22px]"
+            />
+            <span className="text-xs font-black text-gray-900 dark:text-white/90">{ticker.symbol}</span>
             <span className="text-xs font-mono text-blue-600 dark:text-cyan-400">
               ${ticker.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
